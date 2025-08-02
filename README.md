@@ -29,13 +29,13 @@ nicknames.
    Copy `.env.example` to `.env` and edit the values for your database, OnlyFans API
    key and OpenAI key.
 
-2. **Install dependencies and set up the database**
+2. **Install dependencies and run the database setup wizard**
 
    ```bash
    ./install.command
    ```
 
-   This script runs `npm install` and executes the migration to create the `fans` table.
+   The script installs Node dependencies and automatically creates the database and `fans` table.
 
 3. **Start the server**
 

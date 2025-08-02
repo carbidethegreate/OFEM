@@ -14,6 +14,11 @@ dotenv.config();
 const pool = require('./db');
 
 const app = express();
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+        res.setHeader('Server', 'OFEM');
+        next();
+});
 app.use(express.json());
 
 // OnlyFans API client (bearer auth)
