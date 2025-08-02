@@ -18,24 +18,32 @@ nicknames.
 ## Prerequisites
 
 - Node.js 14+
-- PostgreSQL (credentials provided in `.env`)
+- PostgreSQL (PostgreSQL App works great on macOS)
 - OnlyFans API key
 - OpenAI API key
 
 ## Setup
 
-1. **Configure environment**
-
-   Copy `.env.example` to `.env` and edit the values for your database, OnlyFans API
-   key and OpenAI key.
-
-2. **Install dependencies and run the database setup wizard**
+1. **Install dependencies**
 
    ```bash
    ./install.command
    ```
 
-   The script installs Node dependencies and automatically creates the database and `fans` table.
+2. **Create the database automatically**
+
+   Double‑click `predeploy.html` and press **Set up new database**. A Terminal window
+   opens, creates the database, and updates your `.env` file with random credentials.
+   Keep the window open until it says “Database setup complete!”, then open `.env`
+   and fill in your OnlyFans and OpenAI API keys.
+
+   If you already have a PostgreSQL database configured, you can instead run:
+
+   ```bash
+   node migrate.js
+   ```
+
+   This creates the required `fans` table using your existing credentials.
 
 3. **Start the server**
 
@@ -65,4 +73,3 @@ nicknames.
   to allow further expansion.
 
 <!-- End of File – Last modified 2025-08-02 -->
-

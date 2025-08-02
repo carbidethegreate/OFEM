@@ -6,16 +6,17 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.5; }
     ol { max-width: 700px; }
+    button { padding: 10px 16px; font-size: 16px; cursor: pointer; }
   </style>
 </head>
 <body>
   <h1>Getting Started with OFEM</h1>
-  <p>Follow these steps on a Mac to run OFEM for the first time. No programming knowledge required.</p>
+  <p>Follow these simple steps on a Mac to run OFEM. No programming knowledge required.</p>
   <ol>
     <li><strong>Install Requirements</strong>
       <ol>
         <li>Install <a href="https://nodejs.org/">Node.js</a> (LTS version) and follow the installer prompts.</li>
-        <li>Install <a href="https://postgresapp.com/">PostgreSQL</a> (or another PostgreSQL distribution) and start the database server.</li>
+        <li>Ensure the PostgreSQL App is running (it's already installed).</li>
       </ol>
     </li>
     <li><strong>Download and Unzip</strong>
@@ -24,29 +25,21 @@
         <li>Open your Downloads folder and double‑click the ZIP to create the <code>OFEM</code> folder.</li>
       </ol>
     </li>
-    <li><strong>Create the Configuration File</strong>
+    <li><strong>Install Packages</strong>
       <ol>
-        <li>Open the <code>OFEM</code> folder and find <code>.env.example</code>.</li>
-        <li>Make a copy of it named <code>.env</code>.</li>
-        <li>Open <code>.env</code> with TextEdit and replace the placeholder values:
-          <ul>
-            <li><code>DATABASE_URL</code> – your PostgreSQL connection string (for example <code>postgres://user:password@localhost:5432/ofem</code>).</li>
-            <li><code>ONLYFANS_API_KEY</code> – your OnlyFans API key.</li>
-            <li><code>OPENAI_API_KEY</code> – your OpenAI API key.</li>
-          </ul>
-        </li>
-        <li>Save the file.</li>
+        <li>In the <code>OFEM</code> folder, double‑click <code>install.command</code>. It installs everything you need.</li>
       </ol>
     </li>
-    <li><strong>Prepare the Database</strong>
+    <li><strong>Create the Database</strong>
       <ol>
-        <li>If the database named in <code>DATABASE_URL</code> does not exist, create it using the PostgreSQL app or run <code>createdb ofem</code> in Terminal.</li>
+        <li>Click the button below. A wizard opens in Terminal, creates a database with a random name, user, and password, then updates your <code>.env</code> file automatically.</li>
+        <li style="margin-top:8px;"><button onclick="window.location.href='setup-db.command'">Set up new database</button></li>
+        <li style="font-size:0.9em;color:#555;margin-top:4px;">Leave the Terminal window open until it shows “Database setup complete!”.</li>
       </ol>
     </li>
     <li><strong>Run the App</strong>
       <ol>
-        <li>In the <code>OFEM</code> folder, double‑click <code>start.command</code>. A Terminal window opens.</li>
-        <li>The script installs needed packages (only the first time) and starts the server.</li>
+        <li>Double‑click <code>start.command</code> to launch the server.</li>
       </ol>
     </li>
     <li><strong>Open the Dashboard</strong>
@@ -56,6 +49,6 @@
       </ol>
     </li>
   </ol>
-  <p>The app is now ready. Use the buttons in the dashboard to update fan names and send messages.</p>
+  <p>The app is now ready. Use the dashboard buttons to update fan names and send messages.</p>
 </body>
 </html>
