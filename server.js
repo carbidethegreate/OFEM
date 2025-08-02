@@ -173,12 +173,12 @@ app.post('/api/sendMessage', async (req, res) => {
 		// Get ParkerGivenName for personalization
 		const dbRes = await pool.query('SELECT parker_name FROM fans WHERE id=$1', [fanId]);
 		const parkerName = dbRes.rows.length ? dbRes.rows[0].parker_name : "";
-		// Personalize message with name
-		if (message.includes("{name}") || message.includes("[name]")) {
-			message = message.replace("{name}", parkerName).replace("[name]", parkerName);
-		} else {
-			message = `Hi ${parkerName || "there"}! ${message}`;
-		}
+                // Personalize message with name
+                if (message.includes("{name}") || message.includes("[name]")) {
+                        message = message.replace(/\{name\}|\[name\]/g, parkerName);
+                } else {
+                        message = `Hi ${parkerName || "there"}! ${message}`;
+                }
 		// TODO: If not already connected with this user and their profile is free, one could call a subscribe endpoint here.
 		// Send message via OnlyFans API
 		await ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, { text: message });
