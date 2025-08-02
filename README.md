@@ -1,4 +1,4 @@
-<!-- Modified 2025-08-02 – v1.0 -->
+<!-- Modified 2025-08-05 – v1.0 -->
 
 # OnlyFans Express Messenger (OFEM)
 
@@ -18,7 +18,7 @@ nicknames.
 ## Prerequisites
 
 - Node.js 14+
-- PostgreSQL (PostgreSQL App works great on macOS)
+- PostgreSQL database accessible via `DATABASE_URL`
 - OnlyFans API key
 - OpenAI API key
 
@@ -27,31 +27,33 @@ nicknames.
 1. **Install dependencies**
 
    ```bash
-   ./install.command
+   npm install
    ```
 
-2. **Create the database automatically**
+2. **Configure environment**
 
-   Double‑click `predeploy.html` and press **Set up new database**. A Terminal window
-   opens, creates the database, and updates your `.env` file with random credentials.
-   Keep the window open until it says “Database setup complete!”, then open `.env`
-   and fill in your OnlyFans and OpenAI API keys.
+   Copy `.env.example` to `.env` and edit the values for your database, OnlyFans API
+   key and OpenAI key.
 
-   If you already have a PostgreSQL database configured, you can instead run:
+3. **Start PostgreSQL (Docker)**
+
+   A `docker-compose.yml` is provided to launch a local database quickly:
 
    ```bash
-   node migrate.js
+   docker compose up -d db
    ```
 
-   This creates the required `fans` table using your existing credentials.
+   The default connection string is
+   `postgres://postgres:postgres@localhost:5432/ofdb`.
 
-3. **Start the server**
+4. **Start the server**
 
    ```bash
-   ./start.command
+   npm start
    ```
 
-   The server listens on <http://localhost:3000> by default.
+   The server listens on <http://localhost:3000> by default.  A convenience script
+   `start.command` (macOS) runs `npm install` if needed and then launches the server.
 
 ## Usage
 
@@ -72,4 +74,4 @@ nicknames.
 - The project currently supports only the two features described above but is structured
   to allow further expansion.
 
-<!-- End of File – Last modified 2025-08-02 -->
+<!-- End of File – Last modified 2025-08-05 -->

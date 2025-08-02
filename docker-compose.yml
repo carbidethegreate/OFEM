@@ -1,0 +1,18 @@
+## OnlyFans Express Messenger
+## File: docker-compose.yml
+## Purpose: Local Postgres for development
+## Created: 2025-08-05 – v1.0
+
+version: '3.8'
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ofdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+
+## End of File – Last modified 2025-08-05
