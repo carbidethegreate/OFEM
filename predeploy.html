@@ -15,7 +15,10 @@
   <ol>
     <li><strong>Install Requirements</strong>
       <ol>
-        <li>Install <a href="https://nodejs.org/">Node.js</a> (LTS version) and follow the installer prompts.</li>
+        <li>Click the button below to install Node.js (LTS) in this folder and download all required npm packages.</li>
+        <li style="margin-top:8px;"><button onclick="window.location.href='install-node.command'">Install Node at Folder</button></li>
+        <li style="font-size:0.9em;color:#555;margin-top:4px;">If the browser shows the script code instead of running it, open the <code>OFEM</code> folder in Finder and double-click <code>install-node.command</code> manually.</li>
+        <li style="font-size:0.9em;color:#555;margin-top:4px;">You may be asked for your macOS password to complete the installation.</li>
         <li>Install <a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a> and make sure it is running.<br>If you already have a local PostgreSQL server running you can skip Docker, but the setup wizard uses Docker by default.</li>
       </ol>
     </li>
@@ -23,11 +26,6 @@
       <ol>
         <li>Download the project ZIP file.</li>
         <li>Open your Downloads folder and double‑click the ZIP to create the <code>OFEM</code> folder.</li>
-      </ol>
-    </li>
-    <li><strong>Install Packages</strong>
-      <ol>
-        <li>In the <code>OFEM</code> folder, double‑click <code>install.command</code>. It installs everything you need.</li>
       </ol>
     </li>
     <li><strong>Create the Database</strong>
