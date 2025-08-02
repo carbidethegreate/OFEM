@@ -1,0 +1,16 @@
+{
+  "name": "ofem",
+  "version": "1.0.0",
+  "description": "OnlyFans Express Messenger - Simplified mass DM tool",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "dotenv": "^16.0.3",
+    "openai": "^3.2.1",
+    "axios": "^1.4.0",
+    "pg": "^8.8.0"
+  }
+}

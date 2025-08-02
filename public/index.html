@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>OFEM Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { font-size: 1.5em; }
+    table { border-collapse: collapse; width: 100%; max-width: 800px; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+    th { background: #f9f9f9; }
+    input[type=text] { width: 100%; box-sizing: border-box; }
+    textarea { width: 100%; max-width: 800px; box-sizing: border-box; }
+    button { padding: 4px 8px; margin: 4px 2px; }
+    .dot { display: inline-block; height: 10px; width: 10px; border-radius: 50%; margin-right: 4px; }
+    .green { background-color: green; }
+    .red { background-color: red; }
+  </style>
+</head>
+<body>
+  <h1>OnlyFans Express Messenger (OFEM)</h1>
+  <p>
+    <button id="updateBtn">Update Fan Names</button>
+  </p>
+  <div id="messageSection" style="margin: 15px 0;">
+    <textarea id="message" rows="3" placeholder="Enter message to send to all fans..."></textarea><br>
+    <button id="sendBtn">Send Personalized DM to All Fans</button>
+    <button id="abortBtn" disabled>Abort Sending</button>
+  </div>
+  <div id="statusMsg" style="font-weight: bold; margin: 10px 0;"></div>
+  <table id="fansTable">
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Profile Name</th>
+        <th>Parker Name</th>
+        <th>Status</th>
+        <th>Save</th>
+      </tr>
+    </thead>
+    <tbody id="fansTableBody">
+      <!-- Fan rows will be inserted here -->
+    </tbody>
+  </table>
+
+  <script>
+    let fansData = [];
+    let sendingInProgress = false;
+    let abortFlag = false;
+
+    async function fetchFans() {
+      try {
+        const res = await fetch('/api/fans');
+        if (!res.ok) {
+          console.error('Failed to fetch fans list');
+          return;
+        }
+        const data = await res.json();
+        fansData = data.fans || [];
+        renderFansTable();
+      } catch (err) {
+        console.error('Error fetching fans:', err);
+      }
+    }
+
+    function renderFansTable() {
+      const tbody = document.getElementById('fansTableBody');
+      tbody.innerHTML = '';
+      for (const fan of fansData) {
+        const id = fan.id;
+        const username = fan.username || '';
+        const profileName = fan.name || '';
+        const parkerName = fan.parker_name || '';
+        // Create table row with fan data and input for Parker name
+        tbody.innerHTML += \`
+          <tr id="fan-\${id}">
+            <td>\${username}</td>
+            <td>\${profileName}</td>
+            <td><input type="text" id="name-\${id}" value="\${parkerName}"></td>
+            <td><span id="status-\${id}"></span></td>
+            <td><button onclick="updateName('\${id}')">Save</button></td>
+          </tr>\`;
+      }
+      // Enable the Send button only if there are fans listed
+      document.getElementById('sendBtn').disabled = (fansData.length === 0);
+    }
+
+    async function updateName(fanId) {
+      const input = document.getElementById('name-' + fanId);
+      if (!input) return;
+      const newName = input.value.trim();
+      if (!newName) {
+        alert('Name cannot be empty.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/fans/' + fanId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parker_name: newName })
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          alert('Failed to save name: ' + errText);
+          return;
+        }
+        // Highlight the input briefly to show it was saved
+        input.style.backgroundColor = '#c8ffc8';
+        setTimeout(() => { input.style.backgroundColor = ''; }, 1000);
+        console.log('Parker name updated for fan ' + fanId);
+        // Update our local data as well
+        const fan = fansData.find(f => f.id == fanId);
+        if (fan) {
+          fan.parker_name = newName;
+        }
+      } catch (err) {
+        console.error('Error updating name:', err);
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function updateFansList() {
+      const updateBtn = document.getElementById('updateBtn');
+      const sendBtn = document.getElementById('sendBtn');
+      updateBtn.disabled = true;
+      sendBtn.disabled = true;
+      document.getElementById('statusMsg').innerText = 'Updating fan list...';
+      try {
+        const res = await fetch('/api/updateFans', { method: 'POST' });
+        if (!res.ok) {
+          const errText = await res.text();
+          document.getElementById('statusMsg').innerText = 'Update failed: ' + errText;
+        } else {
+          const data = await res.json();
+          fansData = data.fans || [];
+          renderFansTable();
+          document.getElementById('statusMsg').innerText = 'Loaded ' + fansData.length + ' fans.';
+        }
+      } catch (err) {
+        console.error('Update fans error:', err);
+        document.getElementById('statusMsg').innerText = 'Update failed: ' + err;
+      } finally {
+        updateBtn.disabled = false;
+        sendBtn.disabled = (fansData.length === 0);
+      }
+    }
+
+    async function sendMessagesToAll() {
+      if (sendingInProgress) return;
+      if (fansData.length === 0) {
+        alert('No fans to send messages to.');
+        return;
+      }
+      const message = document.getElementById('message').value.trim();
+      if (!message) {
+        alert('Please enter a message.');
+        return;
+      }
+      sendingInProgress = true;
+      abortFlag = false;
+      document.getElementById('updateBtn').disabled = true;
+      document.getElementById('sendBtn').disabled = true;
+      document.getElementById('abortBtn').disabled = false;
+      document.getElementById('statusMsg').innerText = 'Sending messages...';
+      let successCount = 0;
+      let failCount = 0;
+      let totalFailures = 0;
+
+      for (let i = 0; i < fansData.length; i++) {
+        const fan = fansData[i];
+        const fanId = fan.id;
+        if (abortFlag) {
+          console.log('Aborting send loop by user request.');
+          break;
+        }
+        try {
+          const res = await fetch('/api/sendMessage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: fanId, message: message })
+          });
+          const result = await res.json();
+          if (result.success) {
+            // Success: mark green
+            const statusEl = document.getElementById('status-' + fanId);
+            if (statusEl) {
+              statusEl.innerHTML = '<span class="dot green"></span>';
+            }
+            successCount++;
+            failCount = 0;  // reset consecutive fail counter on success
+          } else {
+            // Failure: mark red
+            const statusEl = document.getElementById('status-' + fanId);
+            if (statusEl) {
+              statusEl.innerHTML = '<span class="dot red"></span>';
+            }
+            failCount++;
+            totalFailures++;
+            if (failCount >= 10) {
+              // 10 consecutive failures -> auto-abort
+              abortFlag = true;
+              console.log('Auto-abort: 10 consecutive failures.');
+              break;
+            }
+          }
+        } catch (err) {
+          console.error('Error sending to fan ' + fanId + ':', err);
+          // Treat network or unexpected error as failure
+          const statusEl = document.getElementById('status-' + fanId);
+          if (statusEl) {
+            statusEl.innerHTML = '<span class="dot red"></span>';
+          }
+          failCount++;
+          totalFailures++;
+          if (failCount >= 10) {
+            abortFlag = true;
+            console.log('Auto-abort due to consecutive errors.');
+            break;
+          }
+        }
+        // Small delay between messages to avoid rate limit issues
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      // Finished sending loop
+      sendingInProgress = false;
+      document.getElementById('abortBtn').disabled = true;
+      document.getElementById('updateBtn').disabled = false;
+      document.getElementById('sendBtn').disabled = false;
+      if (abortFlag) {
+        document.getElementById('statusMsg').innerText = 'Sending aborted. Sent ' + successCount + ' messages, ' + totalFailures + ' failed.';
+      } else {
+        document.getElementById('statusMsg').innerText = 'Finished sending: ' + successCount + ' succeeded, ' + totalFailures + ' failed.';
+      }
+    }
+
+    document.getElementById('updateBtn').addEventListener('click', updateFansList);
+    document.getElementById('sendBtn').addEventListener('click', sendMessagesToAll);
+    document.getElementById('abortBtn').addEventListener('click', function() {
+      if (sendingInProgress) {
+        abortFlag = true;
+        document.getElementById('statusMsg').innerText = 'Aborting...';
+        this.disabled = true;
+      }
+    });
+
+    // On page load, fetch any existing fans from the database
+    fetchFans();
+  </script>
+</body>
+</html>
