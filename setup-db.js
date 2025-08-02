@@ -58,6 +58,13 @@ async function ensurePostgres(adminConfig) {
         return true;
     } catch (err) {
         console.log('PostgreSQL not reachable, attempting to start via docker compose...');
+        // First confirm docker is installed; otherwise the user needs to install or start Postgres manually.
+        try {
+            await execAsync('docker --version');
+        } catch (e) {
+            console.error('Docker is not installed. Please install Docker Desktop or start PostgreSQL manually.');
+            return false;
+        }
         try {
             await execAsync('docker compose up -d db');
             const ready = await waitForPostgres(adminConfig);
@@ -154,6 +161,7 @@ async function main() {
         console.log('Add your API keys to .env and run ./start.command to launch the app.');
     } catch (err) {
         console.error('❌ Setup failed:', err.message || err);
+        if (err.stack) console.error(err.stack);
         process.exit(1);
     }
 }

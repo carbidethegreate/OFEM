@@ -16,7 +16,7 @@
     <li><strong>Install Requirements</strong>
       <ol>
         <li>Install <a href="https://nodejs.org/">Node.js</a> (LTS version) and follow the installer prompts.</li>
-        <li>Ensure the PostgreSQL App is running (it's already installed).</li>
+        <li>Install <a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a> and make sure it is running.<br>If you already have a local PostgreSQL server running you can skip Docker, but the setup wizard uses Docker by default.</li>
       </ol>
     </li>
     <li><strong>Download and Unzip</strong>
@@ -34,7 +34,8 @@
       <ol>
         <li>Click the button below. A wizard opens in Terminal, creates a database with a random name, user, and password, then updates your <code>.env</code> file automatically.</li>
         <li style="margin-top:8px;"><button onclick="window.location.href='setup-db.command'">Set up new database</button></li>
-        <li style="font-size:0.9em;color:#555;margin-top:4px;">Leave the Terminal window open until it shows “Database setup complete!”.</li>
+        <li style="font-size:0.9em;color:#555;margin-top:4px;">If the browser shows the script code instead of running it, open the <code>OFEM</code> folder in Finder and double‑click <code>setup-db.command</code> manually.</li>
+        <li style="font-size:0.9em;color:#555;margin-top:4px;">Leave the Terminal window open until it shows “Database setup complete!”. If it reports an error, install Docker Desktop or start PostgreSQL manually and then retry. To capture detailed logs, run <code>bash setup-db.command 2>&1 | tee setup-db.log</code> and send the resulting <code>setup-db.log</code> file for support.</li>
       </ol>
     </li>
     <li><strong>Run the App</strong>
