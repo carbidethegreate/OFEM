@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OFEM Pre‑Deploy Guide</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.5; }
+    ol { max-width: 700px; }
+  </style>
+</head>
+<body>
+  <h1>Getting Started with OFEM</h1>
+  <p>Follow these steps on a Mac to run OFEM for the first time. No programming knowledge required.</p>
+  <ol>
+    <li><strong>Install Requirements</strong>
+      <ol>
+        <li>Install <a href="https://nodejs.org/">Node.js</a> (LTS version) and follow the installer prompts.</li>
+        <li>Install <a href="https://postgresapp.com/">PostgreSQL</a> (or another PostgreSQL distribution) and start the database server.</li>
+      </ol>
+    </li>
+    <li><strong>Download and Unzip</strong>
+      <ol>
+        <li>Download the project ZIP file.</li>
+        <li>Open your Downloads folder and double‑click the ZIP to create the <code>OFEM</code> folder.</li>
+      </ol>
+    </li>
+    <li><strong>Create the Configuration File</strong>
+      <ol>
+        <li>Open the <code>OFEM</code> folder and find <code>.env.example</code>.</li>
+        <li>Make a copy of it named <code>.env</code>.</li>
+        <li>Open <code>.env</code> with TextEdit and replace the placeholder values:
+          <ul>
+            <li><code>DATABASE_URL</code> – your PostgreSQL connection string (for example <code>postgres://user:password@localhost:5432/ofem</code>).</li>
+            <li><code>ONLYFANS_API_KEY</code> – your OnlyFans API key.</li>
+            <li><code>OPENAI_API_KEY</code> – your OpenAI API key.</li>
+          </ul>
+        </li>
+        <li>Save the file.</li>
+      </ol>
+    </li>
+    <li><strong>Prepare the Database</strong>
+      <ol>
+        <li>If the database named in <code>DATABASE_URL</code> does not exist, create it using the PostgreSQL app or run <code>createdb ofem</code> in Terminal.</li>
+      </ol>
+    </li>
+    <li><strong>Run the App</strong>
+      <ol>
+        <li>In the <code>OFEM</code> folder, double‑click <code>start.command</code>. A Terminal window opens.</li>
+        <li>The script installs needed packages (only the first time) and starts the server.</li>
+      </ol>
+    </li>
+    <li><strong>Open the Dashboard</strong>
+      <ol>
+        <li>When Terminal shows “OFEM server listening on http://localhost:3000”, open a web browser.</li>
+        <li>Visit <a href="http://localhost:3000">http://localhost:3000</a>.</li>
+      </ol>
+    </li>
+  </ol>
+  <p>The app is now ready. Use the buttons in the dashboard to update fan names and send messages.</p>
+</body>
+</html>
