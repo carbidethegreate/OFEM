@@ -6,28 +6,15 @@
 
 const express = require('express');
 const axios = require('axios');
-const { Pool } = require('pg');
 const { Configuration, OpenAIApi } = require('openai');
 const dotenv = require('dotenv');
 dotenv.config();
 
+// Database connection pool
+const pool = require('./db');
+
 const app = express();
 app.use(express.json());
-
-// Database setup
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
-// Ensure fans table exists
-const initDb = async () => {
-	await pool.query(`CREATE TABLE IF NOT EXISTS fans (
-		id BIGINT PRIMARY KEY,
-		username TEXT,
-		name TEXT,
-		parker_name TEXT,
-		is_custom BOOLEAN DEFAULT FALSE
-	)`);
-	console.log("Database initialized (fans table ready).");
-};
 
 // OnlyFans API client (bearer auth)
 const ofApi = axios.create({
@@ -206,14 +193,10 @@ app.get('/api/fans', async (req, res) => {
 const path = require('path');
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Start the server after initializing DB
-initDb().then(() => {
-	const port = process.env.PORT || 3000;
-	app.listen(port, () => {
-		console.log(`OFEM server listening on http://localhost:${port}`);
-	});
-}).catch(err => {
-	console.error("Failed to start server:", err);
+// Start the server
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+        console.log(`OFEM server listening on http://localhost:${port}`);
 });
 
 /* End of File – Last modified 2025-08-02 */

@@ -1,0 +1,64 @@
+/* OnlyFans Express Messenger (OFEM)
+   File: db.js
+   Purpose: Database connection setup for OFEM (uses PostgreSQL)
+   Created: 2025-08-02 – v1.0
+*/
+
+const dotenv = require('dotenv');
+dotenv.config();  // Load environment variables from .env file
+
+const { Client, Pool } = require('pg');
+
+// Read database configuration from environment
+const DB_NAME = process.env.DB_NAME;
+const DB_USER = process.env.DB_USER;
+const DB_PASSWORD = process.env.DB_PASSWORD;
+const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_PORT = process.env.DB_PORT || 5432;
+
+// Function to ensure the database exists. If it doesn't, create it.
+async function ensureDatabaseExists() {
+    const defaultConfig = {
+        user: DB_USER,
+        password: DB_PASSWORD,
+        host: DB_HOST,
+        port: DB_PORT,
+        database: 'postgres'
+    };
+    const client = new Client(defaultConfig);
+    try {
+        await client.connect();
+        const checkDb = await client.query(
+            `SELECT 1 FROM pg_database WHERE datname = $1`,
+            [DB_NAME]
+        );
+        if (checkDb.rowCount === 0) {
+            await client.query(`CREATE DATABASE ${DB_NAME}`);
+            console.log(`✅ Database "${DB_NAME}" created successfully.`);
+        } else {
+            console.log(`Database "${DB_NAME}" already exists.`);
+        }
+    } catch (err) {
+        console.error(`Error ensuring database exists: ${err.message}`);
+    } finally {
+        await client.end();
+    }
+}
+
+// Immediately ensure the database exists before proceeding
+(async () => {
+    await ensureDatabaseExists();
+})();
+
+// Create a connection pool to the application database
+const pool = new Pool({
+    user: DB_USER,
+    password: DB_PASSWORD,
+    host: DB_HOST,
+    port: DB_PORT,
+    database: DB_NAME
+});
+
+module.exports = pool;
+
+/* End of File – Last modified 2025-08-02 */
