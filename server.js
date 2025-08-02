@@ -1,7 +1,7 @@
-// server.js content will be filled in next step/* OnlyFans Express Messenger (OFEM)
-File: server.js
-Purpose: Express server for OFEM (OnlyFans integration and ChatGPT usage)
-Created: 2025-08-02 – v1.0
+/*  OnlyFans Express Messenger (OFEM)
+    File: server.js
+    Purpose: Express server for OFEM (OnlyFans integration and ChatGPT usage)
+    Created: 2025-08-02 – v1.0
 */
 
 const express = require('express');
