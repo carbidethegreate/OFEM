@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OFEM Pre‑Deploy Guide</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.5; }
+    ol { max-width: 700px; }
+    button { padding: 10px 16px; font-size: 16px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Getting Started with OFEM</h1>
+  <p>Follow these simple steps on a Mac to run OFEM. No programming knowledge required.</p>
+  <ol>
+    <li><strong>Install Requirements</strong>
+      <ol>
+        <li>Install <a href="https://nodejs.org/">Node.js</a> (LTS version) and follow the installer prompts.</li>
+        <li>Ensure the PostgreSQL App is running (it's already installed).</li>
+      </ol>
+    </li>
+    <li><strong>Download and Unzip</strong>
+      <ol>
+        <li>Download the project ZIP file.</li>
+        <li>Open your Downloads folder and double‑click the ZIP to create the <code>OFEM</code> folder.</li>
+      </ol>
+    </li>
+    <li><strong>Install Packages</strong>
+      <ol>
+        <li>In the <code>OFEM</code> folder, double‑click <code>install.command</code>. It installs everything you need.</li>
+      </ol>
+    </li>
+    <li><strong>Create the Database</strong>
+      <ol>
+        <li>Click the button below. A wizard opens in Terminal, creates a database with a random name, user, and password, then updates your <code>.env</code> file automatically.</li>
+        <li style="margin-top:8px;"><button onclick="window.location.href='setup-db.command'">Set up new database</button></li>
+        <li style="font-size:0.9em;color:#555;margin-top:4px;">Leave the Terminal window open until it shows “Database setup complete!”.</li>
+      </ol>
+    </li>
+    <li><strong>Run the App</strong>
+      <ol>
+        <li>Double‑click <code>start.command</code> to launch the server.</li>
+      </ol>
+    </li>
+    <li><strong>Open the Dashboard</strong>
+      <ol>
+        <li>When Terminal shows “OFEM server listening on http://localhost:3000”, open a web browser.</li>
+        <li>Visit <a href="http://localhost:3000">http://localhost:3000</a>.</li>
+      </ol>
+    </li>
+  </ol>
+  <p>The app is now ready. Use the dashboard buttons to update fan names and send messages.</p>
+</body>
+</html>

@@ -6,28 +6,20 @@
 
 const express = require('express');
 const axios = require('axios');
-const { Pool } = require('pg');
 const { Configuration, OpenAIApi } = require('openai');
 const dotenv = require('dotenv');
 dotenv.config();
 
+// Database connection pool
+const pool = require('./db');
+
 const app = express();
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+        res.setHeader('Server', 'OFEM');
+        next();
+});
 app.use(express.json());
-
-// Database setup
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
-// Ensure fans table exists
-const initDb = async () => {
-	await pool.query(`CREATE TABLE IF NOT EXISTS fans (
-		id BIGINT PRIMARY KEY,
-		username TEXT,
-		name TEXT,
-		parker_name TEXT,
-		is_custom BOOLEAN DEFAULT FALSE
-	)`);
-	console.log("Database initialized (fans table ready).");
-};
 
 // OnlyFans API client (bearer auth)
 const ofApi = axios.create({
@@ -173,12 +165,12 @@ app.post('/api/sendMessage', async (req, res) => {
 		// Get ParkerGivenName for personalization
 		const dbRes = await pool.query('SELECT parker_name FROM fans WHERE id=$1', [fanId]);
 		const parkerName = dbRes.rows.length ? dbRes.rows[0].parker_name : "";
-		// Personalize message with name
-		if (message.includes("{name}") || message.includes("[name]")) {
-			message = message.replace("{name}", parkerName).replace("[name]", parkerName);
-		} else {
-			message = `Hi ${parkerName || "there"}! ${message}`;
-		}
+                // Personalize message with name
+                if (message.includes("{name}") || message.includes("[name]")) {
+                        message = message.replace(/\{name\}|\[name\]/g, parkerName);
+                } else {
+                        message = `Hi ${parkerName || "there"}! ${message}`;
+                }
 		// TODO: If not already connected with this user and their profile is free, one could call a subscribe endpoint here.
 		// Send message via OnlyFans API
 		await ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, { text: message });
@@ -206,14 +198,10 @@ app.get('/api/fans', async (req, res) => {
 const path = require('path');
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Start the server after initializing DB
-initDb().then(() => {
-	const port = process.env.PORT || 3000;
-	app.listen(port, () => {
-		console.log(`OFEM server listening on http://localhost:${port}`);
-	});
-}).catch(err => {
-	console.error("Failed to start server:", err);
+// Start the server
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+        console.log(`OFEM server listening on http://localhost:${port}`);
 });
 
 /* End of File – Last modified 2025-08-02 */
