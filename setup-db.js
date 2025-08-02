@@ -57,7 +57,7 @@ async function ensurePostgres(adminConfig) {
         await testClient.end();
         return true;
     } catch (err) {
-        console.log('PostgreSQL not reachable.');
+        console.log('PostgreSQL not reachable, attempting to start via docker compose...');
 
         // Check for docker before trying to start it
         let dockerAvailable = true;
@@ -71,8 +71,6 @@ async function ensurePostgres(adminConfig) {
             console.error('Docker is not installed or not in PATH. Please install Docker or start PostgreSQL manually.');
             return false;
         }
-
-        console.log('Attempting to start via docker compose...');
         try {
             await execAsync('docker compose up -d db');
             const ready = await waitForPostgres(adminConfig);
