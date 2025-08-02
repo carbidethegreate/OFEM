@@ -8,6 +8,7 @@ const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { exec } = require('child_process');
 
 const createTableQuery = `
 CREATE TABLE IF NOT EXISTS fans (
@@ -19,6 +20,69 @@ CREATE TABLE IF NOT EXISTS fans (
     updatedAt TIMESTAMP NOT NULL DEFAULT NOW()
 );
 `;
+
+// Run a shell command and return a promise.
+function execAsync(cmd) {
+    return new Promise((resolve, reject) => {
+        exec(cmd, (error, stdout, stderr) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve({ stdout, stderr });
+            }
+        });
+    });
+}
+
+// Wait until PostgreSQL accepts connections.
+async function waitForPostgres(config, retries = 10) {
+    for (let i = 0; i < retries; i++) {
+        const client = new Client(config);
+        try {
+            await client.connect();
+            await client.end();
+            return true;
+        } catch (err) {
+            await new Promise(res => setTimeout(res, 1000));
+        }
+    }
+    return false;
+}
+
+// Ensure PostgreSQL is reachable, starting docker if necessary.
+async function ensurePostgres(adminConfig) {
+    try {
+        const testClient = new Client(adminConfig);
+        await testClient.connect();
+        await testClient.end();
+        return true;
+    } catch (err) {
+        console.log('PostgreSQL not reachable.');
+
+        // Check for docker before trying to start it
+        let dockerAvailable = true;
+        try {
+            await execAsync('docker --version');
+        } catch (e) {
+            dockerAvailable = false;
+        }
+
+        if (!dockerAvailable) {
+            console.error('Docker is not installed or not in PATH. Please install Docker or start PostgreSQL manually.');
+            return false;
+        }
+
+        console.log('Attempting to start via docker compose...');
+        try {
+            await execAsync('docker compose up -d db');
+            const ready = await waitForPostgres(adminConfig);
+            return ready;
+        } catch (e) {
+            console.error('Failed to start PostgreSQL via docker compose:', e.message);
+            return false;
+        }
+    }
+}
 
 async function main() {
     try {
@@ -41,12 +105,12 @@ async function main() {
         }
 
         console.log('Connecting to PostgreSQL...');
-        const adminClient = new Client(adminConfig);
-        try {
-            await adminClient.connect();
-        } catch (err) {
+        const ok = await ensurePostgres(adminConfig);
+        if (!ok) {
             throw new Error('Could not connect to PostgreSQL. Is it running?');
         }
+        const adminClient = new Client(adminConfig);
+        await adminClient.connect();
         await adminClient.query(`CREATE USER "${dbUser}" WITH PASSWORD '${dbPassword}'`);
         await adminClient.query(`CREATE DATABASE "${dbName}" OWNER "${dbUser}"`);
         await adminClient.end();
