@@ -32,8 +32,9 @@ nicknames.
 
 2. **Configure environment**
 
-   Copy `.env.example` to `.env` and edit the values for your database, OnlyFans API
-   key and OpenAI key.
+   Run `./setup-env.command` (macOS) or `node setup-env.js` to enter your OnlyFans and
+   OpenAI API keys. This creates a `.env` file. The database setup wizard will add the
+   database credentials later.
 
 3. **Start PostgreSQL (Docker)**
 
