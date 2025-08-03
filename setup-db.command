@@ -10,7 +10,15 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ ! -d node_modules/pg ]; then
+# Ensure required Node modules for database tasks are installed
+missing=false
+for mod in pg dotenv; do
+  if [ ! -d "node_modules/$mod" ]; then
+    missing=true
+    break
+  fi
+done
+if [ "$missing" = true ]; then
   echo "Installing Node dependencies..."
   npm install >/dev/null
 fi
