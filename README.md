@@ -75,15 +75,16 @@ The `/api/status` endpoint reports whether each variable has been configured.
 
 ## Fan Fields Migration and New Columns
 
-Run the migration script below to ensure your database includes all of the latest fan
-profile fields.
+Run the migration scripts below to ensure your database includes all of the latest fan
+profile fields and the message-history schema.
 
 ```bash
 node migrate_add_fan_fields.js
+node migrate_messages.js
 ```
 
-The script reads connection details from your `.env` file and adds any missing columns to
-the `fans` table.  The new columns and their purposes are:
+These scripts read connection details from your `.env` file. `migrate_add_fan_fields.js`
+adds any missing columns to the `fans` table. The new columns and their purposes are:
 
 - `avatar` – URL to the fan's profile avatar
 - `header` – URL to the profile header image
@@ -124,6 +125,17 @@ the `fans` table.  The new columns and their purposes are:
 - `subscribedOnData` – JSON describing subscription timing
 - `promoOffers` – JSON describing active promotional offers
 - `updatedAt` – Timestamp of the last record update
+
+`migrate_messages.js` creates a `messages` table used for storing message history:
+
+- `id` – serial primary key
+- `fan_id` – reference to `fans.id`
+- `direction` – 'sent' or 'received'
+- `body` – message text
+- `price` – media price
+- `created_at` – timestamp when the message was created
+
+Run `./addtodatabase.command` to apply both migrations to an existing database in one step.
 
 ## Usage
 
