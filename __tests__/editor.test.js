@@ -1,5 +1,5 @@
 const { JSDOM } = require('jsdom');
-const { applyColor, applyBold, applySize } = require('../public/editor');
+const { applyColor, applyBold, applySize, insertPlaceholder } = require('../public/editor');
 
 function setupDom(html) {
   const dom = new JSDOM(html);
@@ -39,4 +39,17 @@ test('applySize uses OnlyFans size class', () => {
   selectElement(el);
   applySize('sm');
   expect(el.innerHTML).toBe('<span class="m-editor-fs__sm">hello</span>');
+});
+
+test('insertPlaceholder inserts text at caret', () => {
+  setupDom('<div id="msg"></div>');
+  const el = document.getElementById('msg');
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(true);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  insertPlaceholder('{username}');
+  expect(el.innerHTML).toBe('{username}');
 });
