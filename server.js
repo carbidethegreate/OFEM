@@ -7,6 +7,8 @@
 const express = require('express');
 const axios = require('axios');
 const { Configuration, OpenAIApi } = require('openai');
+const fs = require('fs');
+const path = require('path');
 const dotenv = require('dotenv');
 dotenv.config();
 
@@ -185,17 +187,55 @@ app.post('/api/sendMessage', async (req, res) => {
 
 // Endpoint to get all fans from DB (for initial page load if needed)
 app.get('/api/fans', async (req, res) => {
-	try {
-		const dbRes = await pool.query('SELECT id, username, name, parker_name FROM fans ORDER BY id');
-		res.json({ fans: dbRes.rows });
-	} catch (err) {
-		console.error("Error in GET /api/fans:", err);
-		res.status(500).send("Failed to retrieve fans.");
-	}
+        try {
+                const dbRes = await pool.query('SELECT id, username, name, parker_name FROM fans ORDER BY id');
+                res.json({ fans: dbRes.rows });
+        } catch (err) {
+                console.error("Error in GET /api/fans:", err);
+                res.status(500).send("Failed to retrieve fans.");
+        }
+});
+
+// System status endpoint
+app.get('/api/status', async (req, res) => {
+        const status = {
+                env: {},
+                database: {},
+                onlyfans: {},
+                openai: {},
+                files: { envFile: fs.existsSync(path.join(__dirname, '.env')) },
+                node: { version: process.version }
+        };
+        const requiredEnv = ['ONLYFANS_API_KEY', 'OPENAI_API_KEY', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT'];
+        requiredEnv.forEach(k => {
+                status.env[k] = !!process.env[k];
+        });
+        try {
+                await pool.query('SELECT 1');
+                status.database.ok = true;
+        } catch (err) {
+                status.database.ok = false;
+                status.database.error = err.message;
+        }
+        try {
+                await ofApi.get('/accounts');
+                status.onlyfans.ok = true;
+        } catch (err) {
+                status.onlyfans.ok = false;
+                status.onlyfans.error = err.response ? err.response.statusText || err.response.data : err.message;
+        }
+        try {
+                const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
+                await openai.listModels();
+                status.openai.ok = true;
+        } catch (err) {
+                status.openai.ok = false;
+                status.openai.error = err.response ? err.response.statusText || err.response.data : err.message;
+        }
+        res.json(status);
 });
 
 // Serve frontend static files
-const path = require('path');
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Start the server
