@@ -34,3 +34,10 @@ Retrieve all stored fan records.
 Report environment, database, and external service health.
 - **Request Body:** none.
 - **Response:** `200` with `{ "env": {...}, "database": { ok: boolean }, "onlyfans": { ok: boolean }, "openai": { ok: boolean }, "files": { envFile: boolean }, "node": { version: string } }`.
+
+## Message Template Guidelines
+
+- Available placeholders: `{parker_name}`, `{username}`, `{location}`, `{name}`, and `[name]`.
+- Messages are sanitized before sending. Allowed tags: `span`, `strong`, `em`, and `br`.
+- `span` tags may only use the following classes: `m-editor-fs__sm`, `m-editor-fs__l`, `m-editor-fs__default`, `m-editor-fc__gray`, `m-editor-fc__blue-1`, `m-editor-fc__blue-2`.
+- Newline characters (`\n`) are automatically converted to `<br>`.
