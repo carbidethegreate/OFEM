@@ -10,7 +10,7 @@ const { Configuration, OpenAIApi } = require('openai');
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
-const sanitizeHtml = require('sanitize-html');
+const getEditorHtml = require('./getEditorHtml');
 dotenv.config();
 
 // Database connection pool
@@ -577,12 +577,8 @@ app.post('/api/sendMessage', async (req, res) => {
                 template = template.replace(/\{username\}/g, userName);
                 template = template.replace(/\{location\}/g, userLocation);
                 // TODO: If not already connected with this user and their profile is free, one could call a subscribe endpoint here.
-                // Sanitize and send message via OnlyFans API
-                const sanitized = sanitizeHtml(template, {
-                        allowedTags: sanitizeHtml.defaults.allowedTags.filter(tag => tag !== 'p'),
-                        allowedAttributes: sanitizeHtml.defaults.allowedAttributes
-                });
-                const formatted = `<p>${sanitized}</p>`;
+                // Sanitize, wrap, and send message via OnlyFans API
+                const formatted = getEditorHtml(template);
                 await ofApiRequest(() => ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, { text: formatted }));
                 console.log(`Sent message to ${fanId}: ${template.substring(0, 30)}...`);
 		res.json({ success: true });
