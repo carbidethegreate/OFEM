@@ -30,28 +30,23 @@ const ofApi = axios.create({
 });
 let OFAccountId = null;
 // Wrapper to handle OnlyFans API rate limiting with retries
-async function ofApiRequest(fn, maxRetries = 5) {
-        let attempt = 0;
+async function ofApiRequest(requestFn, maxRetries = 5) {
         let delay = 1000; // start with 1s
-        while (true) {
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 try {
-                        return await fn();
+                        return await requestFn();
                 } catch (err) {
                         const status = err.response?.status;
-                        if (status === 429 && attempt < maxRetries) {
-                                const retryAfter = parseInt(err.response.headers['retry-after'], 10);
-                                const wait = !isNaN(retryAfter) ? retryAfter * 1000 : delay;
-                                await new Promise(r => setTimeout(r, wait));
-                                attempt++;
-                                delay *= 2;
-                                continue;
-                        }
-                        if (status === 429) {
+                        if (status !== 429) throw err;
+                        if (attempt === maxRetries) {
                                 const rateErr = new Error('OnlyFans API rate limit exceeded');
                                 rateErr.status = 429;
                                 throw rateErr;
                         }
-                        throw err;
+                        const retryAfter = parseInt(err.response.headers['retry-after'], 10);
+                        const wait = Number.isFinite(retryAfter) ? retryAfter * 1000 : delay;
+                        await new Promise(r => setTimeout(r, wait));
+                        delay *= 2;
                 }
         }
 }
