@@ -698,10 +698,15 @@ app.get('/api/status', async (req, res) => {
 // Serve frontend static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Start the server
+// Start the server only if this file is executed directly (not required by tests)
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
-        console.log(`OFEM server listening on http://localhost:${port}`);
-});
+if (require.main === module) {
+        app.listen(port, () => {
+                console.log(`OFEM server listening on http://localhost:${port}`);
+        });
+}
+
+// Export app for testing
+module.exports = app;
 
 /* End of File – Last modified 2025-08-02 */
