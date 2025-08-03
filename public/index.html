@@ -48,6 +48,17 @@
     let sendingInProgress = false;
     let abortFlag = false;
 
+    // Simple HTML escape helper to prevent injection when using innerHTML
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, c => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[c]));
+    }
+
     async function fetchFans() {
       try {
         const res = await fetch('/api/fans');
@@ -71,18 +82,50 @@
         const username = fan.username || '';
         const profileName = fan.name || '';
         const parkerName = fan.parker_name || '';
-        // Create table row with fan data and input for Parker name
-        tbody.innerHTML += `
-          <tr id="fan-${id}">
-            <td>${username}</td>
-            <td>${profileName}</td>
-            <td><input type="text" id="name-${id}" value="${parkerName}"></td>
-            <td><span id="status-${id}"></span></td>
-            <td><button onclick="updateName('${id}')">Save</button></td>
-          </tr>`;
+
+        const tr = document.createElement('tr');
+        tr.id = `fan-${id}`;
+
+        const tdUser = document.createElement('td');
+        tdUser.textContent = username;
+        tr.appendChild(tdUser);
+
+        const tdProfile = document.createElement('td');
+        tdProfile.textContent = profileName;
+        tr.appendChild(tdProfile);
+
+        const tdParker = document.createElement('td');
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = `name-${id}`;
+        input.value = parkerName;
+        tdParker.appendChild(input);
+        tr.appendChild(tdParker);
+
+        const tdStatus = document.createElement('td');
+        const statusSpan = document.createElement('span');
+        statusSpan.id = `status-${id}`;
+        tdStatus.appendChild(statusSpan);
+        tr.appendChild(tdStatus);
+
+        const tdSave = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.textContent = 'Save';
+        btn.addEventListener('click', () => updateName(String(id)));
+        tdSave.appendChild(btn);
+        tr.appendChild(tdSave);
+
+        tbody.appendChild(tr);
       }
       // Enable the Send button only if there are fans listed
       document.getElementById('sendBtn').disabled = (fansData.length === 0);
+    }
+
+    function setStatusDot(fanId, colorClass) {
+      const statusEl = document.getElementById('status-' + fanId);
+      if (statusEl) {
+        statusEl.innerHTML = '<span class="dot ' + escapeHtml(colorClass) + '"></span>';
+      }
     }
 
     async function updateName(fanId) {
@@ -182,18 +225,12 @@
           const result = await res.json();
           if (result.success) {
             // Success: mark green
-            const statusEl = document.getElementById('status-' + fanId);
-            if (statusEl) {
-              statusEl.innerHTML = '<span class="dot green"></span>';
-            }
+            setStatusDot(fanId, 'green');
             successCount++;
             failCount = 0;  // reset consecutive fail counter on success
           } else {
             // Failure: mark red
-            const statusEl = document.getElementById('status-' + fanId);
-            if (statusEl) {
-              statusEl.innerHTML = '<span class="dot red"></span>';
-            }
+            setStatusDot(fanId, 'red');
             failCount++;
             totalFailures++;
             if (failCount >= 10) {
@@ -206,10 +243,7 @@
         } catch (err) {
           console.error('Error sending to fan ' + fanId + ':', err);
           // Treat network or unexpected error as failure
-          const statusEl = document.getElementById('status-' + fanId);
-          if (statusEl) {
-            statusEl.innerHTML = '<span class="dot red"></span>';
-          }
+          setStatusDot(fanId, 'red');
           failCount++;
           totalFailures++;
           if (failCount >= 10) {
