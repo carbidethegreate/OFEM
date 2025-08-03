@@ -17,4 +17,5 @@ fi
 
 node setup-db.js
 node migrate.js
+node migrate_add_fan_fields.js
 
