@@ -42,19 +42,25 @@ app.post('/api/updateFans', async (req, res) => {
 		OFAccountId = accounts[0].id;
 		console.log(`Using OnlyFans account: ${OFAccountId}`);
 		
-		// 2. Fetch all fans (active + expired subscribers)
-		let allFans = [];
-		let offset = 0;
-		const limit = 50;
-		while (true) {
-			const fansResp = await ofApi.get(`/${OFAccountId}/fans`, { params: { limit, offset } });
-			const fansPage = fansResp.data.fans || fansResp.data;
-			if (!fansPage) break;
-			allFans = allFans.concat(fansPage);
-			if (fansPage.length < limit) break;
-			offset += limit;
-		}
-		console.log(`Fetched ${allFans.length} fans from OnlyFans.`);
+               // 2. Fetch all fans (active + expired subscribers)
+               const limit = 50;
+               const fetchFans = async (type) => {
+                       let results = [];
+                       let offset = 0;
+                       while (true) {
+                               const resp = await ofApi.get(`/${OFAccountId}/fans/${type}`, { params: { limit, offset } });
+                               const page = resp.data?.list || resp.data;
+                               if (!page || page.length === 0) break;
+                               results = results.concat(page);
+                               if (page.length < limit) break;
+                               offset += limit;
+                       }
+                       return results;
+               };
+               const activeFans = await fetchFans('active');
+               const expiredFans = await fetchFans('expired');
+               const allFans = activeFans.concat(expiredFans);
+               console.log(`Fetched ${allFans.length} fans from OnlyFans.`);
 		
 		// 3. Load existing fans from DB
 		const dbRes = await pool.query('SELECT id, parker_name, is_custom FROM fans');
