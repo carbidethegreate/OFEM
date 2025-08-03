@@ -56,6 +56,13 @@
         <li style="font-size:0.9em;color:#555;margin-top:4px;">Leave the Terminal window open until it shows “Database setup complete!”. If it reports an error, install Docker Desktop or start PostgreSQL manually and then retry. To capture detailed logs, run <code>bash setup-db.command 2>&1 | tee setup-db.log</code> and send the resulting <code>setup-db.log</code> file for support.</li>
       </ol>
     </li>
+    <li><strong>Add to the Database</strong>
+      <ol>
+        <li>Run any new database migrations to update the schema without losing existing data.</li>
+        <li style="margin-top:8px;"><button onclick="window.location.href='addtodatabase.command'">Run migrations</button></li>
+        <li style="font-size:0.9em;color:#555;margin-top:4px;">If the browser shows the script code instead of running it, open the <code>OFEM</code> folder in Finder and double-click <code>addtodatabase.command</code> manually.</li>
+      </ol>
+    </li>
     <li><strong>Run the App</strong>
       <ol>
         <li>Double‑click <code>start.command</code> to launch the server.</li>
