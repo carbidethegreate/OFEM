@@ -72,14 +72,14 @@
         const profileName = fan.name || '';
         const parkerName = fan.parker_name || '';
         // Create table row with fan data and input for Parker name
-        tbody.innerHTML += \`
-          <tr id="fan-\${id}">
-            <td>\${username}</td>
-            <td>\${profileName}</td>
-            <td><input type="text" id="name-\${id}" value="\${parkerName}"></td>
-            <td><span id="status-\${id}"></span></td>
-            <td><button onclick="updateName('\${id}')">Save</button></td>
-          </tr>\`;
+        tbody.innerHTML += `
+          <tr id="fan-${id}">
+            <td>${username}</td>
+            <td>${profileName}</td>
+            <td><input type="text" id="name-${id}" value="${parkerName}"></td>
+            <td><span id="status-${id}"></span></td>
+            <td><button onclick="updateName('${id}')">Save</button></td>
+          </tr>`;
       }
       // Enable the Send button only if there are fans listed
       document.getElementById('sendBtn').disabled = (fansData.length === 0);
