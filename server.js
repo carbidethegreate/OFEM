@@ -579,24 +579,40 @@ app.put('/api/fans/:id', async (req, res) => {
         }
 });
 
-// Retrieve media from OnlyFans vault
+// Retrieve all media from OnlyFans vault with pagination
 app.get('/api/vault-media', async (req, res) => {
         try {
-                // Ensure OnlyFans account ID is known
+                // Resolve OnlyFans account ID if not already known
                 if (!OFAccountId) {
                         const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
-                        const accounts = accountsResp.data.accounts || accountsResp.data;
+                        const rawAccounts = accountsResp.data?.data || accountsResp.data;
+                        const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
                         if (!accounts || accounts.length === 0) {
-                                return res.status(400).send('No OnlyFans account available.');
+                                return res.status(400).send('No OnlyFans account is connected to this API key.');
                         }
                         OFAccountId = accounts[0].id;
+                        console.log(`Using OnlyFans account: ${OFAccountId}`);
                 }
-                const resp = await ofApiRequest(() => ofApi.get(`/${OFAccountId}/media/vault`, { params: req.query }));
-                res.json(resp.data);
+
+                const media = [];
+                const limit = 100;
+                let offset = 0;
+                while (true) {
+                        const resp = await ofApiRequest(() =>
+                                ofApi.get(`/${OFAccountId}/media/vault`, {
+                                        params: { limit, offset }
+                                })
+                        );
+                        const items = resp.data?.media || resp.data?.list || resp.data?.data || resp.data;
+                        if (!Array.isArray(items) || items.length === 0) break;
+                        media.push(...items);
+                        offset += limit;
+                }
+
+                res.json({ media });
         } catch (err) {
-                console.error('Error fetching vault media:', err.response ? err.response.data || err.response.statusText : err.message);
-                const status = err.status || err.response?.status;
-                res.status(status || 500).send('Failed to retrieve vault media.');
+                console.error('Error fetching vault media:', err);
+                res.status(500).json({ error: 'Failed to fetch vault media' });
         }
 });
 
