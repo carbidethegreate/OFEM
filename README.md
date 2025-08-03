@@ -33,17 +33,21 @@ nicknames.
 2. **Configure environment**
 
    Run `./setup-env.command` (macOS) or `node setup-env.js` to enter your OnlyFans and
-   OpenAI API keys. This creates a `.env` file. The database setup wizard will add the
-   database credentials later.
+   OpenAI API keys, database credentials, and admin credentials. This creates a `.env`
+   file.
+
+   Supplying database connection details and admin credentials now lets you reuse an
+   existing PostgreSQL database and skip the `setup-db.command` step.
 
 3. **Create the database**
 
-   Run `./setup-db.command` (macOS) or `node setup-db.js` to spin up PostgreSQL via Docker (if needed),
-   create a database with a random name, and write the credentials to your `.env` file.
-   The script verifies required Node modules such as `pg` (used for JSONB operations)
-   and `dotenv`, installing them automatically if missing.
+   Run `./setup-db.command` (macOS) or `node setup-db.js` to spin up PostgreSQL via Docker
+   (if needed), create a database with a random name, and write the credentials to your
+   `.env` file. This step is unnecessary if you provided existing database credentials in
+   the previous step. The script verifies required Node modules such as `pg` (used for
+   JSONB operations) and `dotenv`, installing them automatically if missing.
 
-   If you already have an existing database and are upgrading, run
+   When upgrading an existing database, remember to run
    `node migrate_add_fan_fields.js` to add any new columns that may be required.
 
 4. **Start the server**
