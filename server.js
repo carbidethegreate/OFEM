@@ -137,8 +137,15 @@ function ensureValidParkerName(name, username, profileName) {
 
 /* Story 1: Update Fan Names – Fetch fans from OnlyFans and generate display names using GPT-4. */
 app.post('/api/updateFans', async (req, res) => {
-	try {
-		// 1. Verify API key and get connected account ID
+        const missing = [];
+        if (!process.env.ONLYFANS_API_KEY) missing.push('ONLYFANS_API_KEY');
+        if (!process.env.OPENAI_API_KEY) missing.push('OPENAI_API_KEY');
+        if (missing.length) {
+                return res.status(400).json({ error: `Missing environment variable(s): ${missing.join(', ')}` });
+        }
+
+        try {
+                // 1. Verify API key and get connected account ID
                 const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
                 const rawAccounts = accountsResp.data?.data || accountsResp.data;
                 const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
