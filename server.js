@@ -219,21 +219,10 @@ app.post('/api/updateFans', async (req, res) => {
 Respond with only the chosen name.`;
 		
                 // 5. Update/insert each fan in database with ParkerGivenName
-                // Send progress updates to the client using Server-Sent Events
-                res.setHeader('Content-Type', 'text/event-stream');
-                res.setHeader('Cache-Control', 'no-cache');
-                res.setHeader('Connection', 'keep-alive');
-                res.flushHeaders();
-
                 const totalFans = allFans.length;
                 let processed = 0;
-                const sendProgress = () => {
-                        res.write(`event: progress\\ndata: ${JSON.stringify({ processed, total: totalFans })}\\n\\n`);
-                };
-
                 const BATCH_SIZE = 5; // limit concurrent OpenAI requests
                 const updatedFans = [];
-                sendProgress();
 
                 const processFan = async (fan) => {
                         const fanId = fan.id.toString();
@@ -287,7 +276,7 @@ Respond with only the chosen name.`;
                                 parker_name: parkerName || existingFans[fanId]?.parker_name || "",
                         });
                         processed++;
-                        sendProgress();
+                        console.log(`Processed ${processed}/${totalFans} fans`);
                 };
 
                 for (let i = 0; i < allFans.length; i += BATCH_SIZE) {
@@ -296,18 +285,12 @@ Respond with only the chosen name.`;
                 }
 
                 console.log("UpdateFans: Completed updating fan names.");
-                res.write(`event: complete\\ndata: ${JSON.stringify({ fans: updatedFans })}\\n\\n`);
-                res.end();
+                res.json({ fans: updatedFans });
         } catch (err) {
                 console.error("Error in /api/updateFans:", err);
                 const status = err.status || 500;
                 const message = status === 429 ? 'OnlyFans API rate limit exceeded. Please try again later.' : (err.message || 'Failed to update fan names.');
-                if (res.headersSent) {
-                        res.write(`event: error\ndata: ${JSON.stringify({ error: message })}\n\n`);
-                        res.end();
-                } else {
-                        res.status(status).send(message);
-                }
+                res.status(status).json({ error: message });
         }
 });
 
