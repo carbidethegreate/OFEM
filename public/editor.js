@@ -66,12 +66,26 @@
     });
   }
 
+  function insertPlaceholder(text){
+    const sel = global.getSelection ? global.getSelection() : null;
+    if(!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    const node = global.document.createTextNode(text);
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.setEndAfter(node);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
   global.applySize = applySize;
   global.applyColor = applyColor;
   global.applyBold = applyBold;
   global.applyItalic = applyItalic;
+  global.insertPlaceholder = insertPlaceholder;
 
   if (typeof module !== 'undefined') {
-    module.exports = { applySize, applyColor, applyBold, applyItalic };
+    module.exports = { applySize, applyColor, applyBold, applyItalic, insertPlaceholder };
   }
 })(typeof window !== 'undefined' ? window : global);

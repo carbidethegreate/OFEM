@@ -37,6 +37,14 @@
       </select>
       <button id="boldBtn" type="button">Bold</button>
       <button id="italicBtn" type="button">Italic</button>
+      <select id="placeholderSelect">
+        <option value="">Insert Placeholder</option>
+        <option value="{parker_name}">{parker_name}</option>
+        <option value="{username}">{username}</option>
+        <option value="{location}">{location}</option>
+        <option value="{name}">{name}</option>
+        <option value="[name]">[name]</option>
+      </select>
     </div>
     <div id="message" contenteditable="true" class="m-editor-fs__default" style="border:1px solid #ccc; padding:4px; min-height:60px;"></div>
     <button id="sendBtn">Send Personalized DM to All Fans</button>
@@ -298,6 +306,13 @@
     document.getElementById('colorSelect').addEventListener('change', e => applyColor(e.target.value));
     document.getElementById('boldBtn').addEventListener('click', applyBold);
     document.getElementById('italicBtn').addEventListener('click', applyItalic);
+    document.getElementById('placeholderSelect').addEventListener('change', e => {
+      const val = e.target.value;
+      if (val) {
+        insertPlaceholder(val);
+        e.target.value = '';
+      }
+    });
 
     // On page load, fetch any existing fans from the database
     fetchFans();

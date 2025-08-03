@@ -14,6 +14,11 @@ test('allows OnlyFans span classes', () => {
 });
 
 test('strips disallowed tags and classes', () => {
-  const html = '<div class="x">Bad</div><span class="bad">Nope</span>'; 
+  const html = '<div class="x">Bad</div><span class="bad">Nope</span>';
   expect(getEditorHtml(html)).toBe('<p>Bad<span>Nope</span></p>');
+});
+
+test('preserves placeholders', () => {
+  const str = '{parker_name} {username} {location} {name} [name]';
+  expect(getEditorHtml(str)).toBe('<p>{parker_name} {username} {location} {name} [name]</p>');
 });
