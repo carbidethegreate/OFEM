@@ -546,12 +546,14 @@ app.put('/api/fans/:id', async (req, res) => {
 
 /* Story 2: Send Personalized DM to All Fans */
 app.post('/api/sendMessage', async (req, res) => {
-	try {
+        try {
                 const fanId = req.body.userId;
-                let template = req.body.template;
-                if (!fanId || !template) {
-                        return res.status(400).send("Missing userId or template.");
+                const greeting = req.body.greeting || "";
+                const body = req.body.body || "";
+                if (!fanId || (!greeting && !body)) {
+                        return res.status(400).send("Missing userId or message.");
                 }
+                let template = [greeting, body].filter(Boolean).join(' ').trim();
 		// Ensure we have OnlyFans account ID (if updateFans not run, fetch now as fallback)
                   if (!OFAccountId) {
                           const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
@@ -569,11 +571,7 @@ app.post('/api/sendMessage', async (req, res) => {
                 const userLocation = removeEmojis(row.location || "");
 
                 // Personalize template with placeholders
-                if (template.includes("{name}") || template.includes("[name]") || template.includes("{parker_name}")) {
-                        template = template.replace(/\{name\}|\[name\]|\{parker_name\}/g, parkerName);
-                } else {
-                        template = `Hi ${parkerName || "there"}! ${template}`;
-                }
+                template = template.replace(/\{name\}|\[name\]|\{parker_name\}/g, parkerName);
                 template = template.replace(/\{username\}/g, userName);
                 template = template.replace(/\{location\}/g, userLocation);
                 // TODO: If not already connected with this user and their profile is free, one could call a subscribe endpoint here.
