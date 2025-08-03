@@ -220,7 +220,7 @@
           const res = await fetch('/api/sendMessage', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: fanId, message: message })
+            body: JSON.stringify({ userId: fanId, template: message })
           });
           const result = await res.json();
           if (result.success) {
