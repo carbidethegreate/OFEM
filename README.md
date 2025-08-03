@@ -60,6 +60,25 @@ nicknames.
 5. Click **Send Personalised DM to All Fans** to start sending.  Use **Abort Sending**
    to stop early.
 
+## API
+
+### `GET /api/fans`
+
+Returns a JSON object with a `fans` array containing all fan records stored in the
+database. Each fan includes:
+
+- `id`, `username`, `name`, `parker_name`, `is_custom`
+- Profile details: `avatar`, `header`, `website`, `location`, `gender`, `birthday`, `about`, `notes`
+- Activity data: `lastSeen`, `joined`, `canReceiveChatMessage`, `canSendChatMessage`
+- Status flags: `isBlocked`, `isMuted`, `isRestricted`, `isHidden`, `isBookmarked`, `isSubscribed`, `isFriend`, `renewedAd`
+- Subscription info: `subscribedBy`, `subscribedOn`, `subscribedUntil`, `subscribedByData`, `subscribedOnData`, `promoOffers`
+- Counts: `tipsSum`, `postsCount`, `photosCount`, `videosCount`, `audiosCount`, `mediaCount`, `subscribersCount`, `favoritesCount`
+- Media fields: `avatarThumbs`, `headerSize`, `headerThumbs`, `listsStates`
+- `updatedAt` timestamp of the last record update
+
+JSONB columns such as `avatarThumbs`, `headerSize`, `headerThumbs`, `listsStates`,
+`subscribedByData`, `subscribedOnData`, and `promoOffers` are returned as objects.
+
 ## Notes
 
 - All OnlyFans and OpenAI requests happen server‑side; API keys are never exposed in the
