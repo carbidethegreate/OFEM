@@ -34,33 +34,36 @@ let OFAccountId = null;
 app.post('/api/updateFans', async (req, res) => {
 	try {
 		// 1. Verify API key and get connected account ID
-		const accountsResp = await ofApi.get('/accounts');
-		const accounts = accountsResp.data.accounts || accountsResp.data;
-		if (!accounts || accounts.length === 0) {
-			return res.status(400).send("No OnlyFans account is connected to this API key.");
-		}
-		OFAccountId = accounts[0].id;
-		console.log(`Using OnlyFans account: ${OFAccountId}`);
-		
-               // 2. Fetch all fans (active + expired subscribers)
-               const limit = 50;
-               const fetchFans = async (type) => {
-                       let results = [];
-                       let offset = 0;
-                       while (true) {
-                               const resp = await ofApi.get(`/${OFAccountId}/fans/${type}`, { params: { limit, offset } });
-                               const page = resp.data?.list || resp.data;
-                               if (!page || page.length === 0) break;
-                               results = results.concat(page);
-                               if (page.length < limit) break;
-                               offset += limit;
-                       }
-                       return results;
-               };
-               const activeFans = await fetchFans('active');
-               const expiredFans = await fetchFans('expired');
-               const allFans = activeFans.concat(expiredFans);
-               console.log(`Fetched ${allFans.length} fans from OnlyFans.`);
+                const accountsResp = await ofApi.get('/accounts');
+                const rawAccounts = accountsResp.data?.data || accountsResp.data;
+                const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
+                if (!accounts || accounts.length === 0) {
+                        return res.status(400).send("No OnlyFans account is connected to this API key.");
+                }
+                OFAccountId = accounts[0].id;
+                console.log(`Using OnlyFans account: ${OFAccountId}`);
+
+                // 2. Fetch all fans (active + expired subscribers)
+                const limit = 50;
+                const fetchFans = async (type) => {
+                        const results = [];
+                        let offset = 0;
+                        while (true) {
+                                const resp = await ofApi.get(`/${OFAccountId}/fans/${type}`, { params: { limit, offset } });
+                                const page = resp.data?.data?.list || resp.data?.list || resp.data;
+                                if (!page || page.length === 0) break;
+                                results.push(...page);
+                                if (page.length < limit) break;
+                                offset += limit;
+                        }
+                        return results;
+                };
+                const activeFans = await fetchFans('active');
+                const expiredFans = await fetchFans('expired');
+                const fanMap = new Map();
+                [...activeFans, ...expiredFans].forEach(f => { fanMap.set(f.id, f); });
+                const allFans = Array.from(fanMap.values());
+                console.log(`Fetched ${allFans.length} fans from OnlyFans.`);
 		
 		// 3. Load existing fans from DB
 		const dbRes = await pool.query('SELECT id, parker_name, is_custom FROM fans');
