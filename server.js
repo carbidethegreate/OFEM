@@ -10,6 +10,7 @@ const { Configuration, OpenAIApi } = require('openai');
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
+const sanitizeHtml = require('sanitize-html');
 dotenv.config();
 
 // Database connection pool
@@ -87,16 +88,6 @@ async function openaiRequest(requestFn, maxRetries = 5) {
                 }
         }
 }
-// Escape HTML entities to prevent HTML injection in user-supplied text
-function escapeHtml(unsafe = "") {
-        return unsafe
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-}
-
 // Determine if an OnlyFans account appears system generated
 function isSystemGenerated(username = "", profileName = "") {
         const usernameSystem = /^u\d+$/.test(username) || /^\d+$/.test(username);
@@ -556,11 +547,11 @@ app.put('/api/fans/:id', async (req, res) => {
 /* Story 2: Send Personalized DM to All Fans */
 app.post('/api/sendMessage', async (req, res) => {
 	try {
-		const fanId = req.body.userId;
-		let message = req.body.message;
-		if (!fanId || !message) {
-			return res.status(400).send("Missing userId or message.");
-		}
+                const fanId = req.body.userId;
+                let template = req.body.template;
+                if (!fanId || !template) {
+                        return res.status(400).send("Missing userId or template.");
+                }
 		// Ensure we have OnlyFans account ID (if updateFans not run, fetch now as fallback)
                   if (!OFAccountId) {
                           const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
@@ -574,17 +565,21 @@ app.post('/api/sendMessage', async (req, res) => {
                 const dbRes = await pool.query('SELECT parker_name FROM fans WHERE id=$1', [fanId]);
                 let parkerName = dbRes.rows.length ? dbRes.rows[0].parker_name : "";
                 parkerName = removeEmojis(parkerName);
-                // Personalize message with name
-                if (message.includes("{name}") || message.includes("[name]")) {
-                        message = message.replace(/\{name\}|\[name\]/g, parkerName);
+                // Personalize template with name
+                if (template.includes("{name}") || template.includes("[name]")) {
+                        template = template.replace(/\{name\}|\[name\]/g, parkerName);
                 } else {
-                        message = `Hi ${parkerName || "there"}! ${message}`;
+                        template = `Hi ${parkerName || "there"}! ${template}`;
                 }
-		// TODO: If not already connected with this user and their profile is free, one could call a subscribe endpoint here.
-		// Send message via OnlyFans API
-		const formatted = `<p>${escapeHtml(message)}</p>`;
-                  await ofApiRequest(() => ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, { text: formatted }));
-		console.log(`Sent message to ${fanId}: ${message.substring(0, 30)}...`);
+                // TODO: If not already connected with this user and their profile is free, one could call a subscribe endpoint here.
+                // Sanitize and send message via OnlyFans API
+                const sanitized = sanitizeHtml(template, {
+                        allowedTags: sanitizeHtml.defaults.allowedTags.filter(tag => tag !== 'p'),
+                        allowedAttributes: sanitizeHtml.defaults.allowedAttributes
+                });
+                const formatted = `<p>${sanitized}</p>`;
+                await ofApiRequest(() => ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, { text: formatted }));
+                console.log(`Sent message to ${fanId}: ${template.substring(0, 30)}...`);
 		res.json({ success: true });
           } catch (err) {
                   console.error("Error sending message to fan:", err.response ? err.response.data || err.response.statusText : err.message);
