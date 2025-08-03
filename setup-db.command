@@ -16,4 +16,5 @@ if [ ! -d node_modules/pg ]; then
 fi
 
 node setup-db.js
+node migrate.js
 
