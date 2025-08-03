@@ -68,3 +68,14 @@ test('replaces {location} placeholder', async () => {
     .expect(200);
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hi Alice! From <span>Wonderland</span></p>' });
 });
+
+test('inserts <br> for newline characters', async () => {
+  await mockPool.query("INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')");
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValueOnce({});
+  await request(app)
+    .post('/api/sendMessage')
+    .send({ userId: 1, template: 'Line1\nLine2' })
+    .expect(200);
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hi Alice! Line1<br>Line2</p>' });
+});
