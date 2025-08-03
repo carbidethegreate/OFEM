@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OFEM System Status</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .ok { color: green; }
+    .fail { color: red; }
+    table { border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px 10px; }
+  </style>
+</head>
+<body>
+  <h1>System Status</h1>
+  <table id="statusTable">
+    <thead><tr><th>Component</th><th>Status</th><th>Details</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <script>
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        const tbody = document.querySelector('#statusTable tbody');
+        const addRow = (name, ok, detail='') => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${name}</td><td class="${ok ? 'ok' : 'fail'}">${ok ? 'OK' : 'FAIL'}</td><td>${detail}</td>`;
+          tbody.appendChild(tr);
+        };
+        addRow('.env file present', data.files.envFile);
+        Object.entries(data.env).forEach(([key, present]) => {
+          addRow(`env: ${key}`, present, present ? '' : 'missing');
+        });
+        addRow('Database', data.database.ok, data.database.error || '');
+        addRow('OnlyFans API', data.onlyfans.ok, data.onlyfans.error || '');
+        addRow('OpenAI API', data.openai.ok, data.openai.error || '');
+        addRow('Node version', true, data.node.version);
+      } catch (err) {
+        const tbody = document.querySelector('#statusTable tbody');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>Load</td><td class="fail">FAIL</td><td>${err.message}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+    loadStatus();
+  </script>
+</body>
+</html>
