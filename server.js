@@ -180,12 +180,24 @@ app.post('/api/updateFans', async (req, res) => {
                 const fetchFans = async (type) => {
                         const results = [];
                         let offset = 0;
+                        const RUNAWAY_LIMIT = 1000; // safeguard against runaway offsets
                         while (true) {
-                                const resp = await ofApiRequest(() => ofApi.get(`/${OFAccountId}/fans/${type}`, { params: { limit, offset } }));
-                                const page = resp.data?.data?.list || resp.data?.list || resp.data;
-                                if (!page || page.length === 0) break;
-                                results.push(...page);
-                                offset += page.length;
+                                try {
+                                        const resp = await ofApiRequest(() => ofApi.get(`/${OFAccountId}/fans/${type}`, { params: { limit, offset } }));
+                                        const page = resp.data?.data?.list || resp.data?.list || resp.data;
+                                        if (!page || page.length === 0) break;
+                                        results.push(...page);
+                                        offset += page.length;
+                                        if (offset > RUNAWAY_LIMIT) {
+                                                console.warn(`Fetch fans ${type}: offset exceeded ${RUNAWAY_LIMIT}, stopping.`);
+                                                break;
+                                        }
+                                } catch (err) {
+                                        const status = err.response?.status;
+                                        if (status === 429) throw err; // rate limit errors should still bubble up
+                                        console.warn(`Fetch fans ${type} failed at offset ${offset} (status ${status || 'unknown'}). Returning partial results.`);
+                                        break;
+                                }
                         }
                         return results;
                 };
