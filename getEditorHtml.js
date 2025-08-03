@@ -2,8 +2,10 @@ const sanitizeHtml = require('sanitize-html');
 
 const allowedSpanClasses = [
   'm-editor-fs__sm',
-  'm-editor-fs__l',
+  'm-editor-fs__s',
   'm-editor-fs__default',
+  'm-editor-fs__l',
+  'm-editor-fs__lg',
   'm-editor-fc__gray',
   'm-editor-fc__blue-1',
   'm-editor-fc__blue-2'

@@ -1,8 +1,10 @@
 (function(global){
   const sizeClasses = {
     sm: 'm-editor-fs__sm',
+    s: 'm-editor-fs__s',
     default: 'm-editor-fs__default',
-    l: 'm-editor-fs__l'
+    l: 'm-editor-fs__l',
+    lg: 'm-editor-fs__lg'
   };
 
   const colorClasses = {
