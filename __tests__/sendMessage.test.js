@@ -113,3 +113,14 @@ test('retains font color class on span', async () => {
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Color <span class="m-editor-fc__blue-1">Alice</span></p>' });
 });
 
+test('forwards media and price fields', async () => {
+  await mockPool.query("INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')");
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValueOnce({});
+  await request(app)
+    .post('/api/sendMessage')
+    .send({ userId: 1, greeting: '', body: 'Hello', price: 5, lockedText: 'locked', mediaFiles: ['m1'], previews: ['p1'] })
+    .expect(200);
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hello</p>', price: 5, lockedText: 'locked', mediaFiles: ['m1'], previews: ['p1'] });
+});
+
