@@ -42,7 +42,7 @@ test('replaces {parker_name} placeholder', async () => {
   mockAxios.post.mockResolvedValueOnce({});
   await request(app)
     .post('/api/sendMessage')
-    .send({ userId: 1, template: 'Hello <b>{parker_name}</b>' })
+    .send({ userId: 1, greeting: '', body: 'Hello <b>{parker_name}</b>' })
     .expect(200);
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hello Alice</p>' });
 });
@@ -53,7 +53,7 @@ test('replaces {username} placeholder', async () => {
   mockAxios.post.mockResolvedValueOnce({});
   await request(app)
     .post('/api/sendMessage')
-    .send({ userId: 1, template: 'Hey <i>{username}</i>' })
+    .send({ userId: 1, greeting: 'Hi {parker_name}!', body: 'Hey <i>{username}</i>' })
     .expect(200);
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hi Alice! Hey user1</p>' });
 });
@@ -64,9 +64,9 @@ test('replaces {location} placeholder', async () => {
   mockAxios.post.mockResolvedValueOnce({});
   await request(app)
     .post('/api/sendMessage')
-    .send({ userId: 1, template: 'From <span>{location}</span>' })
+    .send({ userId: 1, greeting: '', body: 'From <span>{location}</span>' })
     .expect(200);
-  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hi Alice! From <span>Wonderland</span></p>' });
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>From <span>Wonderland</span></p>' });
 });
 
 test('inserts <br> for newline characters', async () => {
@@ -75,9 +75,9 @@ test('inserts <br> for newline characters', async () => {
   mockAxios.post.mockResolvedValueOnce({});
   await request(app)
     .post('/api/sendMessage')
-    .send({ userId: 1, template: 'Line1\nLine2' })
+    .send({ userId: 1, greeting: '', body: 'Line1\nLine2' })
     .expect(200);
-  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hi Alice! Line1<br>Line2</p>' });
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Line1<br>Line2</p>' });
 });
 
 test('keeps <strong> tag for bold formatting', async () => {
@@ -86,7 +86,7 @@ test('keeps <strong> tag for bold formatting', async () => {
   mockAxios.post.mockResolvedValueOnce({});
   await request(app)
     .post('/api/sendMessage')
-    .send({ userId: 1, template: 'Hello <strong>{parker_name}</strong>' })
+    .send({ userId: 1, greeting: '', body: 'Hello <strong>{parker_name}</strong>' })
     .expect(200);
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hello <strong>Alice</strong></p>' });
 });
@@ -97,7 +97,7 @@ test('retains font size class on span', async () => {
   mockAxios.post.mockResolvedValueOnce({});
   await request(app)
     .post('/api/sendMessage')
-    .send({ userId: 1, template: 'Size <span class="m-editor-fs__l">{parker_name}</span>' })
+    .send({ userId: 1, greeting: '', body: 'Size <span class="m-editor-fs__l">{parker_name}</span>' })
     .expect(200);
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Size <span class="m-editor-fs__l">Alice</span></p>' });
 });
@@ -108,7 +108,7 @@ test('retains font color class on span', async () => {
   mockAxios.post.mockResolvedValueOnce({});
   await request(app)
     .post('/api/sendMessage')
-    .send({ userId: 1, template: 'Color <span class="m-editor-fc__blue-1">{parker_name}</span>' })
+    .send({ userId: 1, greeting: '', body: 'Color <span class="m-editor-fc__blue-1">{parker_name}</span>' })
     .expect(200);
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Color <span class="m-editor-fc__blue-1">Alice</span></p>' });
 });
