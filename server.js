@@ -67,6 +67,50 @@ function isSystemGenerated(username = "", profileName = "") {
         return usernameSystem && profileSystem;
 }
 
+// Validate parkerName output and provide deterministic fallbacks
+function isValidParkerName(name = "") {
+        return (
+                typeof name === "string" &&
+                name.length >= 2 &&
+                !name.includes("...") &&
+                /^[A-Za-z][A-Za-z\s'-]*$/.test(name)
+        );
+}
+
+function capitalize(word = "") {
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+function cleanCandidate(name = "") {
+        return name.replace(/[^A-Za-z\s'-]/g, " ").trim();
+}
+
+function deterministicFallback(username = "", profileName = "") {
+        const profileCandidate = capitalize(cleanCandidate(profileName).split(/\s+/)[0] || "");
+        if (isValidParkerName(profileCandidate)) {
+                console.log(`Fallback to profile name: ${profileCandidate}`);
+                return profileCandidate;
+        }
+
+        let userCandidate = username
+                .replace(/[_-]+/g, " ")
+                .replace(/([a-z])([A-Z])/g, '$1 $2');
+        userCandidate = capitalize(cleanCandidate(userCandidate).split(/\s+/)[0] || "");
+        if (isValidParkerName(userCandidate)) {
+                console.log(`Fallback to username: ${userCandidate}`);
+                return userCandidate;
+        }
+
+        console.log(`Fallback to default name: Cuddles`);
+        return "Cuddles";
+}
+
+function ensureValidParkerName(name, username, profileName) {
+        if (isValidParkerName(name)) return name;
+        console.log(`Invalid Parker name "${name}" detected. Using fallback.`);
+        return deterministicFallback(username, profileName);
+}
+
 
 /* Story 1: Update Fan Names – Fetch fans from OnlyFans and generate display names using GPT-4. */
 app.post('/api/updateFans', async (req, res) => {
@@ -127,8 +171,8 @@ Respond with only the chosen name.`;
 			const fanId = fan.id.toString();
 			const username = fan.username || "";
 			const profileName = fan.name || "";
-			let parkerName = existingFans[fanId] ? existingFans[fanId].parker_name : null;
-			const isCustom = existingFans[fanId] ? existingFans[fanId].is_custom : false;
+                        let parkerName = existingFans[fanId] ? existingFans[fanId].parker_name : null;
+                        let isCustom = existingFans[fanId] ? existingFans[fanId].is_custom : false;
 			
                         // Generate ParkerGivenName if not set yet and not manually overridden
                         if ((!parkerName || parkerName === "") && !isCustom) {
@@ -148,6 +192,12 @@ Respond with only the chosen name.`;
                                         parkerName = completion.data.choices[0].message.content.trim();
                                         console.log(`GPT-4 name for ${username}: ${parkerName}`);
                                 }
+                        }
+
+                        const originalName = parkerName;
+                        parkerName = ensureValidParkerName(parkerName, username, profileName);
+                        if (parkerName !== originalName) {
+                                isCustom = false;
                         }
 			
 			// Upsert in database (insert new or update existing)
