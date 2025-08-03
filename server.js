@@ -597,7 +597,54 @@ app.post('/api/sendMessage', async (req, res) => {
 // Endpoint to get all fans from DB (for initial page load if needed)
 app.get('/api/fans', async (req, res) => {
         try {
-                const dbRes = await pool.query('SELECT id, username, name, parker_name FROM fans ORDER BY id');
+                const dbRes = await pool.query(`
+                        SELECT
+                                id,
+                                username,
+                                name,
+                                avatar,
+                                header,
+                                website,
+                                location,
+                                gender,
+                                birthday,
+                                about,
+                                notes,
+                                lastSeen AS "lastSeen",
+                                joined AS "joined",
+                                canReceiveChatMessage AS "canReceiveChatMessage",
+                                canSendChatMessage AS "canSendChatMessage",
+                                isBlocked AS "isBlocked",
+                                isMuted AS "isMuted",
+                                isRestricted AS "isRestricted",
+                                isHidden AS "isHidden",
+                                isBookmarked AS "isBookmarked",
+                                isSubscribed AS "isSubscribed",
+                                subscribedBy AS "subscribedBy",
+                                subscribedOn AS "subscribedOn",
+                                subscribedUntil AS "subscribedUntil",
+                                renewedAd AS "renewedAd",
+                                isFriend AS "isFriend",
+                                tipsSum AS "tipsSum",
+                                postsCount AS "postsCount",
+                                photosCount AS "photosCount",
+                                videosCount AS "videosCount",
+                                audiosCount AS "audiosCount",
+                                mediaCount AS "mediaCount",
+                                subscribersCount AS "subscribersCount",
+                                favoritesCount AS "favoritesCount",
+                                avatarThumbs AS "avatarThumbs",
+                                headerSize AS "headerSize",
+                                headerThumbs AS "headerThumbs",
+                                listsStates AS "listsStates",
+                                subscribedByData AS "subscribedByData",
+                                subscribedOnData AS "subscribedOnData",
+                                promoOffers AS "promoOffers",
+                                parker_name,
+                                is_custom,
+                                updatedAt AS "updatedAt"
+                        FROM fans
+                        ORDER BY id`);
                 res.json({ fans: dbRes.rows });
         } catch (err) {
                 console.error("Error in GET /api/fans:", err);
