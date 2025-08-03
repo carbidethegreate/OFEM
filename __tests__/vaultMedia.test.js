@@ -17,12 +17,21 @@ beforeEach(() => {
   mockAxios.get.mockReset();
 });
 
-test('GET /api/vault-media proxies to OnlyFans API', async () => {
+test('GET /api/vault-media retrieves all pages', async () => {
   mockAxios.get
     .mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } })
-    .mockResolvedValueOnce({ data: { media: [{ id: 'm1' }] } });
+    .mockResolvedValueOnce({ data: { media: [{ id: 'm1' }, { id: 'm2' }] } })
+    .mockResolvedValueOnce({ data: { media: [] } });
 
   const res = await request(app).get('/api/vault-media').expect(200);
-  expect(mockAxios.get).toHaveBeenCalledWith('/acc1/media/vault', { params: {} });
-  expect(res.body).toEqual({ media: [{ id: 'm1' }] });
+
+  expect(mockAxios.get).toHaveBeenNthCalledWith(2, '/acc1/media/vault', { params: { limit: 100, offset: 0 } });
+  expect(mockAxios.get).toHaveBeenNthCalledWith(3, '/acc1/media/vault', { params: { limit: 100, offset: 100 } });
+  expect(res.body).toEqual({ media: [{ id: 'm1' }, { id: 'm2' }] });
+});
+
+test('GET /api/vault-media handles errors', async () => {
+  mockAxios.get.mockRejectedValue(new Error('fail'));
+  const res = await request(app).get('/api/vault-media').expect(500);
+  expect(res.body).toEqual({ error: 'Failed to fetch vault media' });
 });
