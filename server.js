@@ -29,6 +29,16 @@ const ofApi = axios.create({
 	headers: { 'Authorization': `Bearer ${process.env.ONLYFANS_API_KEY}` }
 });
 let OFAccountId = null;
+// Escape HTML entities to prevent HTML injection in user-supplied text
+function escapeHtml(unsafe = "") {
+	return unsafe
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#039;");
+}
+
 
 /* Story 1: Update Fan Names – Fetch fans from OnlyFans and generate display names using GPT-4. */
 app.post('/api/updateFans', async (req, res) => {
@@ -184,7 +194,8 @@ app.post('/api/sendMessage', async (req, res) => {
                 }
 		// TODO: If not already connected with this user and their profile is free, one could call a subscribe endpoint here.
 		// Send message via OnlyFans API
-		await ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, { text: message });
+		const formatted = `<p>${escapeHtml(message)}</p>`;
+		await ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, { text: formatted });
 		console.log(`Sent message to ${fanId}: ${message.substring(0, 30)}...`);
 		res.json({ success: true });
 	} catch (err) {
