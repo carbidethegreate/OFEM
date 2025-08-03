@@ -40,6 +40,8 @@ nicknames.
 
    Run `./setup-db.command` (macOS) or `node setup-db.js` to spin up PostgreSQL via Docker (if needed),
    create a database with a random name, and write the credentials to your `.env` file.
+   The script verifies required Node modules such as `pg` (used for JSONB operations)
+   and `dotenv`, installing them automatically if missing.
 
    If you already have an existing database and are upgrading, run
    `node migrate_add_fan_fields.js` to add any new columns that may be required.
