@@ -9,6 +9,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { exec } = require('child_process');
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 const createTableQuery = `
 CREATE TABLE IF NOT EXISTS fans (
