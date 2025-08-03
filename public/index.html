@@ -23,7 +23,22 @@
     <button id="updateBtn">Update Fan Names</button>
   </p>
   <div id="messageSection" style="margin: 15px 0;">
-    <textarea id="message" rows="3" placeholder="Enter message to send to all fans..."></textarea><br>
+    <div id="toolbar">
+      <select id="sizeSelect">
+        <option value="default">Default</option>
+        <option value="sm">Small</option>
+        <option value="l">Large</option>
+      </select>
+      <select id="colorSelect">
+        <option value="">Default</option>
+        <option value="gray">Gray</option>
+        <option value="blue1">Blue 1</option>
+        <option value="blue2">Blue 2</option>
+      </select>
+      <button id="boldBtn" type="button">Bold</button>
+      <button id="italicBtn" type="button">Italic</button>
+    </div>
+    <div id="message" contenteditable="true" class="m-editor-fs__default" style="border:1px solid #ccc; padding:4px; min-height:60px;"></div>
     <button id="sendBtn">Send Personalized DM to All Fans</button>
     <button id="abortBtn" disabled>Abort Sending</button>
   </div>
@@ -43,6 +58,7 @@
     </tbody>
   </table>
 
+  <script src="editor.js"></script>
   <script>
     let fansData = [];
     let sendingInProgress = false;
@@ -194,7 +210,7 @@
         alert('No fans to send messages to.');
         return;
       }
-      const message = document.getElementById('message').value.trim();
+      const message = document.getElementById('message').innerHTML.trim();
       if (!message) {
         alert('Please enter a message.');
         return;
@@ -277,6 +293,11 @@
         this.disabled = true;
       }
     });
+
+    document.getElementById('sizeSelect').addEventListener('change', e => applySize(e.target.value));
+    document.getElementById('colorSelect').addEventListener('change', e => applyColor(e.target.value));
+    document.getElementById('boldBtn').addEventListener('click', applyBold);
+    document.getElementById('italicBtn').addEventListener('click', applyItalic);
 
     // On page load, fetch any existing fans from the database
     fetchFans();

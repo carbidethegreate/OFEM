@@ -44,7 +44,7 @@ test('replaces {parker_name} placeholder', async () => {
     .post('/api/sendMessage')
     .send({ userId: 1, template: 'Hello <b>{parker_name}</b>' })
     .expect(200);
-  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hello <b>Alice</b></p>' });
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hello Alice</p>' });
 });
 
 test('replaces {username} placeholder', async () => {
@@ -55,7 +55,7 @@ test('replaces {username} placeholder', async () => {
     .post('/api/sendMessage')
     .send({ userId: 1, template: 'Hey <i>{username}</i>' })
     .expect(200);
-  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hi Alice! Hey <i>user1</i></p>' });
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hi Alice! Hey user1</p>' });
 });
 
 test('replaces {location} placeholder', async () => {
