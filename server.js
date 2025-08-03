@@ -148,6 +148,11 @@ function ensureValidParkerName(name, username, profileName) {
         return deterministicFallback(username, profileName);
 }
 
+// Remove emoji characters from a string
+function removeEmojis(str = "") {
+        return str.replace(/\p{Extended_Pictographic}/gu, "");
+}
+
 
 /* Story 1: Update Fan Names – Fetch fans from OnlyFans and generate display names using GPT-4. */
 app.post('/api/updateFans', async (req, res) => {
@@ -308,22 +313,27 @@ Respond with only the chosen name.`;
 
 /* Allow manual editing of ParkerGivenName in the database */
 app.put('/api/fans/:id', async (req, res) => {
-	try {
-		const fanId = req.params.id;
-		const newName = req.body.parker_name;
-		if (!fanId || !newName) {
-			return res.status(400).send("Missing fan id or name.");
-		}
-		await pool.query(
-			'UPDATE fans SET parker_name=$1, is_custom=$2 WHERE id=$3',
-			[ newName, true, fanId ]
-		);
-		console.log(`User manually set ParkerName for fan ${fanId} -> "${newName}"`);
-		res.json({ success: true });
-	} catch (err) {
-		console.error("Error in /api/fans/:id PUT:", err);
-		res.status(500).send("Failed to update name.");
-	}
+        try {
+                const fanId = req.params.id;
+                const rawName = req.body.parker_name;
+                if (!fanId || !rawName) {
+                        return res.status(400).send("Missing fan id or name.");
+                }
+                const sanitized = removeEmojis(rawName).trim();
+                const checked = ensureValidParkerName(sanitized, "", "");
+                if (checked !== sanitized) {
+                        return res.status(400).send("Invalid Parker name.");
+                }
+                await pool.query(
+                        'UPDATE fans SET parker_name=$1, is_custom=$2 WHERE id=$3',
+                        [ checked, true, fanId ]
+                );
+                console.log(`User manually set ParkerName for fan ${fanId} -> "${checked}"`);
+                res.json({ success: true });
+        } catch (err) {
+                console.error("Error in /api/fans/:id PUT:", err);
+                res.status(500).send("Failed to update name.");
+        }
 });
 
 /* Story 2: Send Personalized DM to All Fans */
@@ -344,8 +354,9 @@ app.post('/api/sendMessage', async (req, res) => {
 			OFAccountId = accounts[0].id;
 		}
 		// Get ParkerGivenName for personalization
-		const dbRes = await pool.query('SELECT parker_name FROM fans WHERE id=$1', [fanId]);
-		const parkerName = dbRes.rows.length ? dbRes.rows[0].parker_name : "";
+                const dbRes = await pool.query('SELECT parker_name FROM fans WHERE id=$1', [fanId]);
+                let parkerName = dbRes.rows.length ? dbRes.rows[0].parker_name : "";
+                parkerName = removeEmojis(parkerName);
                 // Personalize message with name
                 if (message.includes("{name}") || message.includes("[name]")) {
                         message = message.replace(/\{name\}|\[name\]/g, parkerName);
