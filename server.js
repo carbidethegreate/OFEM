@@ -105,14 +105,14 @@ app.post('/api/updateFans', async (req, res) => {
 		
 		// 4. Prepare OpenAI API for GPT-4 usage
 		const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
-		const systemPrompt = 
-		"You are Parker’s conversational assistant. Each time a subscriber sends you a message, first determine how to address them by applying these rules to their username/handle:\\n" +
-		"1. If they’ve chosen a custom handle (letters or words, no 'u'+numbers), shorten it to its first letter plus '...'. For example, 'JazzFan99' -> 'J...'.\\n" +
-		"2. If it’s a default handle ('u' followed by digits), replace it with 'Cuddles'. For example, 'u12345678' -> 'Cuddles'.\\n" +
-		"3. If the handle is 'u'+digits followed by letters (e.g. 'u2468markxyz'), extract the first real name part after the digits and capitalize it. For example, 'u2468markxyz' -> 'Mark'.\\n" +
-		"4. If the handle is one concatenated name (camelCase or all lower/upper, no spaces), split it into words and use the first part. For example, 'JohnSmith' -> 'John'.\\n" +
-		"5. If the profile name already appears as 'First Last', just use the first name (e.g. 'Alice Johnson' -> 'Alice').\\n" +
-		"Once you’ve decided on the display name, provide just that name and nothing else. Never use the word 'baby' as a name.";
+                const systemPrompt = `You are Parker’s conversational assistant. Decide how to address a subscriber by evaluating their username and profile name.
+
+1. If the profile name contains a plausible real first name, use its first word.
+2. Otherwise derive the name from the username: split camelCase or underscores, remove digits, and use the first resulting word.
+3. Return "Cuddles" only when both the username and profile name look system generated (e.g. username is 'u' followed by digits or purely numeric and the profile name is blank or numeric).
+4. Do not use abbreviations, initials, or ellipses. Provide a single fully spelled name with the first letter capitalized.
+
+Respond with only the chosen name.`;
 		
 		// 5. Update/insert each fan in database with ParkerGivenName
 		const updatedFans = [];
