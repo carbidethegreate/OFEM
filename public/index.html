@@ -22,6 +22,7 @@
   <p>
     <button id="updateBtn">Update Fan Names</button>
     <a href="history.html" target="_blank">Message History</a>
+    <a href="queue.html" target="_blank">Scheduled Queue</a>
   </p>
   <div id="messageSection" style="margin: 15px 0;">
     <input type="text" id="greeting" value="Hi {parker_name}!" />
@@ -59,7 +60,11 @@
         <input type="text" id="lockedText" placeholder="Locked text" style="width:200px;" />
       </div>
     </div>
+    <div style="margin-top:10px;">
+      <label>Schedule Time: <input type="datetime-local" id="scheduledTime" /></label>
+    </div>
     <button id="sendBtn">Send Personalized DM to All Fans</button>
+    <button id="scheduleBtn" type="button">Schedule Message</button>
     <button id="abortBtn" disabled>Abort Sending</button>
     <button id="clearStatusBtn" type="button">Clear Status</button>
     <button id="downloadBtn" type="button">Download Results</button>
@@ -359,8 +364,47 @@
       }
     }
 
+    async function scheduleMessages() {
+      if (fansData.length === 0) {
+        alert('No fans to send messages to.');
+        return;
+      }
+      const greeting = document.getElementById('greeting').value;
+      const body = document.getElementById('message').innerHTML.trim();
+      if (!body) {
+        alert('Please enter a message.');
+        return;
+      }
+      const scheduledTime = document.getElementById('scheduledTime').value;
+      if (!scheduledTime) {
+        alert('Please choose a schedule time.');
+        return;
+      }
+      const priceVal = document.getElementById('price').value;
+      const price = priceVal ? parseFloat(priceVal) : undefined;
+      const lockedText = document.getElementById('lockedText').value;
+      const mediaFiles = Array.from(document.querySelectorAll('.mediaCheckbox:checked')).map(cb => cb.value);
+      const previews = Array.from(document.querySelectorAll('.previewCheckbox:checked')).map(cb => cb.value);
+      try {
+        const res = await fetch('/api/scheduleMessage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ greeting, body, price, lockedText, mediaFiles, previews, recipients: fansData.map(f => f.id), scheduledTime })
+        });
+        const result = await res.json();
+        if (res.ok && result.success) {
+          alert('Message scheduled.');
+        } else {
+          alert('Error scheduling message: ' + (result.error || res.statusText));
+        }
+      } catch (err) {
+        console.error('Error scheduling message:', err);
+      }
+    }
+
     document.getElementById('updateBtn').addEventListener('click', updateFansList);
     document.getElementById('sendBtn').addEventListener('click', sendMessagesToAll);
+    document.getElementById('scheduleBtn').addEventListener('click', scheduleMessages);
     document.getElementById('loadVaultBtn').addEventListener('click', loadVaultMedia);
     document.getElementById('abortBtn').addEventListener('click', function() {
       if (sendingInProgress) {

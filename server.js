@@ -144,6 +144,41 @@ function removeEmojis(str = "") {
         return str.replace(/\p{Extended_Pictographic}/gu, "");
 }
 
+async function sendPersonalizedMessage(fanId, greeting = "", body = "", price, lockedText, mediaFiles = [], previews = []) {
+        if (!fanId || (!greeting && !body)) {
+                throw new Error('Missing userId or message.');
+        }
+        let template = [greeting, body].filter(Boolean).join(' ').trim();
+        if (!OFAccountId) {
+                const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
+                const accounts = accountsResp.data.accounts || accountsResp.data;
+                if (!accounts || accounts.length === 0) {
+                        throw new Error('No OnlyFans account available.');
+                }
+                OFAccountId = accounts[0].id;
+        }
+        const dbRes = await pool.query('SELECT parker_name, username, location FROM fans WHERE id=$1', [fanId]);
+        const row = dbRes.rows[0] || {};
+        const parkerName = removeEmojis(row.parker_name || "");
+        const userName = removeEmojis(row.username || "");
+        const userLocation = removeEmojis(row.location || "");
+        template = template.replace(/\{name\}|\[name\]|\{parker_name\}/g, parkerName);
+        template = template.replace(/\{username\}/g, userName);
+        template = template.replace(/\{location\}/g, userLocation);
+        const formatted = getEditorHtml(template);
+        const payload = { text: formatted };
+        if (price !== undefined) payload.price = price;
+        if (lockedText) payload.lockedText = lockedText;
+        if (Array.isArray(mediaFiles) && mediaFiles.length) payload.mediaFiles = mediaFiles;
+        if (Array.isArray(previews) && previews.length) payload.previews = previews;
+        await ofApiRequest(() => ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, payload));
+        await pool.query(
+                'INSERT INTO messages (fan_id, direction, body, price) VALUES ($1, $2, $3, $4)',
+                [fanId, 'outgoing', formatted, price ?? null]
+        );
+        console.log(`Sent message to ${fanId}: ${template.substring(0, 30)}...`);
+}
+
 
 /* Story 1: Update Fan Names – Fetch fans from OnlyFans and generate display names using GPT-4. */
 app.post('/api/updateFans', async (req, res) => {
@@ -575,49 +610,88 @@ app.post('/api/sendMessage', async (req, res) => {
                 const lockedText = req.body.lockedText;
                 const mediaFiles = Array.isArray(req.body.mediaFiles) ? req.body.mediaFiles : [];
                 const previews = Array.isArray(req.body.previews) ? req.body.previews : [];
-                if (!fanId || (!greeting && !body)) {
-                        return res.status(400).send("Missing userId or message.");
-                }
-                let template = [greeting, body].filter(Boolean).join(' ').trim();
-                // Ensure we have OnlyFans account ID (if updateFans not run, fetch now as fallback)
-                if (!OFAccountId) {
-                        const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
-                        const accounts = accountsResp.data.accounts || accountsResp.data;
-                        if (!accounts || accounts.length === 0) {
-                                return res.status(400).send("No OnlyFans account available.");
-                        }
-                        OFAccountId = accounts[0].id;
-                }
-                // Get fan fields for personalization
-                const dbRes = await pool.query('SELECT parker_name, username, location FROM fans WHERE id=$1', [fanId]);
-                const row = dbRes.rows[0] || {};
-                const parkerName = removeEmojis(row.parker_name || "");
-                const userName = removeEmojis(row.username || "");
-                const userLocation = removeEmojis(row.location || "");
-
-                // Personalize template with placeholders
-                template = template.replace(/\{name\}|\[name\]|\{parker_name\}/g, parkerName);
-                template = template.replace(/\{username\}/g, userName);
-                template = template.replace(/\{location\}/g, userLocation);
-                // Sanitize, wrap, and send message via OnlyFans API
-                const formatted = getEditorHtml(template);
-                const payload = { text: formatted };
-                if (price !== undefined) payload.price = price;
-                if (lockedText) payload.lockedText = lockedText;
-                if (mediaFiles.length) payload.mediaFiles = mediaFiles;
-                if (previews.length) payload.previews = previews;
-                await ofApiRequest(() => ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, payload));
-                await pool.query(
-                        'INSERT INTO messages (fan_id, direction, body, price) VALUES ($1, $2, $3, $4)',
-                        [fanId, 'outgoing', formatted, price ?? null]
-                );
-                console.log(`Sent message to ${fanId}: ${template.substring(0, 30)}...`);
+                await sendPersonalizedMessage(fanId, greeting, body, price, lockedText, mediaFiles, previews);
                 res.json({ success: true });
         } catch (err) {
                 console.error("Error sending message to fan:", err.response ? err.response.data || err.response.statusText : err.message);
                 const status = err.status || err.response?.status;
                 const message = status === 429 ? 'OnlyFans API rate limit exceeded. Please try again later.' : (err.response ? err.response.statusText || err.response.data : err.message);
                 res.status(status || 500).json({ success: false, error: message });
+        }
+});
+
+app.post('/api/scheduleMessage', async (req, res) => {
+        try {
+                const greeting = req.body.greeting || "";
+                const body = req.body.body || "";
+                const recipients = Array.isArray(req.body.recipients) ? req.body.recipients : [];
+                const scheduledTime = req.body.scheduledTime;
+                const price = req.body.price;
+                const lockedText = req.body.lockedText;
+                const mediaFiles = Array.isArray(req.body.mediaFiles) ? req.body.mediaFiles : [];
+                const previews = Array.isArray(req.body.previews) ? req.body.previews : [];
+                if (recipients.length === 0 || (!greeting && !body) || !scheduledTime) {
+                        return res.status(400).json({ error: 'Missing recipients, message, or scheduledTime.' });
+                }
+                const scheduledAt = new Date(scheduledTime);
+                if (isNaN(scheduledAt)) {
+                        return res.status(400).json({ error: 'Invalid scheduledTime.' });
+                }
+                await pool.query(
+                        'INSERT INTO scheduled_messages (greeting, body, recipients, media_files, previews, price, locked_text, scheduled_at, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+                        [greeting, body, recipients, mediaFiles, previews, price ?? null, lockedText || null, scheduledAt, 'pending']
+                );
+                res.json({ success: true });
+        } catch (err) {
+                console.error('Error scheduling message:', err);
+                res.status(500).json({ success: false, error: err.message });
+        }
+});
+
+app.get('/api/scheduledMessages', async (req, res) => {
+        try {
+                const dbRes = await pool.query("SELECT id, greeting, body, recipients, media_files, previews, price, locked_text, scheduled_at, status FROM scheduled_messages WHERE status='pending' ORDER BY scheduled_at");
+                res.json({ messages: dbRes.rows });
+        } catch (err) {
+                console.error('Error fetching scheduled messages:', err);
+                res.status(500).json({ error: err.message });
+        }
+});
+
+app.put('/api/scheduledMessages/:id', async (req, res) => {
+        try {
+                const fields = [];
+                const values = [];
+                let idx = 1;
+                if (req.body.greeting !== undefined) { fields.push(`greeting=$${idx++}`); values.push(req.body.greeting); }
+                if (req.body.body !== undefined) { fields.push(`body=$${idx++}`); values.push(req.body.body); }
+                if (req.body.price !== undefined) { fields.push(`price=$${idx++}`); values.push(req.body.price); }
+                if (req.body.lockedText !== undefined) { fields.push(`locked_text=$${idx++}`); values.push(req.body.lockedText); }
+                if (req.body.scheduledTime) {
+                        const newDate = new Date(req.body.scheduledTime);
+                        if (isNaN(newDate)) return res.status(400).json({ error: 'Invalid scheduledTime.' });
+                        fields.push(`scheduled_at=$${idx++}`);
+                        values.push(newDate);
+                }
+                if (!fields.length) {
+                        return res.status(400).json({ error: 'No valid fields to update.' });
+                }
+                values.push(req.params.id);
+                await pool.query(`UPDATE scheduled_messages SET ${fields.join(', ')} WHERE id=$${idx}`, values);
+                res.json({ success: true });
+        } catch (err) {
+                console.error('Error updating scheduled message:', err);
+                res.status(500).json({ success: false, error: err.message });
+        }
+});
+
+app.delete('/api/scheduledMessages/:id', async (req, res) => {
+        try {
+                await pool.query('UPDATE scheduled_messages SET status=$1 WHERE id=$2', ['canceled', req.params.id]);
+                res.json({ success: true });
+        } catch (err) {
+                console.error('Error canceling scheduled message:', err);
+                res.status(500).json({ success: false, error: err.message });
         }
 });
 
@@ -764,6 +838,25 @@ app.get('/api/status', async (req, res) => {
         res.json(status);
 });
 
+async function processScheduledMessages() {
+        try {
+                const dbRes = await pool.query("SELECT * FROM scheduled_messages WHERE status='pending' AND scheduled_at <= NOW()");
+                for (const row of dbRes.rows) {
+                        const recipients = Array.isArray(row.recipients) ? row.recipients : [];
+                        for (const fanId of recipients) {
+                                try {
+                                        await sendPersonalizedMessage(fanId, row.greeting || '', row.body || '', row.price, row.locked_text, row.media_files || [], row.previews || []);
+                                } catch (err) {
+                                        console.error(`Error sending scheduled message ${row.id} to ${fanId}:`, err.message);
+                                }
+                        }
+                        await pool.query('UPDATE scheduled_messages SET status=$1 WHERE id=$2', ['sent', row.id]);
+                }
+        } catch (err) {
+                console.error('Error processing scheduled messages:', err);
+        }
+}
+
 // Serve frontend static files
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -773,6 +866,8 @@ if (require.main === module) {
         app.listen(port, () => {
                 console.log(`OFEM server listening on http://localhost:${port}`);
         });
+        setInterval(processScheduledMessages, 60000);
+        processScheduledMessages();
 }
 
 // Export app for testing
