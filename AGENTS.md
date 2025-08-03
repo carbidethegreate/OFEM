@@ -39,5 +39,5 @@ Report environment, database, and external service health.
 
 - Available placeholders: `{parker_name}`, `{username}`, `{location}`, `{name}`, and `[name]`.
 - Messages are sanitized before sending. Allowed tags: `span`, `strong`, `em`, and `br`.
-- `span` tags may only use the following classes: `m-editor-fs__sm`, `m-editor-fs__l`, `m-editor-fs__default`, `m-editor-fc__gray`, `m-editor-fc__blue-1`, `m-editor-fc__blue-2`.
+- `span` tags may only use the following classes: `m-editor-fs__sm`, `m-editor-fs__s`, `m-editor-fs__default`, `m-editor-fs__l`, `m-editor-fs__lg`, `m-editor-fc__gray`, `m-editor-fc__blue-1`, `m-editor-fc__blue-2`.
 - Newline characters (`\n`) are automatically converted to `<br>`.

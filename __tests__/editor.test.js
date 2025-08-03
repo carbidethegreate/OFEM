@@ -41,6 +41,22 @@ test('applySize uses OnlyFans size class', () => {
   expect(el.innerHTML).toBe('<span class="m-editor-fs__sm">hello</span>');
 });
 
+test('applySize supports new size classes', () => {
+  setupDom('<div id="msg">hello</div>');
+  const el = document.getElementById('msg');
+  selectElement(el);
+  applySize('s');
+  expect(el.innerHTML).toBe('<span class="m-editor-fs__s">hello</span>');
+});
+
+test('applySize supports largest size class', () => {
+  setupDom('<div id="msg">hello</div>');
+  const el = document.getElementById('msg');
+  selectElement(el);
+  applySize('lg');
+  expect(el.innerHTML).toBe('<span class="m-editor-fs__lg">hello</span>');
+});
+
 test('insertPlaceholder inserts text at caret', () => {
   setupDom('<div id="msg"></div>');
   const el = document.getElementById('msg');
