@@ -243,6 +243,87 @@ Respond with only the chosen name.`;
                         let parkerName = existingFans[fanId] ? existingFans[fanId].parker_name : null;
                         let isCustom = existingFans[fanId] ? existingFans[fanId].is_custom : false;
 
+                        // Extract additional OnlyFans properties
+                        const {
+                                avatar = null,
+                                header = null,
+                                website = null,
+                                location = null,
+                                gender = null,
+                                birthday = null,
+                                about = null,
+                                notes = null,
+                                lastSeen = null,
+                                joined = null,
+                                canReceiveChatMessage,
+                                canSendChatMessage,
+                                isBlocked,
+                                isMuted,
+                                isRestricted,
+                                isHidden,
+                                isBookmarked,
+                                isSubscribed,
+                                subscribedBy = null,
+                                subscribedOn = null,
+                                subscribedUntil = null,
+                                renewedAd,
+                                isFriend,
+                                tipsSum,
+                                postsCount,
+                                photosCount,
+                                videosCount,
+                                audiosCount,
+                                mediaCount,
+                                subscribersCount,
+                                favoritesCount,
+                                avatarThumbs,
+                                headerSize,
+                                headerThumbs,
+                                listsStates,
+                                subscribedByData,
+                                subscribedOnData,
+                                promoOffers
+                        } = fan;
+
+                        const parseTimestamp = (value) => {
+                                if (value === null || value === undefined) return null;
+                                const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value);
+                                return isNaN(date.getTime()) ? null : date.toISOString();
+                        };
+
+                        const parseBoolean = (value) => {
+                                if (value === null || value === undefined) return null;
+                                return !!value;
+                        };
+
+                        const parseNumber = (value) => {
+                                if (value === null || value === undefined) return null;
+                                const num = Number(value);
+                                return Number.isNaN(num) ? null : num;
+                        };
+
+                        const lastSeenTs = parseTimestamp(lastSeen);
+                        const joinedTs = parseTimestamp(joined);
+                        const subscribedOnTs = parseTimestamp(subscribedOn);
+                        const subscribedUntilTs = parseTimestamp(subscribedUntil);
+
+                        const avatarThumbsJson = avatarThumbs ? JSON.stringify(avatarThumbs) : null;
+                        const headerSizeJson = headerSize ? JSON.stringify(headerSize) : null;
+                        const headerThumbsJson = headerThumbs ? JSON.stringify(headerThumbs) : null;
+                        const listsStatesJson = listsStates ? JSON.stringify(listsStates) : null;
+                        const subscribedByDataJson = subscribedByData ? JSON.stringify(subscribedByData) : null;
+                        const subscribedOnDataJson = subscribedOnData ? JSON.stringify(subscribedOnData) : null;
+                        const promoOffersJson = promoOffers ? JSON.stringify(promoOffers) : null;
+
+                        const tipsSumVal = parseNumber(tipsSum);
+                        const postsCountVal = parseNumber(postsCount);
+                        const photosCountVal = parseNumber(photosCount);
+                        const videosCountVal = parseNumber(videosCount);
+                        const audiosCountVal = parseNumber(audiosCount);
+                        const mediaCountVal = parseNumber(mediaCount);
+                        const subscribersCountVal = parseNumber(subscribersCount);
+                        const favoritesCountVal = parseNumber(favoritesCount);
+
                         // Generate ParkerGivenName if not set yet and not manually overridden
                         if ((!parkerName || parkerName === "") && !isCustom) {
                                 if (isSystemGenerated(username, profileName)) {
@@ -272,13 +353,154 @@ Respond with only the chosen name.`;
                         // Upsert in database (insert new or update existing)
                         if (existingFans[fanId]) {
                                 await pool.query(
-                                        'UPDATE fans SET username=$2, name=$3, parker_name=$4, is_custom=$5 WHERE id=$1',
-                                        [fanId, username, profileName, parkerName || existingFans[fanId].parker_name, isCustom]
+                                        `UPDATE fans SET
+                                                username=$2,
+                                                name=$3,
+                                                avatar=$4,
+                                                header=$5,
+                                                website=$6,
+                                                location=$7,
+                                                gender=$8,
+                                                birthday=$9,
+                                                about=$10,
+                                                notes=$11,
+                                                lastSeen=$12,
+                                                joined=$13,
+                                                canReceiveChatMessage=$14,
+                                                canSendChatMessage=$15,
+                                                isBlocked=$16,
+                                                isMuted=$17,
+                                                isRestricted=$18,
+                                                isHidden=$19,
+                                                isBookmarked=$20,
+                                                isSubscribed=$21,
+                                                subscribedBy=$22,
+                                                subscribedOn=$23,
+                                                subscribedUntil=$24,
+                                                renewedAd=$25,
+                                                isFriend=$26,
+                                                tipsSum=$27,
+                                                postsCount=$28,
+                                                photosCount=$29,
+                                                videosCount=$30,
+                                                audiosCount=$31,
+                                                mediaCount=$32,
+                                                subscribersCount=$33,
+                                                favoritesCount=$34,
+                                                avatarThumbs=$35,
+                                                headerSize=$36,
+                                                headerThumbs=$37,
+                                                listsStates=$38,
+                                                subscribedByData=$39,
+                                                subscribedOnData=$40,
+                                                promoOffers=$41,
+                                                parker_name=$42,
+                                                is_custom=$43,
+                                                updatedAt=NOW()
+                                        WHERE id=$1`,
+                                        [
+                                                fanId,
+                                                username,
+                                                profileName,
+                                                avatar,
+                                                header,
+                                                website,
+                                                location,
+                                                gender,
+                                                birthday,
+                                                about,
+                                                notes,
+                                                lastSeenTs,
+                                                joinedTs,
+                                                parseBoolean(canReceiveChatMessage),
+                                                parseBoolean(canSendChatMessage),
+                                                parseBoolean(isBlocked),
+                                                parseBoolean(isMuted),
+                                                parseBoolean(isRestricted),
+                                                parseBoolean(isHidden),
+                                                parseBoolean(isBookmarked),
+                                                parseBoolean(isSubscribed),
+                                                subscribedBy,
+                                                subscribedOnTs,
+                                                subscribedUntilTs,
+                                                parseBoolean(renewedAd),
+                                                parseBoolean(isFriend),
+                                                tipsSumVal,
+                                                postsCountVal,
+                                                photosCountVal,
+                                                videosCountVal,
+                                                audiosCountVal,
+                                                mediaCountVal,
+                                                subscribersCountVal,
+                                                favoritesCountVal,
+                                                avatarThumbsJson,
+                                                headerSizeJson,
+                                                headerThumbsJson,
+                                                listsStatesJson,
+                                                subscribedByDataJson,
+                                                subscribedOnDataJson,
+                                                promoOffersJson,
+                                                parkerName || existingFans[fanId].parker_name,
+                                                isCustom
+                                        ]
                                 );
                         } else {
                                 await pool.query(
-                                        'INSERT INTO fans (id, username, name, parker_name, is_custom) VALUES ($1, $2, $3, $4, $5)',
-                                        [fanId, username, profileName, parkerName || null, false]
+                                        `INSERT INTO fans (
+                                                id, username, name, avatar, header, website, location, gender, birthday, about, notes,
+                                                lastSeen, joined, canReceiveChatMessage, canSendChatMessage, isBlocked, isMuted, isRestricted,
+                                                isHidden, isBookmarked, isSubscribed, subscribedBy, subscribedOn, subscribedUntil, renewedAd,
+                                                isFriend, tipsSum, postsCount, photosCount, videosCount, audiosCount, mediaCount,
+                                                subscribersCount, favoritesCount, avatarThumbs, headerSize, headerThumbs, listsStates,
+                                                subscribedByData, subscribedOnData, promoOffers, parker_name, is_custom
+                                        ) VALUES (
+                                                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43
+                                        )`,
+                                        [
+                                                fanId,
+                                                username,
+                                                profileName,
+                                                avatar,
+                                                header,
+                                                website,
+                                                location,
+                                                gender,
+                                                birthday,
+                                                about,
+                                                notes,
+                                                lastSeenTs,
+                                                joinedTs,
+                                                parseBoolean(canReceiveChatMessage),
+                                                parseBoolean(canSendChatMessage),
+                                                parseBoolean(isBlocked),
+                                                parseBoolean(isMuted),
+                                                parseBoolean(isRestricted),
+                                                parseBoolean(isHidden),
+                                                parseBoolean(isBookmarked),
+                                                parseBoolean(isSubscribed),
+                                                subscribedBy,
+                                                subscribedOnTs,
+                                                subscribedUntilTs,
+                                                parseBoolean(renewedAd),
+                                                parseBoolean(isFriend),
+                                                tipsSumVal,
+                                                postsCountVal,
+                                                photosCountVal,
+                                                videosCountVal,
+                                                audiosCountVal,
+                                                mediaCountVal,
+                                                subscribersCountVal,
+                                                favoritesCountVal,
+                                                avatarThumbsJson,
+                                                headerSizeJson,
+                                                headerThumbsJson,
+                                                listsStatesJson,
+                                                subscribedByDataJson,
+                                                subscribedOnDataJson,
+                                                promoOffersJson,
+                                                parkerName || null,
+                                                false
+                                        ]
                                 );
                         }
                         updatedFans.push({
