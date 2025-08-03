@@ -616,6 +616,106 @@ app.get('/api/vault-media', async (req, res) => {
         }
 });
 
+// PPV management endpoints
+app.get('/api/ppv', async (req, res) => {
+        try {
+                const dbRes = await pool.query('SELECT id, ppv_number, description, price, vault_list_id, created_at FROM ppv_sets ORDER BY ppv_number');
+                res.json({ ppvs: dbRes.rows });
+        } catch (err) {
+                console.error('Error fetching PPVs:', err);
+                res.status(500).json({ error: 'Failed to fetch PPVs' });
+        }
+});
+
+app.post('/api/ppv', async (req, res) => {
+        const { ppvNumber, description, price, mediaFiles, previews } = req.body || {};
+        if (!Number.isInteger(ppvNumber) || typeof description !== 'string' || description.trim() === '' || !Number.isFinite(price) || !Array.isArray(mediaFiles) || mediaFiles.length === 0 || !Array.isArray(previews)) {
+                return res.status(400).json({ error: 'Invalid PPV data.' });
+        }
+        let vaultListId;
+        try {
+                if (!OFAccountId) {
+                        const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
+                        const rawAccounts = accountsResp.data?.data || accountsResp.data;
+                        const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
+                        if (!accounts || accounts.length === 0) {
+                                return res.status(400).json({ error: 'No OnlyFans account is connected to this API key.' });
+                        }
+                        OFAccountId = accounts[0].id;
+                }
+                const listResp = await ofApiRequest(() => ofApi.post(`/${OFAccountId}/media/vault/lists`, { name: `PPV ${ppvNumber}` }));
+                vaultListId = listResp.data?.id || listResp.data?.list?.id;
+                await ofApiRequest(() => ofApi.post(`/${OFAccountId}/media/vault/lists/${vaultListId}/media`, { media_ids: mediaFiles }));
+
+                const client = await pool.connect();
+                let ppvRow;
+                try {
+                        await client.query('BEGIN');
+                        const setRes = await client.query('INSERT INTO ppv_sets (ppv_number, description, price, vault_list_id) VALUES ($1,$2,$3,$4) RETURNING *', [ppvNumber, description, price, vaultListId]);
+                        ppvRow = setRes.rows[0];
+                        for (const mediaId of mediaFiles) {
+                                const isPreview = previews.includes(mediaId);
+                                await client.query('INSERT INTO ppv_media (ppv_id, media_id, is_preview) VALUES ($1,$2,$3)', [ppvRow.id, mediaId, isPreview]);
+                        }
+                        await client.query('COMMIT');
+                } catch (dbErr) {
+                        await client.query('ROLLBACK');
+                        try {
+                                await ofApiRequest(() => ofApi.delete(`/${OFAccountId}/media/vault/lists/${vaultListId}`));
+                                vaultListId = null;
+                        } catch (cleanupErr) {
+                                console.error('Error cleaning up vault list:', cleanupErr.response ? cleanupErr.response.data || cleanupErr.response.statusText : cleanupErr.message);
+                        }
+                        throw dbErr;
+                } finally {
+                        client.release();
+                }
+                res.status(201).json({ ppv: { ...ppvRow, media: mediaFiles.map(id => ({ media_id: id, is_preview: previews.includes(id) })) } });
+        } catch (err) {
+                if (vaultListId) {
+                        try {
+                                await ofApiRequest(() => ofApi.delete(`/${OFAccountId}/media/vault/lists/${vaultListId}`));
+                        } catch (cleanupErr) {
+                                console.error('Error cleaning up vault list:', cleanupErr.response ? cleanupErr.response.data || cleanupErr.response.statusText : cleanupErr.message);
+                        }
+                }
+                console.error('Error creating PPV:', err.response ? err.response.data || err.response.statusText : err.message);
+                res.status(500).json({ error: 'Failed to create PPV' });
+        }
+});
+
+app.delete('/api/ppv/:id', async (req, res) => {
+        try {
+                const id = req.params.id;
+                const dbRes = await pool.query('SELECT vault_list_id FROM ppv_sets WHERE id=$1', [id]);
+                if (dbRes.rows.length === 0) {
+                        return res.status(404).json({ error: 'PPV not found' });
+                }
+                const vaultListId = dbRes.rows[0].vault_list_id;
+                if (vaultListId) {
+                        if (!OFAccountId) {
+                                const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
+                                const accounts = accountsResp.data.accounts || accountsResp.data;
+                                if (accounts && accounts.length > 0) {
+                                        OFAccountId = accounts[0].id;
+                                }
+                        }
+                        if (OFAccountId) {
+                                try {
+                                        await ofApiRequest(() => ofApi.delete(`/${OFAccountId}/media/vault/lists/${vaultListId}`));
+                                } catch (apiErr) {
+                                        console.error('Error deleting OnlyFans vault list:', apiErr.response ? apiErr.response.data || apiErr.response.statusText : apiErr.message);
+                                }
+                        }
+                }
+                await pool.query('DELETE FROM ppv_sets WHERE id=$1', [id]);
+                res.json({ success: true });
+        } catch (err) {
+                console.error('Error deleting PPV:', err);
+                res.status(500).json({ error: 'Failed to delete PPV' });
+        }
+});
+
 /* Story 2: Send Personalized DM to All Fans */
 app.post('/api/sendMessage', async (req, res) => {
         try {
