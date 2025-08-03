@@ -52,12 +52,19 @@ async function ofApiRequest(requestFn, maxRetries = 5) {
 }
 // Escape HTML entities to prevent HTML injection in user-supplied text
 function escapeHtml(unsafe = "") {
-	return unsafe
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;")
-		.replace(/'/g, "&#039;");
+        return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+}
+
+// Determine if an OnlyFans account appears system generated
+function isSystemGenerated(username = "", profileName = "") {
+        const usernameSystem = /^u\d+$/.test(username) || /^\d+$/.test(username);
+        const profileSystem = profileName.trim() === "" || /^\d+$/.test(profileName);
+        return usernameSystem && profileSystem;
 }
 
 
@@ -123,21 +130,25 @@ Respond with only the chosen name.`;
 			let parkerName = existingFans[fanId] ? existingFans[fanId].parker_name : null;
 			const isCustom = existingFans[fanId] ? existingFans[fanId].is_custom : false;
 			
-			// Generate ParkerGivenName if not set yet and not manually overridden
-			if ((!parkerName || parkerName === "") && !isCustom) {
-				const userPrompt = `Subscriber username: "${username}". Profile name: "${profileName}". What should be the display name?`;
-				const completion = await openai.createChatCompletion({
-					model: "gpt-4",
-					messages: [
-						{ role: "system", content: systemPrompt },
-						{ role: "user", content: userPrompt }
-					],
-					max_tokens: 10,
-					temperature: 0.3
-				});
-				parkerName = completion.data.choices[0].message.content.trim();
-				console.log(`GPT-4 name for ${username}: ${parkerName}`);
-			}
+                        // Generate ParkerGivenName if not set yet and not manually overridden
+                        if ((!parkerName || parkerName === "") && !isCustom) {
+                                if (isSystemGenerated(username, profileName)) {
+                                        parkerName = "Cuddles";
+                                } else {
+                                        const userPrompt = `Subscriber username: "${username}". Profile name: "${profileName}". What should be the display name?`;
+                                        const completion = await openai.createChatCompletion({
+                                                model: "gpt-4",
+                                                messages: [
+                                                        { role: "system", content: systemPrompt },
+                                                        { role: "user", content: userPrompt }
+                                                ],
+                                                max_tokens: 10,
+                                                temperature: 0.3
+                                        });
+                                        parkerName = completion.data.choices[0].message.content.trim();
+                                        console.log(`GPT-4 name for ${username}: ${parkerName}`);
+                                }
+                        }
 			
 			// Upsert in database (insert new or update existing)
 			if (existingFans[fanId]) {
