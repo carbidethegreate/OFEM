@@ -26,8 +26,10 @@ app.use(express.json());
 // OnlyFans API client (bearer auth)
 const ofApi = axios.create({
         baseURL: 'https://app.onlyfansapi.com/api',
-        headers: { 'Authorization': `Bearer ${process.env.ONLYFANS_API_KEY}` }
+        headers: { 'Authorization': `Bearer ${process.env.ONLYFANS_API_KEY}` },
+        timeout: 30000
 });
+const openaiAxios = axios.create({ timeout: 30000 });
 let OFAccountId = null;
 // Wrapper to handle OnlyFans API rate limiting with retries
 async function ofApiRequest(requestFn, maxRetries = 5) {
@@ -36,6 +38,12 @@ async function ofApiRequest(requestFn, maxRetries = 5) {
                 try {
                         return await requestFn();
                 } catch (err) {
+                        if (err.code === 'ECONNABORTED') {
+                                console.error('OnlyFans API request timed out');
+                                const timeoutErr = new Error('OnlyFans API request timed out');
+                                timeoutErr.status = 504;
+                                throw timeoutErr;
+                        }
                         const status = err.response?.status;
                         if (status !== 429) throw err;
                         if (attempt === maxRetries) {
@@ -58,6 +66,12 @@ async function openaiRequest(requestFn, maxRetries = 5) {
                 try {
                         return await requestFn();
                 } catch (err) {
+                        if (err.code === 'ECONNABORTED') {
+                                console.error('OpenAI API request timed out');
+                                const timeoutErr = new Error('OpenAI API request timed out');
+                                timeoutErr.status = 504;
+                                throw timeoutErr;
+                        }
                         const status = err.response?.status;
                         if (status !== 429) throw err;
                         if (attempt === maxRetries) {
@@ -184,8 +198,12 @@ app.post('/api/updateFans', async (req, res) => {
 			existingFans[row.id] = { parker_name: row.parker_name, is_custom: row.is_custom };
 		}
 		
-		// 4. Prepare OpenAI API for GPT-4 usage
-		const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
+                // 4. Prepare OpenAI API for GPT-4 usage
+                const openai = new OpenAIApi(
+                        new Configuration({ apiKey: process.env.OPENAI_API_KEY }),
+                        undefined,
+                        openaiAxios
+                );
                 const systemPrompt = `You are Parker’s conversational assistant. Decide how to address a subscriber by evaluating their username and profile name.
 
 1. If the profile name contains a plausible real first name, use its first word.
@@ -388,7 +406,11 @@ app.get('/api/status', async (req, res) => {
                 status.onlyfans.error = err.response ? err.response.statusText || err.response.data : err.message;
         }
         try {
-                const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
+                const openai = new OpenAIApi(
+                        new Configuration({ apiKey: process.env.OPENAI_API_KEY }),
+                        undefined,
+                        openaiAxios
+                );
                 await openai.listModels();
                 status.openai.ok = true;
         } catch (err) {
