@@ -39,6 +39,20 @@ nicknames.
    Supplying database connection details and admin credentials now lets you reuse an
    existing PostgreSQL database and skip the `setup-db.command` step.
 
+### Environment Variables
+
+The server reads the following variables from your environment or `.env` file:
+
+- `ONLYFANS_API_KEY` – authenticates requests to the OnlyFans API.
+- `OPENAI_API_KEY` – enables OpenAI GPT‑4 for generating Parker names.
+- `DB_NAME` – name of the PostgreSQL database to use.
+- `DB_USER` – PostgreSQL username.
+- `DB_PASSWORD` – password for the database user.
+- `DB_HOST` – host address of the PostgreSQL server.
+- `DB_PORT` – port number where PostgreSQL listens.
+
+The `/api/status` endpoint reports whether each variable has been configured.
+
 3. **Create the database**
 
    Run `./setup-db.command` (macOS) or `node setup-db.js` to spin up PostgreSQL via Docker
