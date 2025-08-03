@@ -53,6 +53,58 @@ nicknames.
    The server listens on <http://localhost:3000> by default.  A convenience script
    `start.command` (macOS) installs npm packages if required and then launches the server.
 
+## Fan Fields Migration and New Columns
+
+Run the migration script below to ensure your database includes all of the latest fan
+profile fields.
+
+```bash
+node migrate_add_fan_fields.js
+```
+
+The script reads connection details from your `.env` file and adds any missing columns to
+the `fans` table.  The new columns and their purposes are:
+
+- `avatar` – URL to the fan's profile avatar
+- `header` – URL to the profile header image
+- `website` – External website link
+- `location` – Fan‑reported location
+- `gender` – Gender value from the profile
+- `birthday` – Birth date
+- `about` – Bio text
+- `notes` – Creator notes about the fan
+- `lastSeen` – Timestamp of the fan's last activity
+- `joined` – Date the fan joined OnlyFans
+- `canReceiveChatMessage` – Whether the fan can receive chat messages
+- `canSendChatMessage` – Whether the fan can send chat messages
+- `isBlocked` – Fan is blocked by the creator
+- `isMuted` – Fan is muted in chats
+- `isRestricted` – Fan is restricted from certain interactions
+- `isHidden` – Profile is hidden from the creator
+- `isBookmarked` – Fan is bookmarked
+- `isSubscribed` – Active subscription status
+- `subscribedBy` – Who initiated the subscription
+- `subscribedOn` – When the subscription started
+- `subscribedUntil` – Subscription expiration date
+- `renewedAd` – Subscription renewed via advertisement
+- `isFriend` – Fan is marked as a friend
+- `tipsSum` – Total amount the fan has tipped
+- `postsCount` – Number of posts created by the fan
+- `photosCount` – Number of photos posted
+- `videosCount` – Number of videos posted
+- `audiosCount` – Number of audio posts
+- `mediaCount` – Total media items posted
+- `subscribersCount` – Number of subscribers the fan has
+- `favoritesCount` – Number of posts the fan has favorited
+- `avatarThumbs` – JSON with resized avatar URLs
+- `headerSize` – JSON describing header dimensions
+- `headerThumbs` – JSON with resized header URLs
+- `listsStates` – JSON with list membership information
+- `subscribedByData` – JSON describing subscription origin
+- `subscribedOnData` – JSON describing subscription timing
+- `promoOffers` – JSON describing active promotional offers
+- `updatedAt` – Timestamp of the last record update
+
 ## Usage
 
 1. Open a browser to <http://localhost:3000>.
@@ -78,6 +130,29 @@ database. Each fan includes:
 - Counts: `tipsSum`, `postsCount`, `photosCount`, `videosCount`, `audiosCount`, `mediaCount`, `subscribersCount`, `favoritesCount`
 - Media fields: `avatarThumbs`, `headerSize`, `headerThumbs`, `listsStates`
 - `updatedAt` timestamp of the last record update
+
+#### Example response
+
+```json
+{
+  "fans": [
+    {
+      "id": 1,
+      "username": "demo_user",
+      "name": "Demo",
+      "parker_name": "Spark",
+      "is_custom": false,
+      "avatar": "https://cdn.example.com/avatar.jpg",
+      "location": "USA",
+      "isSubscribed": true,
+      "tipsSum": 100,
+      "avatarThumbs": { "150": "https://cdn.example.com/avatar_150.jpg" },
+      "promoOffers": {},
+      "updatedAt": "2025-08-05T00:00:00Z"
+    }
+  ]
+}
+```
 
 JSONB columns such as `avatarThumbs`, `headerSize`, `headerThumbs`, `listsStates`,
 `subscribedByData`, `subscribedOnData`, and `promoOffers` are returned as objects.
