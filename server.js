@@ -188,15 +188,30 @@ app.post('/api/updateFans', async (req, res) => {
 
 Respond with only the chosen name.`;
 		
-		// 5. Update/insert each fan in database with ParkerGivenName
-		const updatedFans = [];
-		for (const fan of allFans) {
-			const fanId = fan.id.toString();
-			const username = fan.username || "";
-			const profileName = fan.name || "";
+                // 5. Update/insert each fan in database with ParkerGivenName
+                // Send progress updates to the client using Server-Sent Events
+                res.setHeader('Content-Type', 'text/event-stream');
+                res.setHeader('Cache-Control', 'no-cache');
+                res.setHeader('Connection', 'keep-alive');
+                res.flushHeaders();
+
+                const totalFans = allFans.length;
+                let processed = 0;
+                const sendProgress = () => {
+                        res.write(`event: progress\\ndata: ${JSON.stringify({ processed, total: totalFans })}\\n\\n`);
+                };
+
+                const BATCH_SIZE = 5; // limit concurrent OpenAI requests
+                const updatedFans = [];
+                sendProgress();
+
+                const processFan = async (fan) => {
+                        const fanId = fan.id.toString();
+                        const username = fan.username || "";
+                        const profileName = fan.name || "";
                         let parkerName = existingFans[fanId] ? existingFans[fanId].parker_name : null;
                         let isCustom = existingFans[fanId] ? existingFans[fanId].is_custom : false;
-			
+
                         // Generate ParkerGivenName if not set yet and not manually overridden
                         if ((!parkerName || parkerName === "") && !isCustom) {
                                 if (isSystemGenerated(username, profileName)) {
@@ -222,35 +237,47 @@ Respond with only the chosen name.`;
                         if (parkerName !== originalName) {
                                 isCustom = false;
                         }
-			
-			// Upsert in database (insert new or update existing)
-			if (existingFans[fanId]) {
-				await pool.query(
-					'UPDATE fans SET username=$2, name=$3, parker_name=$4, is_custom=$5 WHERE id=$1',
-					[fanId, username, profileName, parkerName || existingFans[fanId].parker_name, isCustom]
-				);
-			} else {
-				await pool.query(
-					'INSERT INTO fans (id, username, name, parker_name, is_custom) VALUES ($1, $2, $3, $4, $5)',
-					[fanId, username, profileName, parkerName || null, false]
-				);
-			}
-			updatedFans.push({
-				id: fanId,
-				username: username,
-				name: profileName,
-				parker_name: parkerName || existingFans[fanId]?.parker_name || ""
-			});
-		}
-		
-		console.log("UpdateFans: Completed updating fan names.");
-		res.json({ fans: updatedFans });
+
+                        // Upsert in database (insert new or update existing)
+                        if (existingFans[fanId]) {
+                                await pool.query(
+                                        'UPDATE fans SET username=$2, name=$3, parker_name=$4, is_custom=$5 WHERE id=$1',
+                                        [fanId, username, profileName, parkerName || existingFans[fanId].parker_name, isCustom]
+                                );
+                        } else {
+                                await pool.query(
+                                        'INSERT INTO fans (id, username, name, parker_name, is_custom) VALUES ($1, $2, $3, $4, $5)',
+                                        [fanId, username, profileName, parkerName || null, false]
+                                );
+                        }
+                        updatedFans.push({
+                                id: fanId,
+                                username: username,
+                                name: profileName,
+                                parker_name: parkerName || existingFans[fanId]?.parker_name || "",
+                        });
+                        processed++;
+                        sendProgress();
+                };
+
+                for (let i = 0; i < allFans.length; i += BATCH_SIZE) {
+                        const batch = allFans.slice(i, i + BATCH_SIZE);
+                        await Promise.all(batch.map(processFan));
+                }
+
+                console.log("UpdateFans: Completed updating fan names.");
+                res.write(`event: complete\\ndata: ${JSON.stringify({ fans: updatedFans })}\\n\\n`);
+                res.end();
         } catch (err) {
                 console.error("Error in /api/updateFans:", err);
-                if (err.status === 429) {
-                        return res.status(429).send('OnlyFans API rate limit exceeded. Please try again later.');
+                const status = err.status || 500;
+                const message = status === 429 ? 'OnlyFans API rate limit exceeded. Please try again later.' : (err.message || 'Failed to update fan names.');
+                if (res.headersSent) {
+                        res.write(`event: error\ndata: ${JSON.stringify({ error: message })}\n\n`);
+                        res.end();
+                } else {
+                        res.status(status).send(message);
                 }
-                res.status(500).send(err.message || "Failed to update fan names.");
         }
 });
 
