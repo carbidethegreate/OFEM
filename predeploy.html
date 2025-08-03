@@ -13,6 +13,19 @@
   <h1>Getting Started with OFEM</h1>
   <p>Follow these simple steps on a Mac to run OFEM. No programming knowledge required.</p>
   <ol>
+    <li><strong>Download and Unzip</strong>
+      <ol>
+        <li>Download the project ZIP file.</li>
+        <li>Open your Downloads folder and double‑click the ZIP to create the <code>OFEM</code> folder.</li>
+      </ol>
+    </li>
+    <li><strong>Allow Scripts to Run</strong>
+      <ol>
+        <li>Click the button below to remove the quarantine flag from the command files.</li>
+        <li style="margin-top:8px;"><button onclick="window.location.href='remove-quarantine.command'">Allow command files</button></li>
+        <li style="font-size:0.9em;color:#555;margin-top:4px;">If the browser shows the script code instead of running it, open the <code>OFEM</code> folder in Finder and double-click <code>remove-quarantine.command</code> manually.</li>
+      </ol>
+    </li>
     <li><strong>Install Requirements</strong>
       <ol>
         <li>Click the button below to install Node.js (LTS) in this folder and download all required npm packages.</li>
@@ -23,12 +36,6 @@
         <li style="margin-top:8px;"><button onclick="window.location.href='install-docker.command'">Install Docker Desktop</button></li>
         <li style="font-size:0.9em;color:#555;margin-top:4px;">If the browser shows the script code instead of running it, open the <code>OFEM</code> folder in Finder and double-click <code>install-docker.command</code> manually.</li>
         <li style="font-size:0.9em;color:#555;margin-top:4px;">If you already have a local PostgreSQL server running you can skip Docker, but the setup wizard uses Docker by default.</li>
-      </ol>
-    </li>
-    <li><strong>Download and Unzip</strong>
-      <ol>
-        <li>Download the project ZIP file.</li>
-        <li>Open your Downloads folder and double‑click the ZIP to create the <code>OFEM</code> folder.</li>
       </ol>
     </li>
     <li><strong>Create the Database</strong>
