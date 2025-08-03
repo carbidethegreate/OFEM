@@ -50,6 +50,29 @@ async function ofApiRequest(requestFn, maxRetries = 5) {
                 }
         }
 }
+
+// Wrapper to handle OpenAI rate limiting with retries
+async function openaiRequest(requestFn, maxRetries = 5) {
+        let delay = 1000; // start with 1s
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                        return await requestFn();
+                } catch (err) {
+                        const status = err.response?.status;
+                        if (status !== 429) throw err;
+                        if (attempt === maxRetries) {
+                                const aiErr = new Error('OpenAI API rate limit exceeded');
+                                aiErr.status = 429;
+                                throw aiErr;
+                        }
+                        const retryAfter = parseInt(err.response.headers['retry-after'], 10);
+                        const wait = Number.isFinite(retryAfter) ? retryAfter * 1000 : delay;
+                        console.warn(`OpenAI rate limit hit. Retry ${attempt + 1} in ${wait}ms`);
+                        await new Promise(r => setTimeout(r, wait));
+                        delay *= 2;
+                }
+        }
+}
 // Escape HTML entities to prevent HTML injection in user-supplied text
 function escapeHtml(unsafe = "") {
         return unsafe
@@ -180,7 +203,7 @@ Respond with only the chosen name.`;
                                         parkerName = "Cuddles";
                                 } else {
                                         const userPrompt = `Subscriber username: "${username}". Profile name: "${profileName}". What should be the display name?`;
-                                        const completion = await openai.createChatCompletion({
+                                        const completion = await openaiRequest(() => openai.createChatCompletion({
                                                 model: "gpt-4",
                                                 messages: [
                                                         { role: "system", content: systemPrompt },
@@ -188,7 +211,7 @@ Respond with only the chosen name.`;
                                                 ],
                                                 max_tokens: 10,
                                                 temperature: 0.3
-                                        });
+                                        }));
                                         parkerName = completion.data.choices[0].message.content.trim();
                                         console.log(`GPT-4 name for ${username}: ${parkerName}`);
                                 }
