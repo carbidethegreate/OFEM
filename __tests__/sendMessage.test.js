@@ -79,3 +79,37 @@ test('inserts <br> for newline characters', async () => {
     .expect(200);
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hi Alice! Line1<br>Line2</p>' });
 });
+
+test('keeps <strong> tag for bold formatting', async () => {
+  await mockPool.query("INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')");
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValueOnce({});
+  await request(app)
+    .post('/api/sendMessage')
+    .send({ userId: 1, template: 'Hello <strong>{parker_name}</strong>' })
+    .expect(200);
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hello <strong>Alice</strong></p>' });
+});
+
+test('retains font size class on span', async () => {
+  await mockPool.query("INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')");
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValueOnce({});
+  await request(app)
+    .post('/api/sendMessage')
+    .send({ userId: 1, template: 'Size <span class="m-editor-fs__l">{parker_name}</span>' })
+    .expect(200);
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Size <span class="m-editor-fs__l">Alice</span></p>' });
+});
+
+test('retains font color class on span', async () => {
+  await mockPool.query("INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')");
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValueOnce({});
+  await request(app)
+    .post('/api/sendMessage')
+    .send({ userId: 1, template: 'Color <span class="m-editor-fc__blue-1">{parker_name}</span>' })
+    .expect(200);
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Color <span class="m-editor-fc__blue-1">Alice</span></p>' });
+});
+
