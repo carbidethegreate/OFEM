@@ -25,10 +25,36 @@ app.use(express.json());
 
 // OnlyFans API client (bearer auth)
 const ofApi = axios.create({
-	baseURL: 'https://app.onlyfansapi.com/api',
-	headers: { 'Authorization': `Bearer ${process.env.ONLYFANS_API_KEY}` }
+        baseURL: 'https://app.onlyfansapi.com/api',
+        headers: { 'Authorization': `Bearer ${process.env.ONLYFANS_API_KEY}` }
 });
 let OFAccountId = null;
+// Wrapper to handle OnlyFans API rate limiting with retries
+async function ofApiRequest(fn, maxRetries = 5) {
+        let attempt = 0;
+        let delay = 1000; // start with 1s
+        while (true) {
+                try {
+                        return await fn();
+                } catch (err) {
+                        const status = err.response?.status;
+                        if (status === 429 && attempt < maxRetries) {
+                                const retryAfter = parseInt(err.response.headers['retry-after'], 10);
+                                const wait = !isNaN(retryAfter) ? retryAfter * 1000 : delay;
+                                await new Promise(r => setTimeout(r, wait));
+                                attempt++;
+                                delay *= 2;
+                                continue;
+                        }
+                        if (status === 429) {
+                                const rateErr = new Error('OnlyFans API rate limit exceeded');
+                                rateErr.status = 429;
+                                throw rateErr;
+                        }
+                        throw err;
+                }
+        }
+}
 // Escape HTML entities to prevent HTML injection in user-supplied text
 function escapeHtml(unsafe = "") {
 	return unsafe
@@ -44,7 +70,7 @@ function escapeHtml(unsafe = "") {
 app.post('/api/updateFans', async (req, res) => {
 	try {
 		// 1. Verify API key and get connected account ID
-                const accountsResp = await ofApi.get('/accounts');
+                const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
                 const rawAccounts = accountsResp.data?.data || accountsResp.data;
                 const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
                 if (!accounts || accounts.length === 0) {
@@ -59,7 +85,7 @@ app.post('/api/updateFans', async (req, res) => {
                         const results = [];
                         let offset = 0;
                         while (true) {
-                                const resp = await ofApi.get(`/${OFAccountId}/fans/${type}`, { params: { limit, offset } });
+                                const resp = await ofApiRequest(() => ofApi.get(`/${OFAccountId}/fans/${type}`, { params: { limit, offset } }));
                                 const page = resp.data?.data?.list || resp.data?.list || resp.data;
                                 if (!page || page.length === 0) break;
                                 results.push(...page);
@@ -140,10 +166,13 @@ app.post('/api/updateFans', async (req, res) => {
 		
 		console.log("UpdateFans: Completed updating fan names.");
 		res.json({ fans: updatedFans });
-	} catch (err) {
-		console.error("Error in /api/updateFans:", err);
-		res.status(500).send(err.message || "Failed to update fan names.");
-	}
+        } catch (err) {
+                console.error("Error in /api/updateFans:", err);
+                if (err.status === 429) {
+                        return res.status(429).send('OnlyFans API rate limit exceeded. Please try again later.');
+                }
+                res.status(500).send(err.message || "Failed to update fan names.");
+        }
 });
 
 /* Allow manual editing of ParkerGivenName in the database */
@@ -175,9 +204,9 @@ app.post('/api/sendMessage', async (req, res) => {
 			return res.status(400).send("Missing userId or message.");
 		}
 		// Ensure we have OnlyFans account ID (if updateFans not run, fetch now as fallback)
-		if (!OFAccountId) {
-			const accountsResp = await ofApi.get('/accounts');
-			const accounts = accountsResp.data.accounts || accountsResp.data;
+                  if (!OFAccountId) {
+                          const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
+                          const accounts = accountsResp.data.accounts || accountsResp.data;
 			if (!accounts || accounts.length === 0) {
 				return res.status(400).send("No OnlyFans account available.");
 			}
@@ -195,15 +224,16 @@ app.post('/api/sendMessage', async (req, res) => {
 		// TODO: If not already connected with this user and their profile is free, one could call a subscribe endpoint here.
 		// Send message via OnlyFans API
 		const formatted = `<p>${escapeHtml(message)}</p>`;
-		await ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, { text: formatted });
+                  await ofApiRequest(() => ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, { text: formatted }));
 		console.log(`Sent message to ${fanId}: ${message.substring(0, 30)}...`);
 		res.json({ success: true });
-	} catch (err) {
-		console.error("Error sending message to fan:", err.response ? err.response.data || err.response.statusText : err.message);
-		// Even if message sending fails (e.g., user not reachable), we don't throw, just return success false.
-		res.json({ success: false, error: err.response ? err.response.statusText || err.response.data : err.message });
-	}
-});
+          } catch (err) {
+                  console.error("Error sending message to fan:", err.response ? err.response.data || err.response.statusText : err.message);
+                  const status = err.status || err.response?.status;
+                  const message = status === 429 ? 'OnlyFans API rate limit exceeded. Please try again later.' : (err.response ? err.response.statusText || err.response.data : err.message);
+                  res.status(status || 500).json({ success: false, error: message });
+          }
+  });
 
 // Endpoint to get all fans from DB (for initial page load if needed)
 app.get('/api/fans', async (req, res) => {
