@@ -607,6 +607,10 @@ app.post('/api/sendMessage', async (req, res) => {
                 if (mediaFiles.length) payload.mediaFiles = mediaFiles;
                 if (previews.length) payload.previews = previews;
                 await ofApiRequest(() => ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, payload));
+                await pool.query(
+                        'INSERT INTO messages (fan_id, direction, body, price) VALUES ($1, $2, $3, $4)',
+                        [fanId, 'outgoing', formatted, price ?? null]
+                );
                 console.log(`Sent message to ${fanId}: ${template.substring(0, 30)}...`);
                 res.json({ success: true });
         } catch (err) {
