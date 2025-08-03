@@ -10,7 +10,8 @@
     th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
     th { background: #f9f9f9; }
     input[type=text] { width: 100%; box-sizing: border-box; }
-    textarea { width: 100%; max-width: 800px; box-sizing: border-box; }
+    #editor { width: 100%; max-width: 800px; box-sizing: border-box; min-height: 80px; border: 1px solid #ccc; padding: 4px; }
+    #toolbar button, #toolbar select, #toolbar input { margin-right: 4px; }
     button { padding: 4px 8px; margin: 4px 2px; }
     .dot { display: inline-block; height: 10px; width: 10px; border-radius: 50%; margin-right: 4px; }
     .green { background-color: green; }
@@ -23,7 +24,22 @@
     <button id="updateBtn">Update Fan Names</button>
   </p>
   <div id="messageSection" style="margin: 15px 0;">
-    <textarea id="message" rows="3" placeholder="Enter message to send to all fans..."></textarea><br>
+    <div id="toolbar">
+      <button id="boldBtn">Bold</button>
+      <input type="color" id="colorPicker">
+      <select id="sizePicker">
+        <option value="1">Small</option>
+        <option value="3" selected>Normal</option>
+        <option value="5">Large</option>
+      </select>
+      <select id="placeholderPicker">
+        <option value="">Insert Placeholder</option>
+        <option value="{parker_name}">{parker_name}</option>
+        <option value="{username}">{username}</option>
+        <option value="{location}">{location}</option>
+      </select>
+    </div>
+    <div id="editor" contenteditable="true"></div><br>
     <button id="sendBtn">Send Personalized DM to All Fans</button>
     <button id="abortBtn" disabled>Abort Sending</button>
   </div>
@@ -43,6 +59,7 @@
     </tbody>
   </table>
 
+  <script src="js/editor.js"></script>
   <script>
     let fansData = [];
     let sendingInProgress = false;
@@ -194,8 +211,8 @@
         alert('No fans to send messages to.');
         return;
       }
-      const message = document.getElementById('message').value.trim();
-      if (!message) {
+      const template = getEditorHtml().trim();
+      if (!template) {
         alert('Please enter a message.');
         return;
       }
@@ -220,7 +237,7 @@
           const res = await fetch('/api/sendMessage', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: fanId, message: message })
+            body: JSON.stringify({ userId: fanId, template: template })
           });
           const result = await res.json();
           if (result.success) {
