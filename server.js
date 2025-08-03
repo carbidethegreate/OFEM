@@ -561,16 +561,21 @@ app.post('/api/sendMessage', async (req, res) => {
 			}
 			OFAccountId = accounts[0].id;
 		}
-		// Get ParkerGivenName for personalization
-                const dbRes = await pool.query('SELECT parker_name FROM fans WHERE id=$1', [fanId]);
-                let parkerName = dbRes.rows.length ? dbRes.rows[0].parker_name : "";
-                parkerName = removeEmojis(parkerName);
-                // Personalize template with name
-                if (template.includes("{name}") || template.includes("[name]")) {
-                        template = template.replace(/\{name\}|\[name\]/g, parkerName);
+                // Get fan fields for personalization
+                const dbRes = await pool.query('SELECT parker_name, username, location FROM fans WHERE id=$1', [fanId]);
+                const row = dbRes.rows[0] || {};
+                const parkerName = removeEmojis(row.parker_name || "");
+                const userName = removeEmojis(row.username || "");
+                const userLocation = removeEmojis(row.location || "");
+
+                // Personalize template with placeholders
+                if (template.includes("{name}") || template.includes("[name]") || template.includes("{parker_name}")) {
+                        template = template.replace(/\{name\}|\[name\]|\{parker_name\}/g, parkerName);
                 } else {
                         template = `Hi ${parkerName || "there"}! ${template}`;
                 }
+                template = template.replace(/\{username\}/g, userName);
+                template = template.replace(/\{location\}/g, userLocation);
                 // TODO: If not already connected with this user and their profile is free, one could call a subscribe endpoint here.
                 // Sanitize and send message via OnlyFans API
                 const sanitized = sanitizeHtml(template, {
