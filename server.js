@@ -126,7 +126,8 @@ app.post('/api/updateFans', async (req, res) => {
                 console.log(`Using OnlyFans account: ${OFAccountId}`);
 
                 // 2. Fetch all fans (active + expired subscribers)
-                const limit = 50;
+                // OnlyFans API appears to cap page size at 32 items
+                const limit = 32;
                 const fetchFans = async (type) => {
                         const results = [];
                         let offset = 0;
@@ -135,8 +136,7 @@ app.post('/api/updateFans', async (req, res) => {
                                 const page = resp.data?.data?.list || resp.data?.list || resp.data;
                                 if (!page || page.length === 0) break;
                                 results.push(...page);
-                                if (page.length < limit) break;
-                                offset += limit;
+                                offset += page.length;
                         }
                         return results;
                 };
