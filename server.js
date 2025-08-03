@@ -621,6 +621,48 @@ app.post('/api/sendMessage', async (req, res) => {
         }
 });
 
+// Retrieve message history for a fan
+app.get('/api/messages/history', async (req, res) => {
+        try {
+                const fanId = req.query.fanId;
+                let limit = parseInt(req.query.limit, 10);
+                if (!fanId) {
+                        return res.status(400).json({ error: 'fanId required' });
+                }
+                if (!Number.isFinite(limit) || limit <= 0) limit = 20;
+                // Ensure account id
+                if (!OFAccountId) {
+                        const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
+                        const accounts = accountsResp.data.accounts || accountsResp.data;
+                        if (!accounts || accounts.length === 0) {
+                                return res.status(400).json({ error: 'No OnlyFans account available.' });
+                        }
+                        OFAccountId = accounts[0].id;
+                }
+                const resp = await ofApiRequest(() => ofApi.get(`/${OFAccountId}/chats/${fanId}/messages`, { params: { limit } }));
+                const raw = resp.data?.messages || resp.data?.list || resp.data?.data?.messages || resp.data?.data?.list || [];
+                const messages = Array.isArray(raw) ? raw : [];
+                for (const m of messages) {
+                        const msgId = m.id;
+                        const direction = (m.fromUser?.id || m.user?.id || m.senderId) === OFAccountId ? 'outgoing' : 'incoming';
+                        const body = m.text || m.body || '';
+                        const price = m.price ?? null;
+                        const created = new Date((m.createdAt || m.created_at || m.postedAt || m.time || 0) * 1000);
+                        await pool.query(
+                                'INSERT INTO messages (id, fan_id, direction, body, price, created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET fan_id=EXCLUDED.fan_id, direction=EXCLUDED.direction, body=EXCLUDED.body, price=EXCLUDED.price, created_at=EXCLUDED.created_at',
+                                [msgId, fanId, direction, body, price, created]
+                        );
+                        m.direction = direction;
+                }
+                res.json({ messages });
+        } catch (err) {
+                console.error('Error fetching message history:', err.response ? err.response.data || err.response.statusText : err.message);
+                const status = err.status || err.response?.status;
+                const message = status === 429 ? 'OnlyFans API rate limit exceeded. Please try again later.' : (err.response ? err.response.statusText || err.response.data : err.message);
+                res.status(status || 500).json({ error: message });
+        }
+});
+
 // Endpoint to get all fans from DB (for initial page load if needed)
 app.get('/api/fans', async (req, res) => {
         try {

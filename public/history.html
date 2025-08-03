@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Message History</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    select, input { margin-right: 8px; }
+    ul { list-style: none; padding-left: 0; }
+    li { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Message History</h1>
+  <div>
+    <label for="fanSelect">Fan:</label>
+    <select id="fanSelect"></select>
+    <label for="limitInput">Limit:</label>
+    <input type="number" id="limitInput" min="1" value="20" />
+    <button id="fetchHistoryBtn" type="button">Fetch</button>
+  </div>
+  <div id="messageHistory" style="margin-top:15px;"></div>
+  <script src="history.js"></script>
+  <script>
+    if (window.MessageHistory && MessageHistory.init) {
+      MessageHistory.init();
+    }
+  </script>
+</body>
+</html>
