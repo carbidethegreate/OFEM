@@ -36,16 +36,10 @@ nicknames.
    OpenAI API keys. This creates a `.env` file. The database setup wizard will add the
    database credentials later.
 
-3. **Start PostgreSQL (Docker)**
+3. **Create the database**
 
-   A `docker-compose.yml` is provided to launch a local database quickly:
-
-   ```bash
-   docker compose up -d db
-   ```
-
-   The default connection string is
-   `postgres://postgres:postgres@localhost:5432/ofdb`.
+   Run `./setup-db.command` (macOS) or `node setup-db.js` to spin up PostgreSQL via Docker (if needed),
+   create a database with a random name, and write the credentials to your `.env` file.
 
 4. **Start the server**
 
@@ -54,7 +48,7 @@ nicknames.
    ```
 
    The server listens on <http://localhost:3000> by default.  A convenience script
-   `start.command` (macOS) runs `npm install` if needed and then launches the server.
+   `start.command` (macOS) installs npm packages if required and then launches the server.
 
 ## Usage
 

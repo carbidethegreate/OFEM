@@ -127,31 +127,21 @@ async function main() {
         if (!fs.existsSync(envPath) && fs.existsSync(exampleEnvPath)) {
             fs.copyFileSync(exampleEnvPath, envPath);
         }
-        let envContent = '';
+        let lines = [];
         if (fs.existsSync(envPath)) {
-            envContent = fs.readFileSync(envPath, 'utf8');
+            const existing = fs.readFileSync(envPath, 'utf8');
+            lines = existing.split(/\r?\n/).filter(line => !line.startsWith('DB_NAME=') &&
+                !line.startsWith('DB_USER=') &&
+                !line.startsWith('DB_PASSWORD=') &&
+                !line.startsWith('DB_HOST=') &&
+                !line.startsWith('DB_PORT='));
         }
-        const setEnv = (key, value) => {
-            const regex = new RegExp(`^${key}=.*$`, 'm');
-            if (regex.test(envContent)) {
-                envContent = envContent.replace(regex, `${key}=${value}`);
-            } else {
-                envContent += `\n${key}=${value}`;
-            }
-        };
-        const ensureEnv = (key, value) => {
-            const regex = new RegExp(`^${key}=.*$`, 'm');
-            if (!regex.test(envContent)) {
-                envContent += `\n${key}=${value}`;
-            }
-        };
-        setEnv('DB_NAME', dbName);
-        setEnv('DB_USER', dbUser);
-        setEnv('DB_PASSWORD', dbPassword);
-        ensureEnv('DB_HOST', adminConfig.host);
-        ensureEnv('DB_PORT', adminConfig.port);
-        if (!envContent.endsWith('\n')) envContent += '\n';
-        fs.writeFileSync(envPath, envContent);
+        lines.push(`DB_NAME=${dbName}`);
+        lines.push(`DB_USER=${dbUser}`);
+        lines.push(`DB_PASSWORD=${dbPassword}`);
+        lines.push(`DB_HOST=${adminConfig.host}`);
+        lines.push(`DB_PORT=${adminConfig.port}`);
+        fs.writeFileSync(envPath, lines.join('\n') + '\n');
         console.log('.env file updated.');
 
         console.log('✅ Database setup complete!');

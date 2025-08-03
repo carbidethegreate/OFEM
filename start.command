@@ -7,5 +7,12 @@ set -e
 cd "$(dirname "$0")"
 echo "Starting OnlyFans Express Messenger..."
 echo "Press Ctrl+C to stop the server."
+
+# Install dependencies if pg (PostgreSQL client) is missing
+if ! node -e "require('pg')" >/dev/null 2>&1; then
+  echo "Installing npm packages..."
+  npm install
+fi
+
 npm start
 
