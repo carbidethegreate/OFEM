@@ -50,6 +50,14 @@
       </select>
     </div>
     <div id="message" contenteditable="true" class="m-editor-fs__default" style="border:1px solid #ccc; padding:4px; min-height:60px;"></div>
+    <div id="vaultSection" style="margin-top:10px;">
+      <button id="loadVaultBtn" type="button">Load Vault Media</button>
+      <div id="vaultMediaList" style="max-height:150px; overflow:auto; margin-top:5px;"></div>
+      <div style="margin-top:5px;">
+        <label>Price: <input type="number" id="price" min="0" step="0.01" style="width:80px;"></label>
+        <input type="text" id="lockedText" placeholder="Locked text" style="width:200px;" />
+      </div>
+    </div>
     <button id="sendBtn">Send Personalized DM to All Fans</button>
     <button id="abortBtn" disabled>Abort Sending</button>
   </div>
@@ -98,6 +106,48 @@
         renderFansTable();
       } catch (err) {
         console.error('Error fetching fans:', err);
+      }
+    }
+
+    async function loadVaultMedia() {
+      try {
+        const res = await fetch('/api/vault-media');
+        if (!res.ok) return;
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : (data.list || data.results || data.media || data.data || []);
+        const container = document.getElementById('vaultMediaList');
+        container.innerHTML = '';
+        for (const m of items) {
+          const div = document.createElement('div');
+          const mediaCb = document.createElement('input');
+          mediaCb.type = 'checkbox';
+          mediaCb.className = 'mediaCheckbox';
+          mediaCb.value = m.id;
+          div.appendChild(mediaCb);
+
+          const previewCb = document.createElement('input');
+          previewCb.type = 'checkbox';
+          previewCb.className = 'previewCheckbox';
+          previewCb.value = m.id;
+          div.appendChild(previewCb);
+
+          const span = document.createElement('span');
+          span.textContent = 'Media ' + m.id;
+          div.appendChild(span);
+
+          const thumb = (m.preview && (m.preview.url || m.preview.src)) ||
+                       (m.thumb && (m.thumb.url || m.thumb.src));
+          if (thumb) {
+            const img = document.createElement('img');
+            img.src = thumb;
+            img.width = 50;
+            img.style.marginLeft = '5px';
+            div.appendChild(img);
+          }
+          container.appendChild(div);
+        }
+      } catch (err) {
+        console.error('Error loading vault media:', err);
       }
     }
 
@@ -227,6 +277,11 @@
         alert('Please enter a message.');
         return;
       }
+      const priceVal = document.getElementById('price').value;
+      const price = priceVal ? parseFloat(priceVal) : undefined;
+      const lockedText = document.getElementById('lockedText').value;
+      const mediaFiles = Array.from(document.querySelectorAll('.mediaCheckbox:checked')).map(cb => cb.value);
+      const previews = Array.from(document.querySelectorAll('.previewCheckbox:checked')).map(cb => cb.value);
       sendingInProgress = true;
       abortFlag = false;
       document.getElementById('updateBtn').disabled = true;
@@ -248,7 +303,7 @@
           const res = await fetch('/api/sendMessage', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: fanId, greeting, body })
+            body: JSON.stringify({ userId: fanId, greeting, body, price, lockedText, mediaFiles, previews })
           });
           const result = await res.json();
           if (result.success) {
@@ -298,6 +353,7 @@
 
     document.getElementById('updateBtn').addEventListener('click', updateFansList);
     document.getElementById('sendBtn').addEventListener('click', sendMessagesToAll);
+    document.getElementById('loadVaultBtn').addEventListener('click', loadVaultMedia);
     document.getElementById('abortBtn').addEventListener('click', function() {
       if (sendingInProgress) {
         abortFlag = true;

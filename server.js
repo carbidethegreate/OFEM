@@ -544,25 +544,50 @@ app.put('/api/fans/:id', async (req, res) => {
         }
 });
 
+// Retrieve media from OnlyFans vault
+app.get('/api/vault-media', async (req, res) => {
+        try {
+                // Ensure OnlyFans account ID is known
+                if (!OFAccountId) {
+                        const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
+                        const accounts = accountsResp.data.accounts || accountsResp.data;
+                        if (!accounts || accounts.length === 0) {
+                                return res.status(400).send('No OnlyFans account available.');
+                        }
+                        OFAccountId = accounts[0].id;
+                }
+                const resp = await ofApiRequest(() => ofApi.get(`/${OFAccountId}/media/vault`, { params: req.query }));
+                res.json(resp.data);
+        } catch (err) {
+                console.error('Error fetching vault media:', err.response ? err.response.data || err.response.statusText : err.message);
+                const status = err.status || err.response?.status;
+                res.status(status || 500).send('Failed to retrieve vault media.');
+        }
+});
+
 /* Story 2: Send Personalized DM to All Fans */
 app.post('/api/sendMessage', async (req, res) => {
         try {
                 const fanId = req.body.userId;
                 const greeting = req.body.greeting || "";
                 const body = req.body.body || "";
+                const price = req.body.price;
+                const lockedText = req.body.lockedText;
+                const mediaFiles = Array.isArray(req.body.mediaFiles) ? req.body.mediaFiles : [];
+                const previews = Array.isArray(req.body.previews) ? req.body.previews : [];
                 if (!fanId || (!greeting && !body)) {
                         return res.status(400).send("Missing userId or message.");
                 }
                 let template = [greeting, body].filter(Boolean).join(' ').trim();
-		// Ensure we have OnlyFans account ID (if updateFans not run, fetch now as fallback)
-                  if (!OFAccountId) {
-                          const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
-                          const accounts = accountsResp.data.accounts || accountsResp.data;
-			if (!accounts || accounts.length === 0) {
-				return res.status(400).send("No OnlyFans account available.");
-			}
-			OFAccountId = accounts[0].id;
-		}
+                // Ensure we have OnlyFans account ID (if updateFans not run, fetch now as fallback)
+                if (!OFAccountId) {
+                        const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
+                        const accounts = accountsResp.data.accounts || accountsResp.data;
+                        if (!accounts || accounts.length === 0) {
+                                return res.status(400).send("No OnlyFans account available.");
+                        }
+                        OFAccountId = accounts[0].id;
+                }
                 // Get fan fields for personalization
                 const dbRes = await pool.query('SELECT parker_name, username, location FROM fans WHERE id=$1', [fanId]);
                 const row = dbRes.rows[0] || {};
@@ -574,19 +599,23 @@ app.post('/api/sendMessage', async (req, res) => {
                 template = template.replace(/\{name\}|\[name\]|\{parker_name\}/g, parkerName);
                 template = template.replace(/\{username\}/g, userName);
                 template = template.replace(/\{location\}/g, userLocation);
-                // TODO: If not already connected with this user and their profile is free, one could call a subscribe endpoint here.
                 // Sanitize, wrap, and send message via OnlyFans API
                 const formatted = getEditorHtml(template);
-                await ofApiRequest(() => ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, { text: formatted }));
+                const payload = { text: formatted };
+                if (price !== undefined) payload.price = price;
+                if (lockedText) payload.lockedText = lockedText;
+                if (mediaFiles.length) payload.mediaFiles = mediaFiles;
+                if (previews.length) payload.previews = previews;
+                await ofApiRequest(() => ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, payload));
                 console.log(`Sent message to ${fanId}: ${template.substring(0, 30)}...`);
-		res.json({ success: true });
-          } catch (err) {
-                  console.error("Error sending message to fan:", err.response ? err.response.data || err.response.statusText : err.message);
-                  const status = err.status || err.response?.status;
-                  const message = status === 429 ? 'OnlyFans API rate limit exceeded. Please try again later.' : (err.response ? err.response.statusText || err.response.data : err.message);
-                  res.status(status || 500).json({ success: false, error: message });
-          }
-  });
+                res.json({ success: true });
+        } catch (err) {
+                console.error("Error sending message to fan:", err.response ? err.response.data || err.response.statusText : err.message);
+                const status = err.status || err.response?.status;
+                const message = status === 429 ? 'OnlyFans API rate limit exceeded. Please try again later.' : (err.response ? err.response.statusText || err.response.data : err.message);
+                res.status(status || 500).json({ success: false, error: message });
+        }
+});
 
 // Endpoint to get all fans from DB (for initial page load if needed)
 app.get('/api/fans', async (req, res) => {
