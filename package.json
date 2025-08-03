@@ -4,7 +4,8 @@
   "description": "OnlyFans Express Messenger - Simplified mass DM tool",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "jest"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -12,5 +13,13 @@
     "openai": "^3.2.1",
     "axios": "^1.4.0",
     "pg": "^8.8.0"
+  },
+  "devDependencies": {
+    "jest": "^29.6.1",
+    "supertest": "^6.3.3",
+    "pg-mem": "^2.1.1"
+  },
+  "jest": {
+    "testEnvironment": "node"
   }
 }
