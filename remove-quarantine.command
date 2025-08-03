@@ -3,11 +3,8 @@
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
-xattr -d com.apple.quarantine "$DIR/install.command" 2>/dev/null || true
-xattr -d com.apple.quarantine "$DIR/install-node.command" 2>/dev/null || true
-xattr -d com.apple.quarantine "$DIR/install-docker.command" 2>/dev/null || true
-xattr -d com.apple.quarantine "$DIR/setup-db.command" 2>/dev/null || true
-xattr -d com.apple.quarantine "$DIR/start.command" 2>/dev/null || true
-xattr -d com.apple.quarantine "$DIR/remove-quarantine.command" 2>/dev/null || true
+for f in "$DIR"/*.command; do
+  xattr -d com.apple.quarantine "$f" 2>/dev/null || true
+done
 
 echo "Quarantine flags removed from command files."
