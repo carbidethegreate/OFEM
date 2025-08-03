@@ -34,6 +34,14 @@ async function main() {
     const onlyfansKey = await prompt('Enter your OnlyFans API Key (leave blank to skip): ');
     const openaiKey = await prompt('Enter your OpenAI API Key (leave blank to skip): ');
 
+    const dbName = await prompt('Enter your Database Name (leave blank to skip): ');
+    const dbUser = await prompt('Enter your Database User (leave blank to skip): ');
+    const dbPassword = await prompt('Enter your Database Password (leave blank to skip): ');
+    const dbHost = await prompt('Enter your Database Host (leave blank to skip): ');
+    const dbPort = await prompt('Enter your Database Port (leave blank to skip): ');
+    const dbAdminUser = await prompt('Enter your Database Admin User (optional, leave blank to skip): ');
+    const dbAdminPassword = await prompt('Enter your Database Admin Password (optional, leave blank to skip): ');
+
     const setEnv = (key, value) => {
         if (!value) return;
         const regex = new RegExp(`^${key}=.*$`, 'm');
@@ -46,9 +54,17 @@ async function main() {
 
     setEnv('ONLYFANS_API_KEY', onlyfansKey);
     setEnv('OPENAI_API_KEY', openaiKey);
+    setEnv('DB_NAME', dbName);
+    setEnv('DB_USER', dbUser);
+    setEnv('DB_PASSWORD', dbPassword);
+    setEnv('DB_HOST', dbHost);
+    setEnv('DB_PORT', dbPort);
+    setEnv('DB_ADMIN_USER', dbAdminUser);
+    setEnv('DB_ADMIN_PASSWORD', dbAdminPassword);
     if (!envContent.endsWith('\n')) envContent += '\n';
     fs.writeFileSync(envPath, envContent);
     console.log('.env file created/updated.');
+    console.log('API keys saved. Database credentials saved when provided.');
     console.log('Next run setup-db.command to create the database.');
 }
 
