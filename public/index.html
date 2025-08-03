@@ -60,6 +60,8 @@
     </div>
     <button id="sendBtn">Send Personalized DM to All Fans</button>
     <button id="abortBtn" disabled>Abort Sending</button>
+    <button id="clearStatusBtn" type="button">Clear Status</button>
+    <button id="downloadBtn" type="button">Download Results</button>
   </div>
   <div id="statusMsg" style="font-weight: bold; margin: 10px 0;"></div>
   <table id="fansTable">
@@ -78,6 +80,7 @@
   </table>
 
   <script src="editor.js"></script>
+  <script src="results.js"></script>
   <script>
     let fansData = [];
     let sendingInProgress = false;
@@ -282,6 +285,7 @@
       const lockedText = document.getElementById('lockedText').value;
       const mediaFiles = Array.from(document.querySelectorAll('.mediaCheckbox:checked')).map(cb => cb.value);
       const previews = Array.from(document.querySelectorAll('.previewCheckbox:checked')).map(cb => cb.value);
+      clearStatusDots();
       sendingInProgress = true;
       abortFlag = false;
       document.getElementById('updateBtn').disabled = true;
@@ -309,11 +313,13 @@
           if (result.success) {
             // Success: mark green
             setStatusDot(fanId, 'green');
+            addResult({ fanId, username: fan.username || '', parkerName: fan.parker_name || '', success: true });
             successCount++;
             failCount = 0;  // reset consecutive fail counter on success
           } else {
             // Failure: mark red
             setStatusDot(fanId, 'red');
+            addResult({ fanId, username: fan.username || '', parkerName: fan.parker_name || '', success: false, error: result.error || '' });
             failCount++;
             totalFailures++;
             if (failCount >= 10) {
@@ -327,6 +333,7 @@
           console.error('Error sending to fan ' + fanId + ':', err);
           // Treat network or unexpected error as failure
           setStatusDot(fanId, 'red');
+          addResult({ fanId, username: fan.username || '', parkerName: fan.parker_name || '', success: false, error: err.message });
           failCount++;
           totalFailures++;
           if (failCount >= 10) {
@@ -361,6 +368,8 @@
         this.disabled = true;
       }
     });
+    document.getElementById('clearStatusBtn').addEventListener('click', clearStatusDots);
+    document.getElementById('downloadBtn').addEventListener('click', downloadResults);
 
     document.getElementById('sizeSelect').addEventListener('change', e => applySize(e.target.value));
     document.getElementById('colorSelect').addEventListener('change', e => applyColor(e.target.value));
