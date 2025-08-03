@@ -177,6 +177,16 @@ database. Each fan includes:
 JSONB columns such as `avatarThumbs`, `headerSize`, `headerThumbs`, `listsStates`,
 `subscribedByData`, `subscribedOnData`, and `promoOffers` are returned as objects.
 
+## Testing
+
+Run the unit tests with:
+
+```bash
+npm test
+```
+
+Jest is the configured test runner, so contributors should ensure all tests pass before committing.
+
 ## Notes
 
 - All OnlyFans and OpenAI requests happen server‑side; API keys are never exposed in the
