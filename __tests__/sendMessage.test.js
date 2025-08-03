@@ -27,10 +27,21 @@ beforeAll(async () => {
       location TEXT
     );
   `);
+  await mockPool.query(`
+    CREATE TABLE messages (
+      id SERIAL PRIMARY KEY,
+      fan_id BIGINT REFERENCES fans(id),
+      direction TEXT,
+      body TEXT,
+      price NUMERIC,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
   app = require('../server');
 });
 
 beforeEach(async () => {
+  await mockPool.query('DELETE FROM messages');
   await mockPool.query('DELETE FROM fans');
   mockAxios.get.mockReset();
   mockAxios.post.mockReset();
@@ -124,3 +135,17 @@ test('forwards media and price fields', async () => {
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hello</p>', price: 5, lockedText: 'locked', mediaFiles: ['m1'], previews: ['p1'] });
 });
 
+
+test('writes message record after successful send', async () => {
+  await mockPool.query("INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')");
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValueOnce({});
+  await request(app)
+    .post('/api/sendMessage')
+    .send({ userId: 1, greeting: '', body: 'Hello', price: 3 })
+    .expect(200);
+  const messages = await mockPool.query('SELECT fan_id, direction, body, price FROM messages');
+  expect(messages.rows).toEqual([
+    { fan_id: 1, direction: 'outgoing', body: '<p>Hello</p>', price: 3 }
+  ]);
+});
