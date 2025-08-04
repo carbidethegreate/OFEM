@@ -40,6 +40,7 @@ async function ensureDatabaseExists() {
         }
     } catch (err) {
         console.error(`Error ensuring database exists: ${err.message}`);
+        throw err; // Rethrow to allow caller to handle and exit appropriately
     } finally {
         await client.end();
     }
@@ -47,7 +48,12 @@ async function ensureDatabaseExists() {
 
 // Immediately ensure the database exists before proceeding
 (async () => {
-    await ensureDatabaseExists();
+    try {
+        await ensureDatabaseExists();
+    } catch (err) {
+        // Fail fast if database setup is incorrect
+        process.exit(1);
+    }
 })();
 
 // Create a connection pool to the application database
