@@ -32,6 +32,10 @@ const ofApi = axios.create({
 const openaiAxios = axios.create({ timeout: 30000 });
 let OFAccountId = null;
 const REQUIRED_ENV_VARS = ['ONLYFANS_API_KEY', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'OPENAI_API_KEY'];
+// Configurable cap on OnlyFans records to fetch when paging. Prevents runaway loops if
+// the API keeps returning data. Override with OF_FETCH_LIMIT environment variable.
+const DEFAULT_OF_FETCH_LIMIT = 1000;
+const OF_FETCH_LIMIT = parseInt(process.env.OF_FETCH_LIMIT, 10) || DEFAULT_OF_FETCH_LIMIT;
 
 function getMissingEnvVars(list = REQUIRED_ENV_VARS) {
         return list.filter(v => !process.env[v]);
@@ -225,16 +229,19 @@ app.post('/api/updateFans', async (req, res) => {
                 const fetchPaged = async (endpoint) => {
                         const results = [];
                         let offset = 0;
-                        const RUNAWAY_LIMIT = 1000; // safeguard against runaway offsets
+                        let totalCount = null;
                         while (true) {
                                 try {
                                         const resp = await ofApiRequest(() => ofApi.get(endpoint, { params: { limit, offset } }));
                                         const page = resp.data?.data?.list || resp.data?.list || resp.data;
+                                        const count = resp.data?.data?.count ?? resp.data?.count;
+                                        if (totalCount === null && Number.isFinite(count)) totalCount = count;
                                         if (!page || page.length === 0) break;
                                         results.push(...page);
                                         offset += page.length;
-                                        if (offset > RUNAWAY_LIMIT) {
-                                                console.warn(`Fetch ${endpoint} offset exceeded ${RUNAWAY_LIMIT}, stopping.`);
+                                        if (totalCount !== null && offset >= totalCount) break;
+                                        if (offset >= OF_FETCH_LIMIT) {
+                                                console.warn(`Fetch ${endpoint} reached configured limit ${OF_FETCH_LIMIT}, stopping.`);
                                                 break;
                                         }
                                 } catch (err) {

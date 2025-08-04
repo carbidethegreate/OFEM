@@ -42,6 +42,7 @@ async function main() {
     const dbAdminUser = await prompt('Enter your Database Admin User (optional, leave blank to skip): ');
     const dbAdminPassword = await prompt('Enter your Database Admin Password (optional, leave blank to skip): ');
     const port = await prompt('Enter Express server port (leave blank for 3000): ');
+    const fetchLimit = await prompt('Max OnlyFans records to fetch (leave blank for 1000): ');
 
     const setEnv = (key, value) => {
         if (!value) return;
@@ -63,6 +64,7 @@ async function main() {
     setEnv('DB_ADMIN_USER', dbAdminUser);
     setEnv('DB_ADMIN_PASSWORD', dbAdminPassword);
     setEnv('PORT', port || '3000');
+    setEnv('OF_FETCH_LIMIT', fetchLimit);
     if (!envContent.endsWith('\n')) envContent += '\n';
     fs.writeFileSync(envPath, envContent);
     console.log('.env file created/updated.');

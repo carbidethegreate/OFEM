@@ -51,6 +51,7 @@ The server reads the following variables from your environment or `.env` file:
 - `DB_PASSWORD` – password for the database user.
 - `DB_HOST` – host address of the PostgreSQL server.
 - `DB_PORT` – port number where PostgreSQL listens.
+- `OF_FETCH_LIMIT` – optional cap on OnlyFans records fetched per sync (default 1000).
 
 The `/api/status` endpoint reports whether each variable has been configured.
 
