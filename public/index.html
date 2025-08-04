@@ -183,6 +183,9 @@
         input.type = 'text';
         input.id = `name-${id}`;
         input.value = parkerName;
+        if (!parkerName) {
+          input.placeholder = 'Pending';
+        }
         input.className = 'form-input';
         tdParker.appendChild(input);
         tr.appendChild(tdParker);
@@ -291,7 +294,9 @@
           const errText = await res.text();
           document.getElementById('statusMsg').innerText = 'Update failed: ' + errText;
         } else {
-          await fetchFans();
+          const data = await res.json();
+          fansData = data.fans || [];
+          renderFansTable();
           document.getElementById('statusMsg').innerText = 'Parker names updated.';
         }
       } catch (err) {
