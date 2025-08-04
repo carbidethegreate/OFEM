@@ -192,6 +192,23 @@ test('forwards media and price fields', async () => {
   });
 });
 
+test('allows price when lockedText true without media', async () => {
+  await mockPool.query("INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')");
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValueOnce({});
+  await request(app)
+    .post('/api/sendMessage')
+    .send({ userId: 1, greeting: '', body: 'Hello', price: 5, lockedText: true })
+    .expect(200);
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
+    text: '<p>Hello</p>',
+    mediaFiles: [],
+    previews: [],
+    price: 5,
+    lockedText: true
+  });
+});
+
 
 test('writes message record after successful send', async () => {
   await mockPool.query("INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')");
