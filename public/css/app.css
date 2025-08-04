@@ -44,44 +44,85 @@ h1 {
 }
 
 /* Buttons */
-button {
+.btn {
   padding: 6px 12px;
   margin: 4px 2px;
   border: 1px solid var(--border-color);
-  background-color: var(--primary-color);
-  color: #fff;
-  cursor: pointer;
   border-radius: 4px;
+  cursor: pointer;
+  background-color: var(--light-bg);
+  color: #333;
+  text-decoration: none;
 }
 
-button:disabled {
+.btn:hover,
+.btn:focus {
+  background-color: #e2e6ea;
+}
+
+.btn:focus {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: #fff;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: #0056b3;
+}
+
+.btn-secondary {
+  background-color: var(--secondary-color);
+  color: #fff;
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus {
+  background-color: #5a6268;
+}
+
+.btn:disabled,
+.btn.disabled {
   background-color: var(--secondary-color);
   cursor: not-allowed;
+  opacity: 0.65;
 }
 
 /* Tables */
-table {
+.form-table {
   border-collapse: collapse;
   width: 100%;
   max-width: 800px;
 }
 
-th,
-td {
+.form-table th,
+.form-table td {
   border: 1px solid var(--border-color);
   padding: 6px 8px;
   text-align: left;
 }
 
-th {
+.form-table th {
   background: var(--light-bg);
 }
 
 /* Inputs */
-input[type=text],
-textarea {
+.form-input {
   width: 100%;
+  padding: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
   box-sizing: border-box;
+}
+
+.form-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+  outline: none;
 }
 
 select,
