@@ -1,0 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap');
+:root {
+  --color-primary: #007bff;
+  --color-primary-hover: #0056b3;
+  --color-secondary: #6c757d;
+  --color-secondary-hover: #565e64;
+  --color-bg: #f9f9f9;
+  --color-text: #333;
+  --color-card-bg: #fff;
+}
+body {
+  font-family: 'Roboto', Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  line-height: 1.6;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+.steps {
+  max-width: 800px;
+  margin: 0 auto;
+  padding-left: 1rem;
+}
+.card {
+  background: var(--color-card-bg);
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.step-icon {
+  margin-right: 0.5rem;
+  color: var(--color-primary);
+}
+.btn {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: var(--color-primary-hover);
+}
+.btn-secondary {
+  background: var(--color-secondary);
+  color: #fff;
+}
+.btn-secondary:hover {
+  background: var(--color-secondary-hover);
+}
+.mt-sm {
+  margin-top: 0.5rem;
+}
+.note {
+  font-size: 0.9em;
+  color: #555;
+  margin-top: 0.25rem;
+}
+@media (max-width: 600px) {
+  body {
+    padding: 10px;
+  }
+  .card {
+    padding: 0.75rem;
+  }
+  .btn {
+    width: 100%;
+  }
+}
