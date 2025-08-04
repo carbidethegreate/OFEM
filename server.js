@@ -522,6 +522,8 @@ app.post('/api/refreshFans', async (req, res) => {
         }
 });
 
+let parkerUpdateInProgress = false;
+
 app.post('/api/updateParkerNames', async (req, res) => {
         const missing = [];
         if (!process.env.OPENAI_API_KEY) missing.push('OPENAI_API_KEY');
@@ -529,11 +531,18 @@ app.post('/api/updateParkerNames', async (req, res) => {
                 return res.status(400).json({ error: `Missing environment variable(s): ${missing.join(', ')}` });
         }
 
-        try {
-                const dbRes = await pool.query('SELECT id, username, name, parker_name, is_custom FROM fans');
-                const toProcess = dbRes.rows.filter(f => (!f.parker_name || f.parker_name === '') && !f.is_custom);
+        if (parkerUpdateInProgress) {
+                return res.status(409).json({ error: 'Parker name update already in progress.' });
+        }
 
-                const systemPrompt = `You are Parker’s conversational assistant. Decide how to address a subscriber by evaluating their username and profile name.
+        parkerUpdateInProgress = true;
+
+        (async () => {
+                try {
+                        const dbRes = await pool.query('SELECT id, username, name, parker_name, is_custom FROM fans');
+                        const toProcess = dbRes.rows.filter(f => (!f.parker_name || f.parker_name === '') && !f.is_custom);
+
+                        const systemPrompt = `You are Parker’s conversational assistant. Decide how to address a subscriber by evaluating their username and profile name.
 
 1. If the profile name contains a plausible real first name, use its first word.
 2. Otherwise derive the name from the username: split camelCase or underscores, remove digits, and use the first resulting word.
@@ -542,61 +551,58 @@ app.post('/api/updateParkerNames', async (req, res) => {
 
 Respond with only the chosen name.`;
 
-                const BATCH_SIZE = 5;
-                const updatedFans = [];
+                        const BATCH_SIZE = 5;
 
-                const processFan = async (fan) => {
-                        const fanId = fan.id;
-                        const username = fan.username || '';
-                        const profileName = fan.name || '';
-                        let parkerName;
+                        const processFan = async (fan) => {
+                                const fanId = fan.id;
+                                const username = fan.username || '';
+                                const profileName = fan.name || '';
+                                let parkerName;
 
-                        if (isSystemGenerated(username, profileName)) {
-                                parkerName = 'Cuddles';
-                        } else {
-                                const userPrompt = `Subscriber username: "${username}". Profile name: "${profileName}". What should be the display name?`;
-                                const completion = await openaiRequest(() =>
-                                        openaiAxios.post(
-                                                'https://api.openai.com/v1/chat/completions',
-                                                {
-                                                        model: 'gpt-4',
-                                                        messages: [
-                                                                { role: 'system', content: systemPrompt },
-                                                                { role: 'user', content: userPrompt }
-                                                        ],
-                                                        max_tokens: 10,
-                                                        temperature: 0.3
-                                                },
-                                                { headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` } }
-                                        )
-                                );
-                                parkerName = completion.data.choices[0].message.content.trim();
-                                console.log(`GPT-4 name for ${username}: ${parkerName}`);
+                                if (isSystemGenerated(username, profileName)) {
+                                        parkerName = 'Cuddles';
+                                } else {
+                                        const userPrompt = `Subscriber username: "${username}". Profile name: "${profileName}". What should be the display name?`;
+                                        const completion = await openaiRequest(() =>
+                                                openaiAxios.post(
+                                                        'https://api.openai.com/v1/chat/completions',
+                                                        {
+                                                                model: 'gpt-4',
+                                                                messages: [
+                                                                        { role: 'system', content: systemPrompt },
+                                                                        { role: 'user', content: userPrompt }
+                                                                ],
+                                                                max_tokens: 10,
+                                                                temperature: 0.3
+                                                        },
+                                                        { headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` } }
+                                                )
+                                        );
+                                        parkerName = completion.data.choices[0].message.content.trim();
+                                        console.log(`GPT-4 name for ${username}: ${parkerName}`);
+                                }
+
+                                const originalName = parkerName;
+                                parkerName = ensureValidParkerName(parkerName, username, profileName);
+                                if (parkerName !== originalName) {
+                                        // Parker name was adjusted to meet validation rules
+                                }
+
+                                await pool.query('UPDATE fans SET parker_name=$2, is_custom=false, updatedAt=NOW() WHERE id=$1', [fanId, parkerName]);
+                        };
+
+                        for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
+                                const batch = toProcess.slice(i, i + BATCH_SIZE);
+                                await Promise.all(batch.map(processFan));
                         }
-
-                        const originalName = parkerName;
-                        parkerName = ensureValidParkerName(parkerName, username, profileName);
-                        if (parkerName !== originalName) {
-                                // Parker name was adjusted to meet validation rules
-                        }
-
-                        await pool.query('UPDATE fans SET parker_name=$2, is_custom=false, updatedAt=NOW() WHERE id=$1', [fanId, parkerName]);
-                        updatedFans.push({ id: fanId, username, name: profileName, parker_name: parkerName });
-                };
-
-                for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
-                        const batch = toProcess.slice(i, i + BATCH_SIZE);
-                        await Promise.all(batch.map(processFan));
+                } catch (err) {
+                        console.error('Error in /api/updateParkerNames:', err);
+                } finally {
+                        parkerUpdateInProgress = false;
                 }
+        })();
 
-                const all = await pool.query('SELECT * FROM fans');
-                res.json({ fans: all.rows });
-        } catch (err) {
-                console.error('Error in /api/updateParkerNames:', err);
-                const status = err.status || 500;
-                const message = status === 429 ? 'OpenAI API rate limit exceeded. Please try again later.' : (err.message || 'Failed to update Parker names.');
-                res.status(status).json({ error: message });
-        }
+        res.json({ started: true });
 });
 
 /* Allow manual editing of ParkerGivenName in the database */

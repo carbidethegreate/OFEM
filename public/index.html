@@ -288,24 +288,70 @@
       updateBtn.disabled = true;
       sendBtn.disabled = true;
       document.getElementById('statusMsg').innerText = 'Updating Parker names...';
+
+      const pendingIds = fansData.filter(f => !f.parker_name).map(f => f.id);
+      pendingIds.forEach(id => {
+        const statusEl = document.getElementById('status-' + id);
+        if (statusEl) statusEl.textContent = '⏳';
+      });
+
+      let polls = 0;
+      const maxPolls = 30;
+
+      const poll = async () => {
+        if (pendingIds.length === 0) {
+          finish(true);
+          return;
+        }
+        if (polls >= maxPolls) {
+          pendingIds.forEach(id => {
+            const statusEl = document.getElementById('status-' + id);
+            if (statusEl) statusEl.textContent = '❌';
+          });
+          finish(false);
+          return;
+        }
+        try {
+          const res = await fetch('/api/fans');
+          if (res.ok) {
+            const data = await res.json();
+            fansData = data.fans || [];
+            for (const id of pendingIds.slice()) {
+              const fan = fansData.find(f => f.id === id);
+              if (fan && fan.parker_name) {
+                const nameInput = document.getElementById('name-' + id);
+                if (nameInput) nameInput.value = fan.parker_name;
+                const statusEl = document.getElementById('status-' + id);
+                if (statusEl) statusEl.textContent = '✅';
+                pendingIds.splice(pendingIds.indexOf(id), 1);
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Polling error:', err);
+        }
+        polls++;
+        setTimeout(poll, 2000);
+      };
+
+      const finish = (success) => {
+        refreshBtn.disabled = false;
+        updateBtn.disabled = false;
+        sendBtn.disabled = (fansData.length === 0);
+        document.getElementById('statusMsg').innerText = success ? 'Parker names updated.' : 'Update finished with errors.';
+      };
+
+      poll();
+
       try {
         const res = await fetch('/api/updateParkerNames', { method: 'POST' });
         if (!res.ok) {
           const errText = await res.text();
           document.getElementById('statusMsg').innerText = 'Update failed: ' + errText;
-        } else {
-          const data = await res.json();
-          fansData = data.fans || [];
-          renderFansTable();
-          document.getElementById('statusMsg').innerText = 'Parker names updated.';
         }
       } catch (err) {
         console.error('Update Parker names error:', err);
         document.getElementById('statusMsg').innerText = 'Update failed: ' + err;
-      } finally {
-        refreshBtn.disabled = false;
-        updateBtn.disabled = false;
-        sendBtn.disabled = (fansData.length === 0);
       }
     }
 
