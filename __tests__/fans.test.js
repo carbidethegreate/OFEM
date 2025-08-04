@@ -5,14 +5,9 @@ const mockPool = new pg.Pool();
 
 jest.mock('../db', () => mockPool);
 jest.mock('axios');
-jest.mock('openai', () => ({
-  Configuration: class {},
-  OpenAIApi: jest.fn()
-}));
 
 const request = require('supertest');
 const mockAxios = require('axios');
-const { OpenAIApi } = require('openai');
 const pool = require('../db');
 
 mockAxios.create.mockReturnValue(mockAxios);
@@ -66,11 +61,6 @@ CREATE TABLE fans (
 );
 `;
 
-const openAiInstance = {
-  createChatCompletion: jest.fn(),
-  listModels: jest.fn().mockResolvedValue({})
-};
-OpenAIApi.mockImplementation(() => openAiInstance);
 
 let app;
 
@@ -84,7 +74,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await pool.query('DELETE FROM fans');
   mockAxios.get.mockReset();
-  openAiInstance.createChatCompletion.mockReset();
+  mockAxios.post.mockReset();
 });
 
 test('inserts and retrieves fan with new columns', async () => {
@@ -102,7 +92,7 @@ test('inserts and retrieves fan with new columns', async () => {
     avatarThumbs: { foo: 1 }
   };
 
-  openAiInstance.createChatCompletion.mockResolvedValue({
+  mockAxios.post.mockResolvedValueOnce({
     data: { choices: [{ message: { content: 'Alice' } }] }
   });
 
@@ -153,7 +143,7 @@ test('updates existing fan fields', async () => {
     avatarThumbs: { foo: 2 }
   };
 
-  openAiInstance.createChatCompletion.mockResolvedValue({
+  mockAxios.post.mockResolvedValue({
     data: { choices: [{ message: { content: 'Alice' } }] }
   });
 
