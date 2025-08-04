@@ -70,7 +70,14 @@ The `/api/status` endpoint reports whether each variable has been configured.
    npm start
    ```
 
-   The server listens on <http://localhost:3000> by default.  A convenience script
+   The server listens on <http://localhost:3000> by default. To use a different port,
+   set the `PORT` environment variable before starting, for example:
+
+   ```bash
+   PORT=8080 npm start
+   ```
+
+   You can also define `PORT` in your `.env` file. A convenience script
    `start.command` (macOS) installs npm packages if required and then launches the server.
 
 ## Fan Fields Migration and New Columns
