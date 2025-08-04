@@ -55,7 +55,13 @@ test('replaces {parker_name} placeholder', async () => {
     .post('/api/sendMessage')
     .send({ userId: 1, greeting: '', body: 'Hello <b>{parker_name}</b>' })
     .expect(200);
-  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hello Alice</p>' });
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
+    text: '<p>Hello Alice</p>',
+    mediaFiles: [],
+    previews: [],
+    price: 0,
+    lockedText: false
+  });
 });
 
 test('replaces {username} placeholder', async () => {
@@ -66,7 +72,13 @@ test('replaces {username} placeholder', async () => {
     .post('/api/sendMessage')
     .send({ userId: 1, greeting: 'Hi {parker_name}!', body: 'Hey <i>{username}</i>' })
     .expect(200);
-  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hi Alice! Hey user1</p>' });
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
+    text: '<p>Hi Alice! Hey user1</p>',
+    mediaFiles: [],
+    previews: [],
+    price: 0,
+    lockedText: false
+  });
 });
 
 test('replaces {location} placeholder', async () => {
@@ -77,7 +89,13 @@ test('replaces {location} placeholder', async () => {
     .post('/api/sendMessage')
     .send({ userId: 1, greeting: '', body: 'From <span>{location}</span>' })
     .expect(200);
-  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>From <span>Wonderland</span></p>' });
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
+    text: '<p>From <span>Wonderland</span></p>',
+    mediaFiles: [],
+    previews: [],
+    price: 0,
+    lockedText: false
+  });
 });
 
 test('inserts <br> for newline characters', async () => {
@@ -88,7 +106,13 @@ test('inserts <br> for newline characters', async () => {
     .post('/api/sendMessage')
     .send({ userId: 1, greeting: '', body: 'Line1\nLine2' })
     .expect(200);
-  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Line1<br>Line2</p>' });
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
+    text: '<p>Line1<br>Line2</p>',
+    mediaFiles: [],
+    previews: [],
+    price: 0,
+    lockedText: false
+  });
 });
 
 test('keeps <strong> tag for bold formatting', async () => {
@@ -99,7 +123,13 @@ test('keeps <strong> tag for bold formatting', async () => {
     .post('/api/sendMessage')
     .send({ userId: 1, greeting: '', body: 'Hello <strong>{parker_name}</strong>' })
     .expect(200);
-  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hello <strong>Alice</strong></p>' });
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
+    text: '<p>Hello <strong>Alice</strong></p>',
+    mediaFiles: [],
+    previews: [],
+    price: 0,
+    lockedText: false
+  });
 });
 
 test('retains font size class on span', async () => {
@@ -110,7 +140,13 @@ test('retains font size class on span', async () => {
     .post('/api/sendMessage')
     .send({ userId: 1, greeting: '', body: 'Size <span class="m-editor-fs__l">{parker_name}</span>' })
     .expect(200);
-  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Size <span class="m-editor-fs__l">Alice</span></p>' });
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
+    text: '<p>Size <span class="m-editor-fs__l">Alice</span></p>',
+    mediaFiles: [],
+    previews: [],
+    price: 0,
+    lockedText: false
+  });
 });
 
 test('retains font color class on span', async () => {
@@ -121,7 +157,13 @@ test('retains font color class on span', async () => {
     .post('/api/sendMessage')
     .send({ userId: 1, greeting: '', body: 'Color <span class="m-editor-fc__blue-1">{parker_name}</span>' })
     .expect(200);
-  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Color <span class="m-editor-fc__blue-1">Alice</span></p>' });
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
+    text: '<p>Color <span class="m-editor-fc__blue-1">Alice</span></p>',
+    mediaFiles: [],
+    previews: [],
+    price: 0,
+    lockedText: false
+  });
 });
 
 test('forwards media and price fields', async () => {
@@ -130,9 +172,15 @@ test('forwards media and price fields', async () => {
   mockAxios.post.mockResolvedValueOnce({});
   await request(app)
     .post('/api/sendMessage')
-    .send({ userId: 1, greeting: '', body: 'Hello', price: 5, lockedText: 'locked', mediaFiles: ['m1'], previews: ['p1'] })
+    .send({ userId: 1, greeting: '', body: 'Hello', price: 5, lockedText: true, mediaFiles: ['m1', 'm1', 'p1'], previews: ['p1', 'p1'] })
     .expect(200);
-  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', { text: '<p>Hello</p>', price: 5, lockedText: 'locked', mediaFiles: ['m1'], previews: ['p1'] });
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
+    text: '<p>Hello</p>',
+    mediaFiles: ['m1'],
+    previews: ['p1'],
+    price: 5,
+    lockedText: true
+  });
 });
 
 
@@ -146,6 +194,6 @@ test('writes message record after successful send', async () => {
     .expect(200);
   const messages = await mockPool.query('SELECT fan_id, direction, body, price FROM messages');
   expect(messages.rows).toEqual([
-    { fan_id: 1, direction: 'outgoing', body: '<p>Hello</p>', price: 3 }
+    { fan_id: 1, direction: 'outgoing', body: '<p>Hello</p>', price: 0 }
   ]);
 });
