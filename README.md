@@ -161,15 +161,32 @@ Run `./addtodatabase.command` to apply both migrations to an existing database i
 
 ## API
 
+### Usage Sequence
+1. `POST /api/refreshFans` – sync subscribers and following users from OnlyFans.
+2. `POST /api/updateParkerNames` – generate Parker names for fans missing them.
+3. `GET /api/fans` – fetch the stored fan list with names.
+
 ### `POST /api/refreshFans`
 
 Fetch OnlyFans subscribers and followings and upsert them into the database without
 calling GPT. Returns `{ "fans": [...] }` with all stored fans.
 
+#### Example response
+
+```json
+{ "fans": [{ "id": 1, "username": "demo_user", "parker_name": null }] }
+```
+
 ### `POST /api/updateParkerNames`
 
 Generate Parker names for any stored fans missing `parker_name`. Uses GPT‑4 and returns
 `{ "fans": [...] }` after updating the database.
+
+#### Example response
+
+```json
+{ "fans": [{ "id": 1, "username": "demo_user", "parker_name": "Spark" }] }
+```
 
 ### `GET /api/fans`
 
@@ -210,6 +227,10 @@ database. Each fan includes:
 
 JSONB columns such as `avatarThumbs`, `headerSize`, `headerThumbs`, `listsStates`,
 `subscribedByData`, `subscribedOnData`, and `promoOffers` are returned as objects.
+
+### Migration from single-endpoint workflow
+Earlier versions used `/api/refreshFans` to also generate Parker names. Now call
+`/api/refreshFans` and then `/api/updateParkerNames` to populate names.
 
 ## Testing
 

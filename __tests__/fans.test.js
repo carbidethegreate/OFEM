@@ -99,13 +99,17 @@ test('inserts and retrieves fan with new columns', async () => {
     .mockResolvedValueOnce({ data: { data: { list: [fanData] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } });
 
-  await request(app).post('/api/refreshFans').expect(200);
+  const refreshRes = await request(app).post('/api/refreshFans').expect(200);
+  expect(refreshRes.body.fans).toHaveLength(1);
+  expect(refreshRes.body.fans[0].parker_name).toBeNull();
 
   mockAxios.post.mockResolvedValueOnce({
     data: { choices: [{ message: { content: 'Alice' } }] }
   });
 
-  await request(app).post('/api/updateParkerNames').expect(200);
+  const parkerRes = await request(app).post('/api/updateParkerNames').expect(200);
+  expect(parkerRes.body.fans).toHaveLength(1);
+  expect(parkerRes.body.fans[0].parker_name).toBe('Alice');
 
   const res = await request(app).get('/api/fans').expect(200);
   expect(res.body.fans).toHaveLength(1);
@@ -164,9 +168,18 @@ test('updates existing fan fields', async () => {
     .mockResolvedValueOnce({ data: { data: { list: [fanData2] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } });
 
-  await request(app).post('/api/refreshFans').expect(200); // insert
-  await request(app).post('/api/updateParkerNames').expect(200);
-  await request(app).post('/api/refreshFans').expect(200); // update
+  const insertRes = await request(app).post('/api/refreshFans').expect(200); // insert
+  expect(insertRes.body.fans).toHaveLength(1);
+
+  const parkerRes = await request(app).post('/api/updateParkerNames').expect(200);
+  expect(parkerRes.body.fans[0].parker_name).toBe('Alice');
+
+  const updateRes = await request(app).post('/api/refreshFans').expect(200); // update
+  expect(updateRes.body.fans[0]).toMatchObject({
+    avatar: 'avatar2',
+    website: 'https://new.example.com',
+    parker_name: 'Alice'
+  });
 
   const res = await request(app).get('/api/fans').expect(200);
   expect(res.body.fans).toHaveLength(1);
@@ -192,20 +205,26 @@ test('upserts followings with Parker names', async () => {
     .mockResolvedValueOnce({ data: { data: { list: [followingData] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } });
 
-  await request(app).post('/api/refreshFans').expect(200);
+  const refreshRes = await request(app).post('/api/refreshFans').expect(200);
+  expect(refreshRes.body.fans).toHaveLength(2);
+  expect(refreshRes.body.fans.every(f => f.parker_name === null)).toBe(true);
 
   mockAxios.post
     .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Alice' } }] } })
     .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Bob' } }] } });
 
-  await request(app).post('/api/updateParkerNames').expect(200);
+  const parkerRes = await request(app).post('/api/updateParkerNames').expect(200);
+  const fan = parkerRes.body.fans.find(f => f.id === 1);
+  const following = parkerRes.body.fans.find(f => f.id === 2);
+  expect(fan.parker_name).toBe('Alice');
+  expect(following.parker_name).toBe('Bob');
 
   const res = await request(app).get('/api/fans').expect(200);
   expect(res.body.fans).toHaveLength(2);
-  const fan = res.body.fans.find(f => f.id === 1);
-  const following = res.body.fans.find(f => f.id === 2);
-  expect(fan.parker_name).toBe('Alice');
-  expect(following.parker_name).toBe('Bob');
+  const fanDb = res.body.fans.find(f => f.id === 1);
+  const followingDb = res.body.fans.find(f => f.id === 2);
+  expect(fanDb.parker_name).toBe('Alice');
+  expect(followingDb.parker_name).toBe('Bob');
 });
 
 test('merges fans and followings without duplication', async () => {
@@ -220,20 +239,26 @@ test('merges fans and followings without duplication', async () => {
     .mockResolvedValueOnce({ data: { data: { list: [followingDuplicate, followingData] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } });
 
-  await request(app).post('/api/refreshFans').expect(200);
+  const refreshRes = await request(app).post('/api/refreshFans').expect(200);
+  expect(refreshRes.body.fans).toHaveLength(2);
+  expect(refreshRes.body.fans.every(f => f.parker_name === null)).toBe(true);
 
   mockAxios.post
     .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Alice' } }] } })
     .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Bob' } }] } });
 
-  await request(app).post('/api/updateParkerNames').expect(200);
+  const parkerRes = await request(app).post('/api/updateParkerNames').expect(200);
+  const fan = parkerRes.body.fans.find(f => f.id === 1);
+  const following = parkerRes.body.fans.find(f => f.id === 2);
+  expect(fan.parker_name).toBe('Alice');
+  expect(following.parker_name).toBe('Bob');
 
   const res = await request(app).get('/api/fans').expect(200);
   expect(res.body.fans).toHaveLength(2);
-  const fan = res.body.fans.find(f => f.id === 1);
-  const following = res.body.fans.find(f => f.id === 2);
-  expect(fan).toMatchObject({ avatar: 'a2', isSubscribed: true, parker_name: 'Alice' });
-  expect(following).toMatchObject({ username: 'user2', parker_name: 'Bob' });
+  const fanDb = res.body.fans.find(f => f.id === 1);
+  const followingDb = res.body.fans.find(f => f.id === 2);
+  expect(fanDb).toMatchObject({ avatar: 'a2', isSubscribed: true, parker_name: 'Alice' });
+  expect(followingDb).toMatchObject({ username: 'user2', parker_name: 'Bob' });
   expect(res.body.fans.filter(f => f.id === 1)).toHaveLength(1);
 });
 
@@ -248,13 +273,16 @@ test('fetches active fans and followings when filter is active', async () => {
     .mockResolvedValueOnce({ data: { data: { list: [followingData] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } });
 
-  await request(app).post('/api/refreshFans?filter=active').expect(200);
+  const refreshRes = await request(app).post('/api/refreshFans?filter=active').expect(200);
+  expect(refreshRes.body.fans).toHaveLength(2);
+  expect(refreshRes.body.fans.every(f => f.parker_name === null)).toBe(true);
 
   mockAxios.post
     .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Alice' } }] } })
     .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Bob' } }] } });
 
-  await request(app).post('/api/updateParkerNames').expect(200);
+  const parkerRes = await request(app).post('/api/updateParkerNames').expect(200);
+  expect(parkerRes.body.fans.map(f => f.parker_name).sort()).toEqual(['Alice', 'Bob']);
 
   expect(mockAxios.get.mock.calls[1][0]).toBe('/acc1/fans/active');
   expect(mockAxios.get.mock.calls[3][0]).toBe('/acc1/following/active');
