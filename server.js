@@ -199,15 +199,14 @@ async function sendPersonalizedMessage(
         let logMsg = `Sent message to ${fanId}: ${template.substring(0, 30)}...`;
         if (payload.mediaFiles.length) logMsg += ` [media:${payload.mediaFiles.length}]`;
         if (payload.price) logMsg += ` [price:${payload.price}]`;
-        console.log(logMsg);
+console.log(logMsg);
 }
 
 
-/* Story 1: Update Fan Names – Fetch fans from OnlyFans and generate display names using GPT-4. */
-app.post('/api/updateFans', async (req, res) => {
+
+app.post('/api/refreshFans', async (req, res) => {
         const missing = [];
         if (!process.env.ONLYFANS_API_KEY) missing.push('ONLYFANS_API_KEY');
-        if (!process.env.OPENAI_API_KEY) missing.push('OPENAI_API_KEY');
         if (missing.length) {
                 return res.status(400).json({ error: `Missing environment variable(s): ${missing.join(', ')}` });
         }
@@ -229,7 +228,6 @@ app.post('/api/updateFans', async (req, res) => {
                 const filter = validFilters.has(rawFilter) ? rawFilter : 'all';
 
                 // 3. Fetch all fans and following users
-                // OnlyFans API appears to cap page size at 32 items
                 const limit = 32;
                 const fetchPaged = async (endpoint) => {
                         const results = [];
@@ -251,54 +249,34 @@ app.post('/api/updateFans', async (req, res) => {
                                         }
                                 } catch (err) {
                                         const status = err.response?.status;
-                                        if (status === 429) throw err; // rate limit errors should still bubble up
+                                        if (status === 429) throw err;
                                         console.warn(`Fetch ${endpoint} failed at offset ${offset} (status ${status || 'unknown'}). Returning partial results.`);
                                         break;
                                 }
                         }
                         return results;
                 };
+
                 const fansList = await fetchPaged(`/${OFAccountId}/fans/${filter}`);
                 const followingList = await fetchPaged(`/${OFAccountId}/following/${filter}`);
-                // Merge fans and followings, ensuring each OnlyFans user is processed once
                 const fanMap = new Map();
                 [...fansList, ...followingList].forEach(user => {
                         fanMap.set(user.id, user);
                 });
                 const allFans = Array.from(fanMap.values());
                 console.log(`Fetched ${allFans.length} unique fans and followings from OnlyFans.`);
-		
+
                 // 4. Load existing fans from DB
-		const dbRes = await pool.query('SELECT id, parker_name, is_custom FROM fans');
-		const existingFans = {};
-		for (const row of dbRes.rows) {
-			existingFans[row.id] = { parker_name: row.parker_name, is_custom: row.is_custom };
-		}
-		
-                // 5. Prepare OpenAI API for GPT-4 usage
-                const systemPrompt = `You are Parker’s conversational assistant. Decide how to address a subscriber by evaluating their username and profile name.
-
-1. If the profile name contains a plausible real first name, use its first word.
-2. Otherwise derive the name from the username: split camelCase or underscores, remove digits, and use the first resulting word.
-3. Return "Cuddles" only when both the username and profile name look system generated (e.g. username is 'u' followed by digits or purely numeric and the profile name is blank or numeric).
-4. Do not use abbreviations, initials, or ellipses. Provide a single fully spelled name with the first letter capitalized.
-
-Respond with only the chosen name.`;
-		
-                // 6. Update/insert each fan in database with ParkerGivenName
-                const totalFans = allFans.length;
-                let processed = 0;
-                const BATCH_SIZE = 5; // limit concurrent OpenAI requests
-                const updatedFans = [];
+                const dbRes = await pool.query('SELECT id, parker_name, is_custom FROM fans');
+                const existingFans = {};
+                for (const row of dbRes.rows) {
+                        existingFans[row.id] = { parker_name: row.parker_name, is_custom: row.is_custom };
+                }
 
                 const processFan = async (fan) => {
                         const fanId = fan.id.toString();
                         const username = fan.username || "";
                         const profileName = fan.name || "";
-                        let parkerName = existingFans[fanId] ? existingFans[fanId].parker_name : null;
-                        let isCustom = existingFans[fanId] ? existingFans[fanId].is_custom : false;
-
-                        // Extract additional OnlyFans properties
                         const {
                                 avatar = null,
                                 header = null,
@@ -379,41 +357,6 @@ Respond with only the chosen name.`;
                         const subscribersCountVal = parseNumber(subscribersCount);
                         const favoritesCountVal = parseNumber(favoritesCount);
 
-                        // Generate ParkerGivenName if not set yet and not manually overridden
-                        if ((!parkerName || parkerName === "") && !isCustom) {
-                                if (isSystemGenerated(username, profileName)) {
-                                        parkerName = "Cuddles";
-                                } else {
-                                        const userPrompt = `Subscriber username: "${username}". Profile name: "${profileName}". What should be the display name?`;
-                                        const completion = await openaiRequest(() =>
-                                                openaiAxios.post(
-                                                        'https://api.openai.com/v1/chat/completions',
-                                                        {
-                                                                model: 'gpt-4',
-                                                                messages: [
-                                                                        { role: 'system', content: systemPrompt },
-                                                                        { role: 'user', content: userPrompt }
-                                                                ],
-                                                                max_tokens: 10,
-                                                                temperature: 0.3
-                                                        },
-                                                        {
-                                                                headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }
-                                                        }
-                                                )
-                                        );
-                                        parkerName = completion.data.choices[0].message.content.trim();
-                                        console.log(`GPT-4 name for ${username}: ${parkerName}`);
-                                }
-                        }
-
-                        const originalName = parkerName;
-                        parkerName = ensureValidParkerName(parkerName, username, profileName);
-                        if (parkerName !== originalName) {
-                                isCustom = false;
-                        }
-
-                        // Upsert in database (insert new or update existing)
                         if (existingFans[fanId]) {
                                 await pool.query(
                                         `UPDATE fans SET
@@ -457,8 +400,6 @@ Respond with only the chosen name.`;
                                                 subscribedByData=$39,
                                                 subscribedOnData=$40,
                                                 promoOffers=$41,
-                                                parker_name=$42,
-                                                is_custom=$43,
                                                 updatedAt=NOW()
                                         WHERE id=$1`,
                                         [
@@ -502,9 +443,7 @@ Respond with only the chosen name.`;
                                                 listsStatesJson,
                                                 subscribedByDataJson,
                                                 subscribedOnDataJson,
-                                                promoOffersJson,
-                                                parkerName || existingFans[fanId].parker_name,
-                                                isCustom
+                                                promoOffersJson
                                         ]
                                 );
                         } else {
@@ -561,32 +500,101 @@ Respond with only the chosen name.`;
                                                 subscribedByDataJson,
                                                 subscribedOnDataJson,
                                                 promoOffersJson,
-                                                parkerName || null,
-                                                false
+                                                existingFans[fanId]?.parker_name || null,
+                                                existingFans[fanId]?.is_custom || false
                                         ]
                                 );
                         }
-                        updatedFans.push({
-                                id: fanId,
-                                username: username,
-                                name: profileName,
-                                parker_name: parkerName || existingFans[fanId]?.parker_name || "",
-                        });
-                        processed++;
-                        console.log(`Processed ${processed}/${totalFans} fans`);
                 };
 
-                for (let i = 0; i < allFans.length; i += BATCH_SIZE) {
-                        const batch = allFans.slice(i, i + BATCH_SIZE);
+                for (const fan of allFans) {
+                        await processFan(fan);
+                }
+
+                console.log('RefreshFans: Completed updating fan records.');
+                const all = await pool.query('SELECT * FROM fans');
+                res.json({ fans: all.rows });
+        } catch (err) {
+                console.error('Error in /api/refreshFans:', err);
+                const status = err.status || 500;
+                const message = status === 429 ? 'OnlyFans API rate limit exceeded. Please try again later.' : (err.message || 'Failed to refresh fan list.');
+                res.status(status).json({ error: message });
+        }
+});
+
+app.post('/api/updateParkerNames', async (req, res) => {
+        const missing = [];
+        if (!process.env.OPENAI_API_KEY) missing.push('OPENAI_API_KEY');
+        if (missing.length) {
+                return res.status(400).json({ error: `Missing environment variable(s): ${missing.join(', ')}` });
+        }
+
+        try {
+                const dbRes = await pool.query('SELECT id, username, name, parker_name, is_custom FROM fans');
+                const toProcess = dbRes.rows.filter(f => (!f.parker_name || f.parker_name === '') && !f.is_custom);
+
+                const systemPrompt = `You are Parker’s conversational assistant. Decide how to address a subscriber by evaluating their username and profile name.
+
+1. If the profile name contains a plausible real first name, use its first word.
+2. Otherwise derive the name from the username: split camelCase or underscores, remove digits, and use the first resulting word.
+3. Return "Cuddles" only when both the username and profile name look system generated (e.g. username is 'u' followed by digits or purely numeric and the profile name is blank or numeric).
+4. Do not use abbreviations, initials, or ellipses. Provide a single fully spelled name with the first letter capitalized.
+
+Respond with only the chosen name.`;
+
+                const BATCH_SIZE = 5;
+                const updatedFans = [];
+
+                const processFan = async (fan) => {
+                        const fanId = fan.id;
+                        const username = fan.username || '';
+                        const profileName = fan.name || '';
+                        let parkerName;
+
+                        if (isSystemGenerated(username, profileName)) {
+                                parkerName = 'Cuddles';
+                        } else {
+                                const userPrompt = `Subscriber username: "${username}". Profile name: "${profileName}". What should be the display name?`;
+                                const completion = await openaiRequest(() =>
+                                        openaiAxios.post(
+                                                'https://api.openai.com/v1/chat/completions',
+                                                {
+                                                        model: 'gpt-4',
+                                                        messages: [
+                                                                { role: 'system', content: systemPrompt },
+                                                                { role: 'user', content: userPrompt }
+                                                        ],
+                                                        max_tokens: 10,
+                                                        temperature: 0.3
+                                                },
+                                                { headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` } }
+                                        )
+                                );
+                                parkerName = completion.data.choices[0].message.content.trim();
+                                console.log(`GPT-4 name for ${username}: ${parkerName}`);
+                        }
+
+                        const originalName = parkerName;
+                        parkerName = ensureValidParkerName(parkerName, username, profileName);
+                        if (parkerName !== originalName) {
+                                // Parker name was adjusted to meet validation rules
+                        }
+
+                        await pool.query('UPDATE fans SET parker_name=$2, is_custom=false, updatedAt=NOW() WHERE id=$1', [fanId, parkerName]);
+                        updatedFans.push({ id: fanId, username, name: profileName, parker_name: parkerName });
+                };
+
+                for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
+                        const batch = toProcess.slice(i, i + BATCH_SIZE);
                         await Promise.all(batch.map(processFan));
                 }
 
-                console.log("UpdateFans: Completed updating fan names.");
-                res.json({ fans: updatedFans });
+                const all = await pool.query('SELECT * FROM fans');
+                res.json({ fans: all.rows });
         } catch (err) {
-                console.error("Error in /api/updateFans:", err);
+                console.error('Error in /api/updateParkerNames:', err);
                 const status = err.status || 500;
-                const message = status === 429 ? 'OnlyFans API rate limit exceeded. Please try again later.' : (err.message || 'Failed to update fan names.');
+                const message = status === 429 ? 'OpenAI API rate limit exceeded. Please try again later.' : (err.message || 'Failed to update Parker names.');
                 res.status(status).json({ error: message });
         }
 });

@@ -9,9 +9,10 @@ nicknames.
 
 ## Features
 
-- **Update Fan Names** – Fetches all subscribers and followings and assigns each a short
-  “Parker name” using GPT‑4 according to the rules in the project plan.  Names can be
-  edited and saved.
+- **Update Fan List** – Fetches all subscribers and followings and stores them in the
+  database without calling GPT.
+- **Update Parker Names** – Generates a short “Parker name” with GPT‑4 only for fans who
+  do not already have one. Names can be edited and saved.
 - **Send Personalised DM** – Sends a message to every fan, greeting each with their
   Parker name.  Shows a green dot for success and red for failure.  Sending can be
   aborted and auto‑stops after ten consecutive errors.
@@ -45,7 +46,8 @@ nicknames.
 The server reads the following variables from your environment or `.env` file:
 
 - `ONLYFANS_API_KEY` – authenticates requests to the OnlyFans API.
-- `OPENAI_API_KEY` – enables OpenAI GPT‑4 for generating Parker names.
+- `OPENAI_API_KEY` – enables OpenAI GPT‑4 for generating Parker names (required only
+  for `/api/updateParkerNames`).
 - `DB_NAME` – name of the PostgreSQL database to use.
 - `DB_USER` – PostgreSQL username.
 - `DB_PASSWORD` – password for the database user.
@@ -149,14 +151,25 @@ Run `./addtodatabase.command` to apply both migrations to an existing database i
 ## Usage
 
 1. Open a browser to <http://localhost:3000>.
-2. Click **Update Fan Names** to load subscribers and followings and generate Parker names.
-3. Edit any names and click **Save** beside a fan to persist the change.
-4. Type the message to broadcast.  Use `{name}` or `[name]` as a placeholder or leave
+2. Click **Update Fan List** to load subscribers and followings into the table.
+3. Click **Update Parker Names** to generate missing Parker names with GPT‑4.
+4. Edit any names and click **Save** beside a fan to persist the change.
+5. Type the message to broadcast.  Use `{name}` or `[name]` as a placeholder or leave
    it out to have the greeting prefixed automatically.
-5. Click **Send Personalised DM to All Fans** to start sending.  Use **Abort Sending**
+6. Click **Send Personalised DM to All Fans** to start sending.  Use **Abort Sending**
    to stop early.
 
 ## API
+
+### `POST /api/refreshFans`
+
+Fetch OnlyFans subscribers and followings and upsert them into the database without
+calling GPT. Returns `{ "fans": [...] }` with all stored fans.
+
+### `POST /api/updateParkerNames`
+
+Generate Parker names for any stored fans missing `parker_name`. Uses GPT‑4 and returns
+`{ "fans": [...] }` after updating the database.
 
 ### `GET /api/fans`
 

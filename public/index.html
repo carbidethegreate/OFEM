@@ -16,7 +16,8 @@
   </header>
   <h1>OnlyFans Express Messenger (OFEM)</h1>
   <p>
-    <button id="updateBtn" class="btn btn-primary">Update Fan Names</button>
+    <button id="refreshBtn" class="btn btn-primary">Update Fan List</button>
+    <button id="updateBtn" class="btn btn-primary">Update Parker Names</button>
     <button class="btn btn-primary" onclick="location.href='ppv.html'">PPV Manager</button>
     <a href="history.html" target="_blank">Message History</a>
     <a href="queue.html" target="_blank">Scheduled Queue</a>
@@ -247,17 +248,19 @@
       }
     }
 
-    async function updateFansList() {
+    async function refreshFansList() {
+      const refreshBtn = document.getElementById('refreshBtn');
       const updateBtn = document.getElementById('updateBtn');
       const sendBtn = document.getElementById('sendBtn');
+      refreshBtn.disabled = true;
       updateBtn.disabled = true;
       sendBtn.disabled = true;
-      document.getElementById('statusMsg').innerText = 'Updating fan list...';
+      document.getElementById('statusMsg').innerText = 'Refreshing fan list...';
       try {
-        const res = await fetch('/api/updateFans', { method: 'POST' });
+        const res = await fetch('/api/refreshFans', { method: 'POST' });
         if (!res.ok) {
           const errText = await res.text();
-          document.getElementById('statusMsg').innerText = 'Update failed: ' + errText;
+          document.getElementById('statusMsg').innerText = 'Refresh failed: ' + errText;
         } else {
           const data = await res.json();
           fansData = data.fans || [];
@@ -265,9 +268,37 @@
           document.getElementById('statusMsg').innerText = 'Loaded ' + fansData.length + ' fans.';
         }
       } catch (err) {
-        console.error('Update fans error:', err);
+        console.error('Refresh fans error:', err);
+        document.getElementById('statusMsg').innerText = 'Refresh failed: ' + err;
+      } finally {
+        refreshBtn.disabled = false;
+        updateBtn.disabled = false;
+        sendBtn.disabled = (fansData.length === 0);
+      }
+    }
+
+    async function updateParkerNames() {
+      const refreshBtn = document.getElementById('refreshBtn');
+      const updateBtn = document.getElementById('updateBtn');
+      const sendBtn = document.getElementById('sendBtn');
+      refreshBtn.disabled = true;
+      updateBtn.disabled = true;
+      sendBtn.disabled = true;
+      document.getElementById('statusMsg').innerText = 'Updating Parker names...';
+      try {
+        const res = await fetch('/api/updateParkerNames', { method: 'POST' });
+        if (!res.ok) {
+          const errText = await res.text();
+          document.getElementById('statusMsg').innerText = 'Update failed: ' + errText;
+        } else {
+          await fetchFans();
+          document.getElementById('statusMsg').innerText = 'Parker names updated.';
+        }
+      } catch (err) {
+        console.error('Update Parker names error:', err);
         document.getElementById('statusMsg').innerText = 'Update failed: ' + err;
       } finally {
+        refreshBtn.disabled = false;
         updateBtn.disabled = false;
         sendBtn.disabled = (fansData.length === 0);
       }
@@ -293,6 +324,7 @@
       clearStatusDots();
       sendingInProgress = true;
       abortFlag = false;
+      document.getElementById('refreshBtn').disabled = true;
       document.getElementById('updateBtn').disabled = true;
       document.getElementById('sendBtn').disabled = true;
       document.getElementById('abortBtn').disabled = false;
@@ -354,6 +386,7 @@
       // Finished sending loop
       sendingInProgress = false;
       document.getElementById('abortBtn').disabled = true;
+      document.getElementById('refreshBtn').disabled = false;
       document.getElementById('updateBtn').disabled = false;
       document.getElementById('sendBtn').disabled = false;
       if (abortFlag) {
@@ -401,7 +434,8 @@
       }
     }
 
-    document.getElementById('updateBtn').addEventListener('click', updateFansList);
+    document.getElementById('refreshBtn').addEventListener('click', refreshFansList);
+    document.getElementById('updateBtn').addEventListener('click', updateParkerNames);
     document.getElementById('sendBtn').addEventListener('click', sendMessagesToAll);
     document.getElementById('scheduleBtn').addEventListener('click', scheduleMessages);
     document.getElementById('loadVaultBtn').addEventListener('click', loadVaultMedia);
