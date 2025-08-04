@@ -229,3 +229,27 @@ test('merges fans and followings without duplication', async () => {
   expect(following).toMatchObject({ username: 'user2', parker_name: 'Bob' });
   expect(res.body.fans.filter(f => f.id === 1)).toHaveLength(1);
 });
+
+test('fetches active fans and followings when filter is active', async () => {
+  const fanData = { id: 1, username: 'user1', name: 'Profile One' };
+  const followingData = { id: 2, username: 'user2', name: 'Profile Two' };
+
+  mockAxios.post
+    .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Alice' } }] } })
+    .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Bob' } }] } });
+
+  mockAxios.get
+    .mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } })
+    .mockResolvedValueOnce({ data: { data: { list: [fanData] } } })
+    .mockResolvedValueOnce({ data: { data: { list: [] } } })
+    .mockResolvedValueOnce({ data: { data: { list: [followingData] } } })
+    .mockResolvedValueOnce({ data: { data: { list: [] } } });
+
+  await request(app).post('/api/updateFans?filter=active').expect(200);
+
+  expect(mockAxios.get.mock.calls[1][0]).toBe('/acc1/fans/active');
+  expect(mockAxios.get.mock.calls[3][0]).toBe('/acc1/following/active');
+
+  const res = await request(app).get('/api/fans').expect(200);
+  expect(res.body.fans).toHaveLength(2);
+});
