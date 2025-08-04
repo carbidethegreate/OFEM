@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <title>PPV Manager</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h1 { font-size: 1.5em; }
-    table { border-collapse: collapse; width: 100%; max-width: 800px; }
-    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
-    th { background: #f9f9f9; }
-    input[type=text], input[type=number] { width: 100%; box-sizing: border-box; }
-    button { padding: 4px 8px; margin: 4px 2px; }
-  </style>
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
+  <header class="site-header">
+    <nav class="nav-bar">
+      <a href="index.html">Dashboard</a>
+      <a href="ppv.html">PPV Manager</a>
+      <a href="history.html">Message History</a>
+      <a href="queue.html">Scheduled Queue</a>
+    </nav>
+  </header>
   <h1>PPV Manager</h1>
   <table>
     <thead>
@@ -26,19 +26,19 @@
     </thead>
     <tbody id="ppvTableBody"></tbody>
   </table>
-  <div style="margin-top:15px;">
-    <div style="margin-bottom:8px;">
+  <div class="mt-15">
+    <div class="mb-8">
       <label>PPV Number: <input type="number" id="ppvNumber" /></label>
     </div>
-    <div style="margin-bottom:8px;">
+    <div class="mb-8">
       <label>Description: <input type="text" id="description" /></label>
     </div>
-    <div style="margin-bottom:8px;">
-      <label>Price: <input type="number" id="price" min="0" step="0.01" /></label>
+    <div class="mb-8">
+      <label>Price: <input type="number" id="price" min="0" step="0.01" class="w-80" /></label>
     </div>
-    <div style="margin-bottom:8px;">
+    <div class="mb-8">
       <button id="loadVaultBtn" type="button">Load Vault Media</button>
-      <div id="vaultMediaList" style="max-height:150px; overflow:auto; margin-top:5px;"></div>
+      <div id="vaultMediaList" class="vault-media-list"></div>
     </div>
     <button id="saveBtn" type="button">Save PPV</button>
   </div>

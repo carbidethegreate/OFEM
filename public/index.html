@@ -3,29 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <title>OFEM Dashboard</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h1 { font-size: 1.5em; }
-    table { border-collapse: collapse; width: 100%; max-width: 800px; }
-    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
-    th { background: #f9f9f9; }
-    input[type=text] { width: 100%; box-sizing: border-box; }
-    textarea { width: 100%; max-width: 800px; box-sizing: border-box; }
-    button { padding: 4px 8px; margin: 4px 2px; }
-    .dot { display: inline-block; height: 10px; width: 10px; border-radius: 50%; margin-right: 4px; }
-    .green { background-color: green; }
-    .red { background-color: red; }
-  </style>
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
+  <header class="site-header">
+    <nav class="nav-bar">
+      <a href="index.html">Dashboard</a>
+      <a href="ppv.html">PPV Manager</a>
+      <a href="history.html">Message History</a>
+      <a href="queue.html">Scheduled Queue</a>
+    </nav>
+  </header>
   <h1>OnlyFans Express Messenger (OFEM)</h1>
   <p>
     <button id="updateBtn">Update Fan Names</button>
+    <button onclick="location.href='ppv.html'">PPV Manager</button>
     <a href="history.html" target="_blank">Message History</a>
     <a href="queue.html" target="_blank">Scheduled Queue</a>
-    <button onclick="location.href='ppv.html'">PPV Manager</button>
   </p>
-  <div id="messageSection" style="margin: 15px 0;">
+  <div id="messageSection" class="message-section">
     <input type="text" id="greeting" value="Hi {parker_name}!" />
     <div id="toolbar">
       <select id="sizeSelect">
@@ -52,16 +48,16 @@
         <option value="[name]">[name]</option>
       </select>
     </div>
-    <div id="message" contenteditable="true" class="m-editor-fs__default" style="border:1px solid #ccc; padding:4px; min-height:60px;"></div>
-    <div id="vaultSection" style="margin-top:10px;">
+    <div id="message" contenteditable="true" class="m-editor-fs__default message-editor"></div>
+    <div id="vaultSection" class="vault-section">
       <button id="loadVaultBtn" type="button">Load Vault Media</button>
-      <div id="vaultMediaList" style="max-height:150px; overflow:auto; margin-top:5px;"></div>
-      <div style="margin-top:5px;">
-        <label>Price: <input type="number" id="price" min="0" step="0.01" style="width:80px;"></label>
-        <input type="text" id="lockedText" placeholder="Locked text" style="width:200px;" />
+      <div id="vaultMediaList" class="vault-media-list"></div>
+      <div class="mt-5">
+        <label>Price: <input type="number" id="price" min="0" step="0.01" class="w-80"></label>
+        <input type="text" id="lockedText" placeholder="Locked text" class="w-200" />
       </div>
     </div>
-    <div style="margin-top:10px;">
+    <div class="schedule-section">
       <label>Schedule Time: <input type="datetime-local" id="scheduledTime" /></label>
     </div>
     <button id="sendBtn">Send Personalized DM to All Fans</button>
@@ -70,7 +66,7 @@
     <button id="clearStatusBtn" type="button">Clear Status</button>
     <button id="downloadBtn" type="button">Download Results</button>
   </div>
-  <div id="statusMsg" style="font-weight: bold; margin: 10px 0;"></div>
+  <div id="statusMsg" class="status-msg"></div>
   <table id="fansTable">
     <thead>
       <tr>

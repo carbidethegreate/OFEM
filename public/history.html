@@ -3,14 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <title>Message History</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    select, input { margin-right: 8px; }
-    ul { list-style: none; padding-left: 0; }
-    li { margin-bottom: 4px; }
-  </style>
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
+  <header class="site-header">
+    <nav class="nav-bar">
+      <a href="index.html">Dashboard</a>
+      <a href="ppv.html">PPV Manager</a>
+      <a href="history.html">Message History</a>
+      <a href="queue.html">Scheduled Queue</a>
+    </nav>
+  </header>
   <h1>Message History</h1>
   <div>
     <label for="fanSelect">Fan:</label>
@@ -19,7 +22,7 @@
     <input type="number" id="limitInput" min="1" value="20" />
     <button id="fetchHistoryBtn" type="button">Fetch</button>
   </div>
-  <div id="messageHistory" style="margin-top:15px;"></div>
+  <div id="messageHistory" class="mt-15"></div>
   <script src="history.js"></script>
   <script>
     if (window.MessageHistory && MessageHistory.init) {
