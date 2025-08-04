@@ -802,11 +802,12 @@ app.post('/api/sendMessage', async (req, res) => {
                 // Deduplicate previews
                 previews = Array.from(new Set(previews));
 
-                // Parse price; default to 0 if NaN or no media files
-                let price = parseFloat(req.body.price);
-                if (isNaN(price) || mediaFiles.length === 0) price = 0;
-
+                // Determine whether text should be locked
                 const lockedText = req.body.lockedText === true;
+
+                // Parse price; default to 0 if NaN or neither media nor locked text
+                let price = parseFloat(req.body.price);
+                if (isNaN(price) || (mediaFiles.length === 0 && !lockedText)) price = 0;
 
                 await sendPersonalizedMessage(fanId, greeting, body, price, lockedText, mediaFiles, previews);
                 res.json({ success: true });
