@@ -19,6 +19,9 @@ let app;
 beforeAll(async () => {
   process.env.ONLYFANS_API_KEY = 'test';
   process.env.OPENAI_API_KEY = 'test';
+  process.env.DB_NAME = 'testdb';
+  process.env.DB_USER = 'user';
+  process.env.DB_PASSWORD = 'pass';
   await mockPool.query(`
     CREATE TABLE fans (
       id BIGINT PRIMARY KEY,
@@ -45,6 +48,16 @@ beforeEach(async () => {
   await mockPool.query('DELETE FROM fans');
   mockAxios.get.mockReset();
   mockAxios.post.mockReset();
+});
+
+test('returns 400 when required env vars are missing', async () => {
+  delete process.env.ONLYFANS_API_KEY;
+  const res = await request(app)
+    .post('/api/sendMessage')
+    .send({ userId: 1, body: 'Hi' });
+  expect(res.status).toBe(400);
+  expect(res.body).toEqual({ error: expect.stringContaining('ONLYFANS_API_KEY') });
+  process.env.ONLYFANS_API_KEY = 'test';
 });
 
 test('replaces {parker_name} placeholder', async () => {
