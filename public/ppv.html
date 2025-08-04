@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>PPV Manager</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { font-size: 1.5em; }
+    table { border-collapse: collapse; width: 100%; max-width: 800px; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+    th { background: #f9f9f9; }
+    input[type=text], input[type=number] { width: 100%; box-sizing: border-box; }
+    button { padding: 4px 8px; margin: 4px 2px; }
+  </style>
+</head>
+<body>
+  <h1>PPV Manager</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>PPV #</th>
+        <th>Description</th>
+        <th>Price</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="ppvTableBody"></tbody>
+  </table>
+  <div style="margin-top:15px;">
+    <div style="margin-bottom:8px;">
+      <label>PPV Number: <input type="number" id="ppvNumber" /></label>
+    </div>
+    <div style="margin-bottom:8px;">
+      <label>Description: <input type="text" id="description" /></label>
+    </div>
+    <div style="margin-bottom:8px;">
+      <label>Price: <input type="number" id="price" min="0" step="0.01" /></label>
+    </div>
+    <div style="margin-bottom:8px;">
+      <button id="loadVaultBtn" type="button">Load Vault Media</button>
+      <div id="vaultMediaList" style="max-height:150px; overflow:auto; margin-top:5px;"></div>
+    </div>
+    <button id="saveBtn" type="button">Save PPV</button>
+  </div>
+  <script>
+    async function fetchPpvs() {
+      try {
+        const res = await fetch('/api/ppv');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderPpvTable(data.ppvs || []);
+      } catch (err) {
+        console.error('Error fetching PPVs:', err);
+      }
+    }
+
+    function renderPpvTable(ppvs) {
+      const tbody = document.getElementById('ppvTableBody');
+      tbody.innerHTML = '';
+      for (const p of ppvs) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${p.ppv_number}</td><td>${p.description}</td><td>${p.price}</td><td><button onclick="deletePpv(${p.id})">Delete</button></td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function loadVaultMedia() {
+      try {
+        const res = await fetch('/api/vault-media');
+        if (!res.ok) return;
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : (data.list || data.results || data.media || data.data || []);
+        const container = document.getElementById('vaultMediaList');
+        container.innerHTML = '';
+        for (const m of items) {
+          const div = document.createElement('div');
+          const mediaCb = document.createElement('input');
+          mediaCb.type = 'checkbox';
+          mediaCb.className = 'mediaCheckbox';
+          mediaCb.value = m.id;
+          div.appendChild(mediaCb);
+
+          const previewCb = document.createElement('input');
+          previewCb.type = 'checkbox';
+          previewCb.className = 'previewCheckbox';
+          previewCb.value = m.id;
+          div.appendChild(previewCb);
+
+          const span = document.createElement('span');
+          span.textContent = 'Media ' + m.id;
+          div.appendChild(span);
+
+          const thumb = (m.preview && (m.preview.url || m.preview.src)) ||
+                        (m.thumb && (m.thumb.url || m.thumb.src));
+          if (thumb) {
+            const img = document.createElement('img');
+            img.src = thumb;
+            img.width = 50;
+            img.style.marginLeft = '5px';
+            div.appendChild(img);
+          }
+          container.appendChild(div);
+        }
+      } catch (err) {
+        console.error('Error loading vault media:', err);
+      }
+    }
+
+    async function savePpv() {
+      const ppvNumber = parseInt(document.getElementById('ppvNumber').value, 10);
+      const description = document.getElementById('description').value.trim();
+      const price = parseFloat(document.getElementById('price').value);
+      const mediaFiles = Array.from(document.querySelectorAll('.mediaCheckbox:checked')).map(cb => Number(cb.value));
+      const previews = Array.from(document.querySelectorAll('.previewCheckbox:checked')).map(cb => Number(cb.value));
+      try {
+        const res = await fetch('/api/ppv', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ppvNumber, description, price, mediaFiles, previews })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          document.getElementById('ppvNumber').value = '';
+          document.getElementById('description').value = '';
+          document.getElementById('price').value = '';
+          document.getElementById('vaultMediaList').innerHTML = '';
+          fetchPpvs();
+        } else {
+          alert(result.error || 'Failed to save PPV');
+        }
+      } catch (err) {
+        console.error('Error saving PPV:', err);
+      }
+    }
+
+    async function deletePpv(id) {
+      if (!confirm('Delete this PPV?')) return;
+      try {
+        const res = await fetch(`/api/ppv/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          fetchPpvs();
+        } else {
+          alert('Failed to delete PPV');
+        }
+      } catch (err) {
+        console.error('Error deleting PPV:', err);
+      }
+    }
+
+    document.getElementById('loadVaultBtn').addEventListener('click', loadVaultMedia);
+    document.getElementById('saveBtn').addEventListener('click', savePpv);
+    fetchPpvs();
+  </script>
+</body>
+</html>
