@@ -15,7 +15,7 @@
 ## API Endpoints
 
 ### `POST /api/updateFans`
-Fetch OnlyFans subscribers, generate Parker names, and upsert them in the database.
+Fetch OnlyFans subscribers and followings, generate Parker names, and upsert them in the database.
 - **Request Body:** none (requires `ONLYFANS_API_KEY` and `OPENAI_API_KEY` env vars).
 - **Response:** `200` with `{"fans":[{"id":number,"username":string,"name":string,"parker_name":string}]}`.
   Returns `400` with `{ "error": string }` if prerequisites are missing.

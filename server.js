@@ -248,10 +248,13 @@ app.post('/api/updateFans', async (req, res) => {
                 };
                 const fansList = await fetchPaged(`/${OFAccountId}/fans/all`);
                 const followingList = await fetchPaged(`/${OFAccountId}/following/all`);
+                // Merge fans and followings, ensuring each OnlyFans user is processed once
                 const fanMap = new Map();
-                [...fansList, ...followingList].forEach(f => { fanMap.set(f.id, f); });
+                [...fansList, ...followingList].forEach(user => {
+                        fanMap.set(user.id, user);
+                });
                 const allFans = Array.from(fanMap.values());
-                console.log(`Fetched ${allFans.length} fans from OnlyFans.`);
+                console.log(`Fetched ${allFans.length} unique fans and followings from OnlyFans.`);
 		
 		// 3. Load existing fans from DB
 		const dbRes = await pool.query('SELECT id, parker_name, is_custom FROM fans');
