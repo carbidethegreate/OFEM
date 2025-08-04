@@ -14,6 +14,19 @@
 
 ## API Endpoints
 
+### Usage Sequence
+1. `POST /api/refreshFans` – sync subscribers and following users from OnlyFans.
+   - Example response:
+     ```json
+     { "fans": [{ "id": 1, "username": "demo", "parker_name": null }] }
+     ```
+2. `POST /api/updateParkerNames` – fill in missing `parker_name` values using GPT‑4.
+   - Example response:
+     ```json
+     { "fans": [{ "id": 1, "username": "demo", "parker_name": "Spark" }] }
+     ```
+3. `GET /api/fans` – retrieve the full list from the database once names are populated.
+
 ### `POST /api/refreshFans`
 Fetch OnlyFans subscribers and followings and upsert them in the database without GPT.
 - **Request Body:** none (requires `ONLYFANS_API_KEY`).
@@ -38,6 +51,10 @@ Retrieve all stored fan records.
 Report environment, database, and external service health.
 - **Request Body:** none.
 - **Response:** `200` with `{ "env": {...}, "database": { ok: boolean }, "onlyfans": { ok: boolean }, "openai": { ok: boolean }, "files": { envFile: boolean }, "node": { version: string } }`.
+
+### Migration
+Earlier versions combined fan syncing and Parker name generation into one endpoint.
+Now, call `/api/refreshFans` first and then `/api/updateParkerNames` to populate names.
 
 ## Message Template Guidelines
 
