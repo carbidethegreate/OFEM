@@ -790,17 +790,29 @@ app.post('/api/sendMessage', async (req, res) => {
                 const greeting = req.body.greeting || "";
                 const body = req.body.body || "";
 
-                // Normalize media and preview arrays
-                let mediaFiles = Array.isArray(req.body.mediaFiles) ? req.body.mediaFiles : [];
-                let previews = Array.isArray(req.body.previews) ? req.body.previews : [];
+                // Normalize and sanitize media and preview arrays
+                let mediaFiles = Array.isArray(req.body.mediaFiles)
+                        ? req.body.mediaFiles
+                                  .map((id) => Number(id))
+                                  .filter((id) => !isNaN(id))
+                        : [];
+                let previews = Array.isArray(req.body.previews)
+                        ? req.body.previews
+                                  .map((id) => Number(id))
+                                  .filter((id) => !isNaN(id))
+                        : [];
 
-                // Deduplicate media files then remove any that appear in previews
+                // Deduplicate and remove overlaps
                 const mediaSet = new Set(mediaFiles);
-                for (const id of previews) mediaSet.delete(id);
+                const previewSet = new Set(previews);
+                for (const id of [...previewSet]) {
+                        if (mediaSet.has(id)) {
+                                mediaSet.delete(id);
+                                previewSet.delete(id);
+                        }
+                }
                 mediaFiles = Array.from(mediaSet);
-
-                // Deduplicate previews
-                previews = Array.from(new Set(previews));
+                previews = Array.from(previewSet);
 
                 // Determine whether text should be locked
                 const lockedText = req.body.lockedText === true;
