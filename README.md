@@ -151,8 +151,8 @@ Run `./addtodatabase.command` to apply both migrations to an existing database i
 ## Usage
 
 1. Open a browser to <http://localhost:3000>.
-2. Click **Update Fan List** to load subscribers and followings into the table.
-3. Click **Update Parker Names** to generate missing Parker names with GPT‑4.
+2. **Step 1: Update Fan List** – fetch subscribers and followings and load them into the table.
+3. **Step 2: Update Parker Names** – generate and apply Parker names for fans missing them.
 4. Edit any names and click **Save** beside a fan to persist the change.
 5. Type the message to broadcast.  Use `{name}` or `[name]` as a placeholder or leave
    it out to have the greeting prefixed automatically.
@@ -162,8 +162,8 @@ Run `./addtodatabase.command` to apply both migrations to an existing database i
 ## API
 
 ### Usage Sequence
-1. `POST /api/refreshFans` – sync subscribers and following users from OnlyFans.
-2. `POST /api/updateParkerNames` – generate Parker names for fans missing them.
+1. **Step 1 – Update Fan List:** `POST /api/refreshFans` – sync subscribers and following users from OnlyFans.
+2. **Step 2 – Update Parker Names:** `POST /api/updateParkerNames` – generate Parker names for fans missing them.
 3. `GET /api/fans` – fetch the stored fan list with names.
 
 ### `POST /api/refreshFans`
