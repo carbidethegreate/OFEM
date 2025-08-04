@@ -6,7 +6,6 @@
 
 const express = require('express');
 const axios = require('axios');
-const { Configuration, OpenAIApi } = require('openai');
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
@@ -262,11 +261,6 @@ app.post('/api/updateFans', async (req, res) => {
 		}
 		
                 // 4. Prepare OpenAI API for GPT-4 usage
-                const openai = new OpenAIApi(
-                        new Configuration({ apiKey: process.env.OPENAI_API_KEY }),
-                        undefined,
-                        openaiAxios
-                );
                 const systemPrompt = `You are Parker’s conversational assistant. Decide how to address a subscriber by evaluating their username and profile name.
 
 1. If the profile name contains a plausible real first name, use its first word.
@@ -376,15 +370,23 @@ Respond with only the chosen name.`;
                                         parkerName = "Cuddles";
                                 } else {
                                         const userPrompt = `Subscriber username: "${username}". Profile name: "${profileName}". What should be the display name?`;
-                                        const completion = await openaiRequest(() => openai.createChatCompletion({
-                                                model: "gpt-4",
-                                                messages: [
-                                                        { role: "system", content: systemPrompt },
-                                                        { role: "user", content: userPrompt }
-                                                ],
-                                                max_tokens: 10,
-                                                temperature: 0.3
-                                        }));
+                                        const completion = await openaiRequest(() =>
+                                                openaiAxios.post(
+                                                        'https://api.openai.com/v1/chat/completions',
+                                                        {
+                                                                model: 'gpt-4',
+                                                                messages: [
+                                                                        { role: 'system', content: systemPrompt },
+                                                                        { role: 'user', content: userPrompt }
+                                                                ],
+                                                                max_tokens: 10,
+                                                                temperature: 0.3
+                                                        },
+                                                        {
+                                                                headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }
+                                                        }
+                                                )
+                                        );
                                         parkerName = completion.data.choices[0].message.content.trim();
                                         console.log(`GPT-4 name for ${username}: ${parkerName}`);
                                 }
@@ -979,12 +981,9 @@ app.get('/api/status', async (req, res) => {
                 status.onlyfans.error = err.response ? err.response.statusText || err.response.data : err.message;
         }
         try {
-                const openai = new OpenAIApi(
-                        new Configuration({ apiKey: process.env.OPENAI_API_KEY }),
-                        undefined,
-                        openaiAxios
-                );
-                await openai.listModels();
+                await openaiAxios.get('https://api.openai.com/v1/models', {
+                        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }
+                });
                 status.openai.ok = true;
         } catch (err) {
                 status.openai.ok = false;

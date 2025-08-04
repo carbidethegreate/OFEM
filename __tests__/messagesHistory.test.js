@@ -5,10 +5,6 @@ const mockPool = new pg.Pool();
 
 jest.mock('../db', () => mockPool);
 jest.mock('axios');
-jest.mock('openai', () => ({
-  Configuration: class {},
-  OpenAIApi: jest.fn()
-}));
 
 const request = require('supertest');
 const mockAxios = require('axios');
