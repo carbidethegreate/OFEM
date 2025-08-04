@@ -3,17 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <title>OFEM System Status</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .ok { color: green; }
-    .fail { color: red; }
-    table { border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #ccc; padding: 6px 10px; }
-  </style>
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
+  <header class="site-header">
+    <nav class="nav-bar">
+      <a href="index.html">Dashboard</a>
+      <a href="ppv.html">PPV Manager</a>
+      <a href="history.html">Message History</a>
+      <a href="queue.html">Scheduled Queue</a>
+    </nav>
+  </header>
   <h1>System Status</h1>
-  <table id="statusTable">
+  <table id="statusTable" class="mt-10">
     <thead><tr><th>Component</th><th>Status</th><th>Details</th></tr></thead>
     <tbody></tbody>
   </table>
