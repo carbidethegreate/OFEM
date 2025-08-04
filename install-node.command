@@ -7,26 +7,36 @@ cd "$(dirname "$0")"
 # Update NODE_VERSION when upgrading Node.js.
 # See https://nodejs.org/en/about/releases/ for latest LTS releases.
 NODE_VERSION="v22.18.0"
+NODE_MAJOR="${NODE_VERSION#v}"
+NODE_MAJOR="${NODE_MAJOR%%.*}"
 
 # Skip installation if desired version is already installed.
 if command -v node >/dev/null 2>&1 && [ "$(node -v)" = "$NODE_VERSION" ]; then
   echo "✅ Node.js $NODE_VERSION already installed; skipping download."
 else
-  NODE_PKG="node-${NODE_VERSION}.pkg"
-  NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_PKG}"
-
-  echo "📦 Downloading Node.js ${NODE_VERSION} (LTS)..."
-  if curl -fsSL "$NODE_URL" -o "$NODE_PKG"; then
-    echo "⚙️ Installing Node.js..."
-    if command -v installer >/dev/null 2>&1; then
-      sudo installer -pkg "$NODE_PKG" -target /
-      rm "$NODE_PKG"
-    else
-      echo "installer command not found; skipping Node.js installation"
+  if command -v brew >/dev/null 2>&1; then
+    echo "🍺 Homebrew detected; installing Node.js ${NODE_VERSION} via Homebrew..."
+    if ! brew ls --versions "node@${NODE_MAJOR}" >/dev/null 2>&1; then
+      brew install "node@${NODE_MAJOR}"
     fi
+    brew link "node@${NODE_MAJOR}"
   else
-    echo "⚠️ Unable to download Node.js ${NODE_VERSION}."
-    echo "   Please manually download the LTS version from https://nodejs.org/."
+    NODE_PKG="node-${NODE_VERSION}.pkg"
+    NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_PKG}"
+
+    echo "📦 Downloading Node.js ${NODE_VERSION} (LTS)..."
+    if curl -fsSL "$NODE_URL" -o "$NODE_PKG"; then
+      echo "⚙️ Installing Node.js..."
+      if command -v installer >/dev/null 2>&1; then
+        sudo installer -pkg "$NODE_PKG" -target /
+        rm "$NODE_PKG"
+      else
+        echo "installer command not found; skipping Node.js installation"
+      fi
+    else
+      echo "⚠️ Unable to download Node.js ${NODE_VERSION}."
+      echo "   Please manually download the LTS version from https://nodejs.org/."
+    fi
   fi
 fi
 
