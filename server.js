@@ -552,6 +552,7 @@ app.post('/api/updateParkerNames', async (req, res) => {
 Respond with only the chosen name.`;
 
                         const BATCH_SIZE = 5;
+                        const failedFanIds = [];
 
                         const processFan = async (fan) => {
                                 const fanId = fan.id;
@@ -593,7 +594,18 @@ Respond with only the chosen name.`;
 
                         for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
                                 const batch = toProcess.slice(i, i + BATCH_SIZE);
-                                await Promise.all(batch.map(processFan));
+                                const results = await Promise.allSettled(batch.map(processFan));
+                                results.forEach((result, index) => {
+                                        if (result.status === 'rejected') {
+                                                const fan = batch[index];
+                                                console.error(`Failed to process fan ${fan.id}:`, result.reason);
+                                                failedFanIds.push(fan.id);
+                                        }
+                                });
+                        }
+
+                        if (failedFanIds.length > 0) {
+                                console.log('Failed to update Parker names for fan IDs:', failedFanIds);
                         }
                 } catch (err) {
                         console.error('Error in /api/updateParkerNames:', err);
