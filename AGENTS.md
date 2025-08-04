@@ -14,11 +14,15 @@
 
 ## API Endpoints
 
-### `POST /api/updateFans`
-Fetch OnlyFans subscribers and followings, generate Parker names, and upsert them in the database.
-- **Request Body:** none (requires `ONLYFANS_API_KEY` and `OPENAI_API_KEY` env vars).
-- **Response:** `200` with `{"fans":[{"id":number,"username":string,"name":string,"parker_name":string}]}`.
-  Returns `400` with `{ "error": string }` if prerequisites are missing.
+### `POST /api/refreshFans`
+Fetch OnlyFans subscribers and followings and upsert them in the database without GPT.
+- **Request Body:** none (requires `ONLYFANS_API_KEY`).
+- **Response:** `200` with `{ "fans": [{...}] }`.
+
+### `POST /api/updateParkerNames`
+Generate Parker names for stored fans missing `parker_name` using GPT‑4.
+- **Request Body:** none (requires `OPENAI_API_KEY`).
+- **Response:** `200` with `{ "fans": [{...}] }`.
 
 ### `POST /api/sendMessage`
 Send a personalized message to a fan.
