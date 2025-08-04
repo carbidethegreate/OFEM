@@ -264,7 +264,11 @@
       sendBtn.disabled = true;
       document.getElementById('statusMsg').innerText = 'Updating fan list...';
       try {
-        const res = await fetch('/api/refreshFans', { method: 'POST' });
+        const res = await fetch('/api/refreshFans', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
+        });
         if (!res.ok) {
           const errText = await res.text();
           document.getElementById('statusMsg').innerText = 'Fan list update failed: ' + errText;
