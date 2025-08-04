@@ -15,6 +15,10 @@
     </nav>
   </header>
   <h1>OnlyFans Express Messenger (OFEM)</h1>
+  <p class="instructions">
+    Step 1: <strong>Update Fan List</strong> to fetch followers and fans.<br>
+    Step 2: <strong>Update Parker Names</strong> to generate and apply names.
+  </p>
   <p>
     <button id="refreshBtn" class="btn btn-primary">Update Fan List</button>
     <button id="updateBtn" class="btn btn-primary">Update Parker Names</button>
@@ -258,12 +262,12 @@
       refreshBtn.disabled = true;
       updateBtn.disabled = true;
       sendBtn.disabled = true;
-      document.getElementById('statusMsg').innerText = 'Refreshing fan list...';
+      document.getElementById('statusMsg').innerText = 'Updating fan list...';
       try {
         const res = await fetch('/api/refreshFans', { method: 'POST' });
         if (!res.ok) {
           const errText = await res.text();
-          document.getElementById('statusMsg').innerText = 'Refresh failed: ' + errText;
+          document.getElementById('statusMsg').innerText = 'Fan list update failed: ' + errText;
         } else {
           const data = await res.json();
           fansData = data.fans || [];
@@ -271,8 +275,8 @@
           document.getElementById('statusMsg').innerText = 'Loaded ' + fansData.length + ' fans.';
         }
       } catch (err) {
-        console.error('Refresh fans error:', err);
-        document.getElementById('statusMsg').innerText = 'Refresh failed: ' + err;
+        console.error('Update fan list error:', err);
+        document.getElementById('statusMsg').innerText = 'Fan list update failed: ' + err;
       } finally {
         refreshBtn.disabled = false;
         updateBtn.disabled = false;
