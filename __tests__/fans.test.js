@@ -202,3 +202,30 @@ test('upserts followings with Parker names', async () => {
   expect(fan.parker_name).toBe('Alice');
   expect(following.parker_name).toBe('Bob');
 });
+
+test('merges fans and followings without duplication', async () => {
+  const fanData = { id: 1, username: 'user1', name: 'Profile One', avatar: 'a1', isSubscribed: false };
+  const followingDuplicate = { ...fanData, avatar: 'a2', isSubscribed: true };
+  const followingData = { id: 2, username: 'user2', name: 'Profile Two', avatar: 'b1' };
+
+  mockAxios.post
+    .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Alice' } }] } })
+    .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Bob' } }] } });
+
+  mockAxios.get
+    .mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } })
+    .mockResolvedValueOnce({ data: { data: { list: [fanData] } } })
+    .mockResolvedValueOnce({ data: { data: { list: [] } } })
+    .mockResolvedValueOnce({ data: { data: { list: [followingDuplicate, followingData] } } })
+    .mockResolvedValueOnce({ data: { data: { list: [] } } });
+
+  await request(app).post('/api/updateFans').expect(200);
+
+  const res = await request(app).get('/api/fans').expect(200);
+  expect(res.body.fans).toHaveLength(2);
+  const fan = res.body.fans.find(f => f.id === 1);
+  const following = res.body.fans.find(f => f.id === 2);
+  expect(fan).toMatchObject({ avatar: 'a2', isSubscribed: true, parker_name: 'Alice' });
+  expect(following).toMatchObject({ username: 'user2', parker_name: 'Bob' });
+  expect(res.body.fans.filter(f => f.id === 1)).toHaveLength(1);
+});
