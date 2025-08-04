@@ -219,37 +219,37 @@ app.post('/api/updateFans', async (req, res) => {
                 OFAccountId = accounts[0].id;
                 console.log(`Using OnlyFans account: ${OFAccountId}`);
 
-                // 2. Fetch all fans (active + expired subscribers)
+                // 2. Fetch all fans and following users
                 // OnlyFans API appears to cap page size at 32 items
                 const limit = 32;
-                const fetchFans = async (type) => {
+                const fetchPaged = async (endpoint) => {
                         const results = [];
                         let offset = 0;
                         const RUNAWAY_LIMIT = 1000; // safeguard against runaway offsets
                         while (true) {
                                 try {
-                                        const resp = await ofApiRequest(() => ofApi.get(`/${OFAccountId}/fans/${type}`, { params: { limit, offset } }));
+                                        const resp = await ofApiRequest(() => ofApi.get(endpoint, { params: { limit, offset } }));
                                         const page = resp.data?.data?.list || resp.data?.list || resp.data;
                                         if (!page || page.length === 0) break;
                                         results.push(...page);
                                         offset += page.length;
                                         if (offset > RUNAWAY_LIMIT) {
-                                                console.warn(`Fetch fans ${type}: offset exceeded ${RUNAWAY_LIMIT}, stopping.`);
+                                                console.warn(`Fetch ${endpoint} offset exceeded ${RUNAWAY_LIMIT}, stopping.`);
                                                 break;
                                         }
                                 } catch (err) {
                                         const status = err.response?.status;
                                         if (status === 429) throw err; // rate limit errors should still bubble up
-                                        console.warn(`Fetch fans ${type} failed at offset ${offset} (status ${status || 'unknown'}). Returning partial results.`);
+                                        console.warn(`Fetch ${endpoint} failed at offset ${offset} (status ${status || 'unknown'}). Returning partial results.`);
                                         break;
                                 }
                         }
                         return results;
                 };
-                const activeFans = await fetchFans('active');
-                const expiredFans = await fetchFans('expired');
+                const fansList = await fetchPaged(`/${OFAccountId}/fans/all`);
+                const followingList = await fetchPaged(`/${OFAccountId}/following/all`);
                 const fanMap = new Map();
-                [...activeFans, ...expiredFans].forEach(f => { fanMap.set(f.id, f); });
+                [...fansList, ...followingList].forEach(f => { fanMap.set(f.id, f); });
                 const allFans = Array.from(fanMap.values());
                 console.log(`Fetched ${allFans.length} fans from OnlyFans.`);
 		

@@ -100,6 +100,7 @@ test('inserts and retrieves fan with new columns', async () => {
     .mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } })
     .mockResolvedValueOnce({ data: { data: { list: [fanData] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } })
+    .mockResolvedValueOnce({ data: { data: { list: [fanData] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } });
 
   await request(app).post('/api/updateFans').expect(200);
@@ -152,11 +153,13 @@ test('updates existing fan fields', async () => {
     .mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } })
     .mockResolvedValueOnce({ data: { data: { list: [fanData1] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } })
+    .mockResolvedValueOnce({ data: { data: { list: [fanData1] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } })
     // second call for update
     .mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } })
     .mockResolvedValueOnce({ data: { data: { list: [fanData2] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } })
+    .mockResolvedValueOnce({ data: { data: { list: [fanData2] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } });
 
   await request(app).post('/api/updateFans').expect(200); // insert
