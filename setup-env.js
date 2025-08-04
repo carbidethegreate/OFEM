@@ -41,6 +41,7 @@ async function main() {
     const dbPort = await prompt('Enter your Database Port (leave blank to skip): ');
     const dbAdminUser = await prompt('Enter your Database Admin User (optional, leave blank to skip): ');
     const dbAdminPassword = await prompt('Enter your Database Admin Password (optional, leave blank to skip): ');
+    const port = await prompt('Enter Express server port (leave blank for 3000): ');
 
     const setEnv = (key, value) => {
         if (!value) return;
@@ -61,10 +62,11 @@ async function main() {
     setEnv('DB_PORT', dbPort);
     setEnv('DB_ADMIN_USER', dbAdminUser);
     setEnv('DB_ADMIN_PASSWORD', dbAdminPassword);
+    setEnv('PORT', port || '3000');
     if (!envContent.endsWith('\n')) envContent += '\n';
     fs.writeFileSync(envPath, envContent);
     console.log('.env file created/updated.');
-    console.log('API keys saved. Database credentials saved when provided.');
+    console.log('API keys saved. Database credentials and server port saved (default 3000).');
     console.log('Next run setup-db.command to create the database.');
 }
 
