@@ -20,7 +20,9 @@ else
     if ! brew ls --versions "node@${NODE_MAJOR}" >/dev/null 2>&1; then
       brew install "node@${NODE_MAJOR}"
     fi
-    brew link "node@${NODE_MAJOR}"
+    if ! brew link "node@${NODE_MAJOR}"; then
+      brew link --overwrite --force "node@${NODE_MAJOR}"
+    fi
   else
     NODE_PKG="node-${NODE_VERSION}.pkg"
     NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_PKG}"
