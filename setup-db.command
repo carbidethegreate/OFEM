@@ -2,6 +2,7 @@
 # OnlyFans Express Messenger (OFEM) - Database Setup Wizard
 # Usage: Double-click this file (on macOS) or run it in Terminal to create a new database.
 # Created: 2025-08-02 – v1.0
+# Includes migrations for scheduled messages and PPV tables.
 
 set -e
 cd "$(dirname "$0")"
@@ -27,4 +28,6 @@ node setup-db.js
 node migrate.js
 node migrate_add_fan_fields.js
 node migrate_messages.js
+node migrate_scheduled_messages.js
+node migrate_add_ppv_tables.js
 
