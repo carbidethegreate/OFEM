@@ -223,7 +223,12 @@ app.post('/api/updateFans', async (req, res) => {
                 OFAccountId = accounts[0].id;
                 console.log(`Using OnlyFans account: ${OFAccountId}`);
 
-                // 2. Fetch all fans and following users
+                // 2. Determine which subset of users to fetch
+                const validFilters = new Set(['all', 'active', 'expired']);
+                const rawFilter = (req.query.filter || process.env.OF_FAN_FILTER || 'all').toLowerCase();
+                const filter = validFilters.has(rawFilter) ? rawFilter : 'all';
+
+                // 3. Fetch all fans and following users
                 // OnlyFans API appears to cap page size at 32 items
                 const limit = 32;
                 const fetchPaged = async (endpoint) => {
@@ -253,8 +258,8 @@ app.post('/api/updateFans', async (req, res) => {
                         }
                         return results;
                 };
-                const fansList = await fetchPaged(`/${OFAccountId}/fans/all`);
-                const followingList = await fetchPaged(`/${OFAccountId}/following/all`);
+                const fansList = await fetchPaged(`/${OFAccountId}/fans/${filter}`);
+                const followingList = await fetchPaged(`/${OFAccountId}/following/${filter}`);
                 // Merge fans and followings, ensuring each OnlyFans user is processed once
                 const fanMap = new Map();
                 [...fansList, ...followingList].forEach(user => {
@@ -263,14 +268,14 @@ app.post('/api/updateFans', async (req, res) => {
                 const allFans = Array.from(fanMap.values());
                 console.log(`Fetched ${allFans.length} unique fans and followings from OnlyFans.`);
 		
-		// 3. Load existing fans from DB
+                // 4. Load existing fans from DB
 		const dbRes = await pool.query('SELECT id, parker_name, is_custom FROM fans');
 		const existingFans = {};
 		for (const row of dbRes.rows) {
 			existingFans[row.id] = { parker_name: row.parker_name, is_custom: row.is_custom };
 		}
 		
-                // 4. Prepare OpenAI API for GPT-4 usage
+                // 5. Prepare OpenAI API for GPT-4 usage
                 const systemPrompt = `You are Parker’s conversational assistant. Decide how to address a subscriber by evaluating their username and profile name.
 
 1. If the profile name contains a plausible real first name, use its first word.
@@ -280,7 +285,7 @@ app.post('/api/updateFans', async (req, res) => {
 
 Respond with only the chosen name.`;
 		
-                // 5. Update/insert each fan in database with ParkerGivenName
+                // 6. Update/insert each fan in database with ParkerGivenName
                 const totalFans = allFans.length;
                 let processed = 0;
                 const BATCH_SIZE = 5; // limit concurrent OpenAI requests
