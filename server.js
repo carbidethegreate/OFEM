@@ -144,7 +144,15 @@ function removeEmojis(str = "") {
         return str.replace(/\p{Extended_Pictographic}/gu, "");
 }
 
-async function sendPersonalizedMessage(fanId, greeting = "", body = "", price, lockedText, mediaFiles = [], previews = []) {
+async function sendPersonalizedMessage(
+        fanId,
+        greeting = "",
+        body = "",
+        price = 0,
+        lockedText = false,
+        mediaFiles = [],
+        previews = []
+) {
         if (!fanId || (!greeting && !body)) {
                 throw new Error('Missing userId or message.');
         }
@@ -166,17 +174,22 @@ async function sendPersonalizedMessage(fanId, greeting = "", body = "", price, l
         template = template.replace(/\{username\}/g, userName);
         template = template.replace(/\{location\}/g, userLocation);
         const formatted = getEditorHtml(template);
-        const payload = { text: formatted };
-        if (price !== undefined) payload.price = price;
-        if (lockedText) payload.lockedText = lockedText;
-        if (Array.isArray(mediaFiles) && mediaFiles.length) payload.mediaFiles = mediaFiles;
-        if (Array.isArray(previews) && previews.length) payload.previews = previews;
+        const payload = {
+                text: formatted,
+                mediaFiles: Array.isArray(mediaFiles) ? mediaFiles : [],
+                previews: Array.isArray(previews) ? previews : [],
+                price: typeof price === 'number' ? price : 0,
+                lockedText: lockedText === true
+        };
         await ofApiRequest(() => ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, payload));
         await pool.query(
                 'INSERT INTO messages (fan_id, direction, body, price) VALUES ($1, $2, $3, $4)',
-                [fanId, 'outgoing', formatted, price ?? null]
+                [fanId, 'outgoing', formatted, payload.price ?? null]
         );
-        console.log(`Sent message to ${fanId}: ${template.substring(0, 30)}...`);
+        let logMsg = `Sent message to ${fanId}: ${template.substring(0, 30)}...`;
+        if (payload.mediaFiles.length) logMsg += ` [media:${payload.mediaFiles.length}]`;
+        if (payload.price) logMsg += ` [price:${payload.price}]`;
+        console.log(logMsg);
 }
 
 
@@ -722,10 +735,25 @@ app.post('/api/sendMessage', async (req, res) => {
                 const fanId = req.body.userId;
                 const greeting = req.body.greeting || "";
                 const body = req.body.body || "";
-                const price = req.body.price;
-                const lockedText = req.body.lockedText;
-                const mediaFiles = Array.isArray(req.body.mediaFiles) ? req.body.mediaFiles : [];
-                const previews = Array.isArray(req.body.previews) ? req.body.previews : [];
+
+                // Normalize media and preview arrays
+                let mediaFiles = Array.isArray(req.body.mediaFiles) ? req.body.mediaFiles : [];
+                let previews = Array.isArray(req.body.previews) ? req.body.previews : [];
+
+                // Deduplicate media files then remove any that appear in previews
+                const mediaSet = new Set(mediaFiles);
+                for (const id of previews) mediaSet.delete(id);
+                mediaFiles = Array.from(mediaSet);
+
+                // Deduplicate previews
+                previews = Array.from(new Set(previews));
+
+                // Parse price; default to 0 if NaN or no media files
+                let price = parseFloat(req.body.price);
+                if (isNaN(price) || mediaFiles.length === 0) price = 0;
+
+                const lockedText = req.body.lockedText === true;
+
                 await sendPersonalizedMessage(fanId, greeting, body, price, lockedText, mediaFiles, previews);
                 res.json({ success: true });
         } catch (err) {
