@@ -20,6 +20,9 @@
     "pg-mem": "^2.1.1",
     "supertest": "^7.1.3"
   },
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "jest": {
     "testEnvironment": "node"
   }

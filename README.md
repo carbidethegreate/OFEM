@@ -17,7 +17,7 @@ nicknames.
 
 ## Prerequisites
 
-- Node.js 14+
+- Node.js 22 LTS (v22.18.0)
 - PostgreSQL database accessible via `DATABASE_URL`
 - OnlyFans API key
 - OpenAI API key

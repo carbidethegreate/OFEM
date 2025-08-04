@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 
 # Update NODE_VERSION when upgrading Node.js.
 # See https://nodejs.org/en/about/releases/ for latest LTS releases.
+# Currently targeting Node.js 22 LTS (Jod).
 NODE_VERSION="v22.18.0"
 NODE_MAJOR="${NODE_VERSION#v}"
 NODE_MAJOR="${NODE_MAJOR%%.*}"
