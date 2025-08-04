@@ -177,3 +177,28 @@ test('updates existing fan fields', async () => {
     parker_name: 'Alice'
   });
 });
+
+test('upserts followings with Parker names', async () => {
+  const fanData = { id: 1, username: 'user1', name: 'Profile One' };
+  const followingData = { id: 2, username: 'user2', name: 'Profile Two' };
+
+  mockAxios.post
+    .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Alice' } }] } })
+    .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Bob' } }] } });
+
+  mockAxios.get
+    .mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } })
+    .mockResolvedValueOnce({ data: { data: { list: [fanData] } } })
+    .mockResolvedValueOnce({ data: { data: { list: [] } } })
+    .mockResolvedValueOnce({ data: { data: { list: [followingData] } } })
+    .mockResolvedValueOnce({ data: { data: { list: [] } } });
+
+  await request(app).post('/api/updateFans').expect(200);
+
+  const res = await request(app).get('/api/fans').expect(200);
+  expect(res.body.fans).toHaveLength(2);
+  const fan = res.body.fans.find(f => f.id === 1);
+  const following = res.body.fans.find(f => f.id === 2);
+  expect(fan.parker_name).toBe('Alice');
+  expect(following.parker_name).toBe('Bob');
+});
