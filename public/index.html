@@ -264,15 +264,26 @@
       sendBtn.disabled = true;
       document.getElementById('statusMsg').innerText = 'Updating fan list...';
       try {
-        const res = await fetch('/api/refreshFans', { method: 'POST' });
+        const res = await fetch('/api/refreshFans', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
         if (!res.ok) {
           const errText = await res.text();
           document.getElementById('statusMsg').innerText = 'Fan list update failed: ' + errText;
         } else {
-          const data = await res.json();
-          fansData = data.fans || [];
-          renderFansTable();
-          document.getElementById('statusMsg').innerText = 'Loaded ' + fansData.length + ' fans.';
+          // After refreshing, fetch the list from the database
+          const listRes = await fetch('/api/fans');
+          if (!listRes.ok) {
+            const errText = await listRes.text();
+            document.getElementById('statusMsg').innerText = 'Fan list update failed: ' + errText;
+          } else {
+            const data = await listRes.json();
+            fansData = data.fans || [];
+            renderFansTable();
+            document.getElementById('statusMsg').innerText = 'Loaded ' + fansData.length + ' fans.';
+          }
         }
       } catch (err) {
         console.error('Update fan list error:', err);
