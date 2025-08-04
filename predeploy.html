@@ -36,7 +36,7 @@
         <li style="margin-top:8px;"><button onclick="window.location.href='install-docker.command'">Install Docker</button></li>
         <li style="font-size:0.9em;color:#555;margin-top:4px;">This opens Terminal in the <code>OFEM</code> folder and runs <code>brew install --cask docker</code>. If the browser shows the script code instead of running it, open the <code>OFEM</code> folder in Finder and double-click <code>install-docker.command</code> manually.</li>
         <li style="font-size:0.9em;color:#555;margin-top:4px;">If you already have a local PostgreSQL server running you can skip Docker, but the setup wizard uses Docker by default.</li>
-        <li>Once Node and Docker are installed, run the project installer below to download any remaining packages and run initial database setup.</li>
+        <li>Once Node and Docker are installed, run the project installer below to install all Node dependencies.</li>
         <li style="margin-top:8px;"><button onclick="window.location.href='install.command'">Run installer</button></li>
         <li style="font-size:0.9em;color:#555;margin-top:4px;">If the browser shows the script code instead of running it, open the <code>OFEM</code> folder in Finder and double-click <code>install.command</code> manually.</li>
       </ol>
@@ -54,6 +54,7 @@
         <li style="margin-top:8px;"><button onclick="window.location.href='setup-db.command'">Set up new database</button></li>
         <li style="font-size:0.9em;color:#555;margin-top:4px;">If the browser shows the script code instead of running it, open the <code>OFEM</code> folder in Finder and double‑click <code>setup-db.command</code> manually.</li>
         <li style="font-size:0.9em;color:#555;margin-top:4px;">Leave the Terminal window open until it shows “Database setup complete!”. If it reports an error, install Docker Desktop or start PostgreSQL manually and then retry. To capture detailed logs, run <code>bash setup-db.command 2>&1 | tee setup-db.log</code> and send the resulting <code>setup-db.log</code> file for support.</li>
+        <li style="font-size:0.9em;color:#555;margin-top:4px;">After running <code>setup-env.command</code> and <code>setup-db.command</code>, the initial database setup is complete.</li>
       </ol>
     </li>
     <li><strong>Add to the Database</strong>
