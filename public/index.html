@@ -16,30 +16,30 @@
   </header>
   <h1>OnlyFans Express Messenger (OFEM)</h1>
   <p>
-    <button id="updateBtn">Update Fan Names</button>
-    <button onclick="location.href='ppv.html'">PPV Manager</button>
+    <button id="updateBtn" class="btn btn-primary">Update Fan Names</button>
+    <button class="btn btn-primary" onclick="location.href='ppv.html'">PPV Manager</button>
     <a href="history.html" target="_blank">Message History</a>
     <a href="queue.html" target="_blank">Scheduled Queue</a>
   </p>
   <div id="messageSection" class="message-section">
-    <input type="text" id="greeting" value="Hi {parker_name}!" />
+    <input type="text" id="greeting" class="form-input" value="Hi {parker_name}!" />
     <div id="toolbar">
-      <select id="sizeSelect">
+      <select id="sizeSelect" class="form-input">
         <option value="default">Default</option>
         <option value="sm">Smallest</option>
         <option value="s">Small</option>
         <option value="l">Large</option>
         <option value="lg">Largest</option>
       </select>
-      <select id="colorSelect">
+      <select id="colorSelect" class="form-input">
         <option value="">Default</option>
         <option value="gray">Gray</option>
         <option value="blue1">Blue 1</option>
         <option value="blue2">Blue 2</option>
       </select>
-      <button id="boldBtn" type="button">Bold</button>
-      <button id="italicBtn" type="button">Italic</button>
-      <select id="placeholderSelect">
+      <button id="boldBtn" type="button" class="btn btn-secondary">Bold</button>
+      <button id="italicBtn" type="button" class="btn btn-secondary">Italic</button>
+      <select id="placeholderSelect" class="form-input">
         <option value="">Insert Placeholder</option>
         <option value="{parker_name}">{parker_name}</option>
         <option value="{username}">{username}</option>
@@ -50,24 +50,24 @@
     </div>
     <div id="message" contenteditable="true" class="m-editor-fs__default message-editor"></div>
     <div id="vaultSection" class="vault-section">
-      <button id="loadVaultBtn" type="button">Load Vault Media</button>
+      <button id="loadVaultBtn" type="button" class="btn btn-primary">Load Vault Media</button>
       <div id="vaultMediaList" class="vault-media-list"></div>
       <div class="mt-5">
-        <label>Price: <input type="number" id="price" min="0" step="0.01" class="w-80"></label>
-        <input type="text" id="lockedText" placeholder="Locked text" class="w-200" />
+        <label>Price: <input type="number" id="price" min="0" step="0.01" class="form-input w-80"></label>
+        <input type="text" id="lockedText" placeholder="Locked text" class="form-input w-200" />
       </div>
     </div>
     <div class="schedule-section">
-      <label>Schedule Time: <input type="datetime-local" id="scheduledTime" /></label>
+      <label>Schedule Time: <input type="datetime-local" id="scheduledTime" class="form-input" /></label>
     </div>
-    <button id="sendBtn">Send Personalized DM to All Fans</button>
-    <button id="scheduleBtn" type="button">Schedule Message</button>
-    <button id="abortBtn" disabled>Abort Sending</button>
-    <button id="clearStatusBtn" type="button">Clear Status</button>
-    <button id="downloadBtn" type="button">Download Results</button>
+    <button id="sendBtn" class="btn btn-primary">Send Personalized DM to All Fans</button>
+    <button id="scheduleBtn" type="button" class="btn btn-primary">Schedule Message</button>
+    <button id="abortBtn" class="btn btn-secondary" disabled>Abort Sending</button>
+    <button id="clearStatusBtn" type="button" class="btn btn-secondary">Clear Status</button>
+    <button id="downloadBtn" type="button" class="btn btn-secondary">Download Results</button>
   </div>
   <div id="statusMsg" class="status-msg"></div>
-  <table id="fansTable">
+  <table id="fansTable" class="form-table">
     <thead>
       <tr>
         <th>Username</th>
@@ -182,6 +182,7 @@
         input.type = 'text';
         input.id = `name-${id}`;
         input.value = parkerName;
+        input.className = 'form-input';
         tdParker.appendChild(input);
         tr.appendChild(tdParker);
 
@@ -194,6 +195,7 @@
         const tdSave = document.createElement('td');
         const btn = document.createElement('button');
         btn.textContent = 'Save';
+        btn.className = 'btn btn-secondary';
         btn.addEventListener('click', () => updateName(String(id)));
         tdSave.appendChild(btn);
         tr.appendChild(tdSave);

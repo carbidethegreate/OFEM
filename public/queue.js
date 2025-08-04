@@ -19,9 +19,11 @@ window.Queue = {
       const actionsTd = document.createElement('td');
       const editBtn = document.createElement('button');
       editBtn.textContent = 'Edit';
+      editBtn.className = 'btn btn-secondary';
       editBtn.addEventListener('click', () => this.edit(m));
       const cancelBtn = document.createElement('button');
       cancelBtn.textContent = 'Cancel';
+      cancelBtn.className = 'btn btn-secondary';
       cancelBtn.addEventListener('click', () => this.cancel(m.id));
       actionsTd.appendChild(editBtn);
       actionsTd.appendChild(cancelBtn);
