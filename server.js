@@ -32,6 +32,11 @@ const ofApi = axios.create({
 });
 const openaiAxios = axios.create({ timeout: 30000 });
 let OFAccountId = null;
+const REQUIRED_ENV_VARS = ['ONLYFANS_API_KEY', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'OPENAI_API_KEY'];
+
+function getMissingEnvVars(list = REQUIRED_ENV_VARS) {
+        return list.filter(v => !process.env[v]);
+}
 // Wrapper to handle OnlyFans API rate limiting with retries
 async function ofApiRequest(requestFn, maxRetries = 5) {
         maxRetries++; // include initial attempt
@@ -733,6 +738,10 @@ app.delete('/api/ppv/:id', async (req, res) => {
 
 /* Story 2: Send Personalized DM to All Fans */
 app.post('/api/sendMessage', async (req, res) => {
+        const missing = getMissingEnvVars();
+        if (missing.length) {
+                return res.status(400).json({ error: `Missing environment variable(s): ${missing.join(', ')}` });
+        }
         try {
                 const fanId = req.body.userId;
                 const greeting = req.body.greeting || "";
@@ -985,6 +994,11 @@ app.get('/api/status', async (req, res) => {
 });
 
 async function processScheduledMessages() {
+        const missing = getMissingEnvVars();
+        if (missing.length) {
+                console.error(`Missing environment variable(s): ${missing.join(', ')}`);
+                return;
+        }
         try {
                 const dbRes = await pool.query("SELECT * FROM scheduled_messages WHERE status='pending' AND scheduled_at <= NOW()");
                 for (const row of dbRes.rows) {
