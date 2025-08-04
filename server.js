@@ -34,8 +34,9 @@ const openaiAxios = axios.create({ timeout: 30000 });
 let OFAccountId = null;
 // Wrapper to handle OnlyFans API rate limiting with retries
 async function ofApiRequest(requestFn, maxRetries = 5) {
+        maxRetries++; // include initial attempt
         let delay = 1000; // start with 1s
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
                 try {
                         return await requestFn();
                 } catch (err) {
@@ -47,7 +48,7 @@ async function ofApiRequest(requestFn, maxRetries = 5) {
                         }
                         const status = err.response?.status;
                         if (status !== 429) throw err;
-                        if (attempt === maxRetries) {
+                        if (attempt === maxRetries - 1) {
                                 const rateErr = new Error('OnlyFans API rate limit exceeded');
                                 rateErr.status = 429;
                                 throw rateErr;
@@ -62,8 +63,9 @@ async function ofApiRequest(requestFn, maxRetries = 5) {
 
 // Wrapper to handle OpenAI rate limiting with retries
 async function openaiRequest(requestFn, maxRetries = 5) {
+        maxRetries++; // include initial attempt
         let delay = 1000; // start with 1s
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
                 try {
                         return await requestFn();
                 } catch (err) {
@@ -75,7 +77,7 @@ async function openaiRequest(requestFn, maxRetries = 5) {
                         }
                         const status = err.response?.status;
                         if (status !== 429) throw err;
-                        if (attempt === maxRetries) {
+                        if (attempt === maxRetries - 1) {
                                 const aiErr = new Error('OpenAI API rate limit exceeded');
                                 aiErr.status = 429;
                                 throw aiErr;
