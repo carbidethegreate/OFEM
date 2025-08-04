@@ -989,14 +989,25 @@ async function processScheduledMessages() {
                 const dbRes = await pool.query("SELECT * FROM scheduled_messages WHERE status='pending' AND scheduled_at <= NOW()");
                 for (const row of dbRes.rows) {
                         const recipients = Array.isArray(row.recipients) ? row.recipients : [];
+                        let allSent = true;
                         for (const fanId of recipients) {
                                 try {
-                                        await sendPersonalizedMessage(fanId, row.greeting || '', row.body || '', row.price, row.locked_text, row.media_files || [], row.previews || []);
+                                        await sendPersonalizedMessage(
+                                                fanId,
+                                                row.greeting || '',
+                                                row.body || '',
+                                                row.price,
+                                                row.locked_text,
+                                                row.media_files || [],
+                                                row.previews || []
+                                        );
                                 } catch (err) {
+                                        allSent = false;
                                         console.error(`Error sending scheduled message ${row.id} to ${fanId}:`, err.message);
                                 }
                         }
-                        await pool.query('UPDATE scheduled_messages SET status=$1 WHERE id=$2', ['sent', row.id]);
+                        const newStatus = allSent ? 'sent' : 'failed';
+                        await pool.query('UPDATE scheduled_messages SET status=$1 WHERE id=$2', [newStatus, row.id]);
                 }
         } catch (err) {
                 console.error('Error processing scheduled messages:', err);
