@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 const getEditorHtml = require('./getEditorHtml');
+const { sanitizeError } = require('./sanitizeError');
 dotenv.config();
 
 // Database connection pool
@@ -517,7 +518,7 @@ app.post('/api/refreshFans', async (req, res) => {
                 const all = await pool.query('SELECT * FROM fans');
                 res.json({ fans: all.rows });
         } catch (err) {
-                console.error('Error in /api/refreshFans:', err);
+                console.error('Error in /api/refreshFans:', sanitizeError(err));
                 const status = err.status || 500;
                 const message = status === 429 ? 'OnlyFans API rate limit exceeded. Please try again later.' : (err.message || 'Failed to refresh fan list.');
                 res.status(status).json({ error: message });
@@ -600,7 +601,7 @@ Respond with only the chosen name.`;
                                 results.forEach((result, index) => {
                                         if (result.status === 'rejected') {
                                                 const fan = batch[index];
-                                                console.error(`Failed to process fan ${fan.id}:`, result.reason);
+                                                console.error(`Failed to process fan ${fan.id}:`, sanitizeError(result.reason));
                                                 failedFanIds.push(fan.id);
                                         }
                                 });
@@ -610,7 +611,7 @@ Respond with only the chosen name.`;
                                 console.log('Failed to update Parker names for fan IDs:', failedFanIds);
                         }
                 } catch (err) {
-                        console.error('Error in /api/updateParkerNames:', err);
+                        console.error('Error in /api/updateParkerNames:', sanitizeError(err));
                 } finally {
                         parkerUpdateInProgress = false;
                 }
@@ -639,7 +640,7 @@ app.put('/api/fans/:id', async (req, res) => {
                 console.log(`User manually set ParkerName for fan ${fanId} -> "${checked}"`);
                 res.json({ success: true });
         } catch (err) {
-                console.error("Error in /api/fans/:id PUT:", err);
+                console.error("Error in /api/fans/:id PUT:", sanitizeError(err));
                 res.status(500).send("Failed to update name.");
         }
 });
@@ -676,7 +677,7 @@ app.get('/api/vault-media', async (req, res) => {
 
                 res.json({ media });
         } catch (err) {
-                console.error('Error fetching vault media:', err);
+                console.error('Error fetching vault media:', sanitizeError(err));
                 res.status(500).json({ error: 'Failed to fetch vault media' });
         }
 });
@@ -687,7 +688,7 @@ app.get('/api/ppv', async (req, res) => {
                 const dbRes = await pool.query('SELECT id, ppv_number, description, price, vault_list_id, created_at FROM ppv_sets ORDER BY ppv_number');
                 res.json({ ppvs: dbRes.rows });
         } catch (err) {
-                console.error('Error fetching PPVs:', err);
+                console.error('Error fetching PPVs:', sanitizeError(err));
                 res.status(500).json({ error: 'Failed to fetch PPVs' });
         }
 });
@@ -776,7 +777,7 @@ app.delete('/api/ppv/:id', async (req, res) => {
                 await pool.query('DELETE FROM ppv_sets WHERE id=$1', [id]);
                 res.json({ success: true });
         } catch (err) {
-                console.error('Error deleting PPV:', err);
+                console.error('Error deleting PPV:', sanitizeError(err));
                 res.status(500).json({ error: 'Failed to delete PPV' });
         }
 });
@@ -856,7 +857,7 @@ app.post('/api/scheduleMessage', async (req, res) => {
                 );
                 res.json({ success: true });
         } catch (err) {
-                console.error('Error scheduling message:', err);
+                console.error('Error scheduling message:', sanitizeError(err));
                 res.status(500).json({ success: false, error: err.message });
         }
 });
@@ -866,7 +867,7 @@ app.get('/api/scheduledMessages', async (req, res) => {
                 const dbRes = await pool.query("SELECT id, greeting, body, recipients, media_files, previews, price, locked_text, scheduled_at, status FROM scheduled_messages WHERE status='pending' ORDER BY scheduled_at");
                 res.json({ messages: dbRes.rows });
         } catch (err) {
-                console.error('Error fetching scheduled messages:', err);
+                console.error('Error fetching scheduled messages:', sanitizeError(err));
                 res.status(500).json({ error: err.message });
         }
 });
@@ -893,7 +894,7 @@ app.put('/api/scheduledMessages/:id', async (req, res) => {
                 await pool.query(`UPDATE scheduled_messages SET ${fields.join(', ')} WHERE id=$${idx}`, values);
                 res.json({ success: true });
         } catch (err) {
-                console.error('Error updating scheduled message:', err);
+                console.error('Error updating scheduled message:', sanitizeError(err));
                 res.status(500).json({ success: false, error: err.message });
         }
 });
@@ -903,7 +904,7 @@ app.delete('/api/scheduledMessages/:id', async (req, res) => {
                 await pool.query('UPDATE scheduled_messages SET status=$1 WHERE id=$2', ['canceled', req.params.id]);
                 res.json({ success: true });
         } catch (err) {
-                console.error('Error canceling scheduled message:', err);
+                console.error('Error canceling scheduled message:', sanitizeError(err));
                 res.status(500).json({ success: false, error: err.message });
         }
 });
@@ -1003,7 +1004,7 @@ app.get('/api/fans', async (req, res) => {
                         ORDER BY id`);
                 res.json({ fans: dbRes.rows });
         } catch (err) {
-                console.error("Error in GET /api/fans:", err);
+                console.error("Error in GET /api/fans:", sanitizeError(err));
                 res.status(500).send("Failed to retrieve fans.");
         }
 });
@@ -1079,7 +1080,7 @@ async function processScheduledMessages() {
                         await pool.query('UPDATE scheduled_messages SET status=$1 WHERE id=$2', [newStatus, row.id]);
                 }
         } catch (err) {
-                console.error('Error processing scheduled messages:', err);
+                console.error('Error processing scheduled messages:', sanitizeError(err));
         }
 }
 
