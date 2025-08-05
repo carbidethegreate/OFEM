@@ -8,7 +8,7 @@
 
 ## Steps
 1. Run `npm install`.
-2. Configure environment variables via `./setup-env.command` or `node setup-env.js`.
+2. Configure environment variables via `./setup-env.command` or `node setup-env.js` (set `OPENAI_MODEL` to override the default `gpt-4o-mini`).
 3. Create the database using `./setup-db.command` or `node setup-db.js`.
 4. Start the server with `npm start`.
 
@@ -20,7 +20,7 @@
      ```json
      { "fans": [{ "id": 1, "username": "demo", "parker_name": null }] }
      ```
-2. `POST /api/updateParkerNames` – fill in missing `parker_name` values using GPT‑4.
+2. `POST /api/updateParkerNames` – fill in missing `parker_name` values using the configured OpenAI model (default `gpt-4o-mini`).
    - Example response:
      ```json
      { "fans": [{ "id": 1, "username": "demo", "parker_name": "Spark" }] }
@@ -28,13 +28,13 @@
 3. `GET /api/fans` – retrieve the full list from the database once names are populated.
 
 ### `POST /api/refreshFans`
-Fetch OnlyFans subscribers and followings and upsert them in the database without GPT.
+Fetch OnlyFans subscribers and followings and upsert them in the database without calling OpenAI.
 - **Request Body:** none (requires `ONLYFANS_API_KEY`).
 - **Response:** `200` with `{ "fans": [{...}] }`.
 
 ### `POST /api/updateParkerNames`
-Generate Parker names for stored fans missing `parker_name` using GPT‑4.
-- **Request Body:** none (requires `OPENAI_API_KEY`).
+Generate Parker names for stored fans missing `parker_name` using the configured OpenAI model.
+- **Request Body:** none (requires `OPENAI_API_KEY`; optional `OPENAI_MODEL`).
 - **Response:** `200` with `{ "fans": [{...}] }`.
 
 ### `POST /api/sendMessage`
