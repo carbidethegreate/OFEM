@@ -4,14 +4,14 @@
 
 OFEM is a small dashboard that helps an OnlyFans creator greet fans by name and send a
 personalised message to everyone in one pass.  It uses the official OnlyFans API to
-fetch the fan list and send direct messages and OpenAI GPT‑4 to generate friendly
+fetch the fan list and send direct messages and an OpenAI GPT model (default `gpt-4o-mini`) to generate friendly
 nicknames.
 
 ## Features
 
 - **Update Fan List** – Fetches all subscribers and followings and stores them in the
-  database without calling GPT.
-- **Update Parker Names** – Generates a short “Parker name” with GPT‑4 only for fans who
+  database without calling OpenAI.
+- **Update Parker Names** – Generates a short “Parker name” with the configured OpenAI model (default `gpt-4o-mini`) only for fans who
   do not already have one. Names can be edited and saved.
 - **Send Personalised DM** – Sends a message to every fan, greeting each with their
   Parker name.  Shows a green dot for success and red for failure.  Sending can be
@@ -46,8 +46,9 @@ nicknames.
 The server reads the following variables from your environment or `.env` file:
 
 - `ONLYFANS_API_KEY` – authenticates requests to the OnlyFans API.
-- `OPENAI_API_KEY` – enables OpenAI GPT‑4 for generating Parker names (required only
+- `OPENAI_API_KEY` – enables OpenAI GPT models for generating Parker names (required only
   for `/api/updateParkerNames`).
+- `OPENAI_MODEL` – OpenAI model to use for Parker name generation (default `gpt-4o-mini`).
 - `DB_NAME` – name of the PostgreSQL database to use.
 - `DB_USER` – PostgreSQL username.
 - `DB_PASSWORD` – password for the database user.
@@ -169,7 +170,7 @@ Run `./addtodatabase.command` to apply both migrations to an existing database i
 ### `POST /api/refreshFans`
 
 Fetch OnlyFans subscribers and followings and upsert them into the database without
-calling GPT. Returns `{ "fans": [...] }` with all stored fans.
+calling OpenAI. Returns `{ "fans": [...] }` with all stored fans.
 
 #### Example response
 
@@ -179,7 +180,7 @@ calling GPT. Returns `{ "fans": [...] }` with all stored fans.
 
 ### `POST /api/updateParkerNames`
 
-Generate Parker names for any stored fans missing `parker_name`. Uses GPT‑4 and returns
+Generate Parker names for any stored fans missing `parker_name`. Uses the configured OpenAI model and returns
 `{ "fans": [...] }` after updating the database.
 
 #### Example response

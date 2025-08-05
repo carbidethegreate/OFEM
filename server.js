@@ -30,6 +30,8 @@ const ofApi = axios.create({
         timeout: 30000
 });
 const openaiAxios = axios.create({ timeout: 30000 });
+// OpenAI model configuration with fallback
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 let OFAccountId = null;
 const REQUIRED_ENV_VARS = ['ONLYFANS_API_KEY', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'OPENAI_API_KEY'];
 // Configurable cap on OnlyFans records to fetch when paging. Prevents runaway loops if
@@ -568,7 +570,7 @@ Respond with only the chosen name.`;
                                                 openaiAxios.post(
                                                         'https://api.openai.com/v1/chat/completions',
                                                         {
-                                                                model: 'gpt-4',
+                                                                model: OPENAI_MODEL,
                                                                 messages: [
                                                                         { role: 'system', content: systemPrompt },
                                                                         { role: 'user', content: userPrompt }
@@ -580,7 +582,7 @@ Respond with only the chosen name.`;
                                                 )
                                         );
                                         parkerName = completion.data.choices[0].message.content.trim();
-                                        console.log(`GPT-4 name for ${username}: ${parkerName}`);
+                                        console.log(`${OPENAI_MODEL} name for ${username}: ${parkerName}`);
                                 }
 
                                 const originalName = parkerName;
@@ -1016,7 +1018,7 @@ app.get('/api/status', async (req, res) => {
                 files: { envFile: fs.existsSync(path.join(__dirname, '.env')) },
                 node: { version: process.version }
         };
-        const requiredEnv = ['ONLYFANS_API_KEY', 'OPENAI_API_KEY', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT'];
+        const requiredEnv = ['ONLYFANS_API_KEY', 'OPENAI_API_KEY', 'OPENAI_MODEL', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT'];
         requiredEnv.forEach(k => {
                 status.env[k] = !!process.env[k];
         });
