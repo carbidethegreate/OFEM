@@ -285,3 +285,33 @@ test('fetches active fans and followings when filter is active', async () => {
   expect(res.body.fans).toHaveLength(2);
   expect(res.body.fans.map(f => f.parker_name).sort()).toEqual(['Alice', 'Bob']);
 });
+
+test('retries OpenAI 500 errors and continues processing other fans', async () => {
+  await pool.query(
+    `INSERT INTO fans (id, username, name) VALUES (1, 'user1', 'Profile One'), (2, 'user2', 'Profile Two')`
+  );
+
+  const counts = { user1: 0 };
+  mockAxios.post.mockImplementation((url, body) => {
+    const prompt = body.messages[1].content;
+    if (prompt.includes('user1')) {
+      counts.user1++;
+      return Promise.reject({
+        response: { status: 500, headers: { 'retry-after': '0' } }
+      });
+    }
+    return Promise.resolve({
+      data: { choices: [{ message: { content: 'Bob' } }] }
+    });
+  });
+
+  await runParkerUpdate();
+  await new Promise(r => setTimeout(r, 0));
+
+  const res = await request(app).get('/api/fans').expect(200);
+  const fan1 = res.body.fans.find(f => f.id === 1);
+  const fan2 = res.body.fans.find(f => f.id === 2);
+  expect(fan1.parker_name).toBeNull();
+  expect(fan2.parker_name).toBe('Bob');
+  expect(counts.user1).toBeGreaterThan(1);
+});

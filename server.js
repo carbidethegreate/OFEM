@@ -87,15 +87,20 @@ async function openaiRequest(requestFn, maxRetries = 5) {
                                 throw timeoutErr;
                         }
                         const status = err.response?.status;
-                        if (status !== 429) throw err;
+                        const retriable = status === 429 || (status >= 500 && status < 600);
+                        if (!retriable) throw err;
                         if (attempt === maxRetries - 1) {
-                                const aiErr = new Error('OpenAI API rate limit exceeded');
-                                aiErr.status = 429;
+                                const aiErr = new Error(
+                                        status === 429
+                                                ? 'OpenAI API rate limit exceeded'
+                                                : 'OpenAI API server error'
+                                );
+                                aiErr.status = status;
                                 throw aiErr;
                         }
                         const retryAfter = parseInt(err.response.headers['retry-after'], 10);
                         const wait = Number.isFinite(retryAfter) ? retryAfter * 1000 : delay;
-                        console.warn(`OpenAI rate limit hit. Retry ${attempt + 1} in ${wait}ms`);
+                        console.warn(`OpenAI API error ${status}. Retry ${attempt + 1} in ${wait}ms`);
                         await new Promise(r => setTimeout(r, wait));
                         delay *= 2;
                 }
@@ -561,50 +566,48 @@ Respond with only the chosen name.`;
                                 const fanId = fan.id;
                                 const username = fan.username || '';
                                 const profileName = fan.name || '';
-                                let parkerName;
 
-                                if (isSystemGenerated(username, profileName)) {
-                                        parkerName = 'Cuddles';
-                                } else {
-                                        const userPrompt = `Subscriber username: "${username}". Profile name: "${profileName}". What should be the display name?`;
-                                        const completion = await openaiRequest(() =>
-                                                openaiAxios.post(
-                                                        'https://api.openai.com/v1/chat/completions',
-                                                        {
-                                                                model: OPENAI_MODEL,
-                                                                messages: [
-                                                                        { role: 'system', content: systemPrompt },
-                                                                        { role: 'user', content: userPrompt }
-                                                                ],
-                                                                max_tokens: 10,
-                                                                temperature: 0.3
-                                                        },
-                                                        { headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` } }
-                                                )
-                                        );
-                                        parkerName = completion.data.choices[0].message.content.trim();
-                                        console.log(`${OPENAI_MODEL} name for ${username}: ${parkerName}`);
+                                try {
+                                        let parkerName;
+                                        if (isSystemGenerated(username, profileName)) {
+                                                parkerName = 'Cuddles';
+                                        } else {
+                                                const userPrompt = `Subscriber username: "${username}". Profile name: "${profileName}". What should be the display name?`;
+                                                const completion = await openaiRequest(() =>
+                                                        openaiAxios.post(
+                                                                'https://api.openai.com/v1/chat/completions',
+                                                                {
+                                                                        model: OPENAI_MODEL,
+                                                                        messages: [
+                                                                                { role: 'system', content: systemPrompt },
+                                                                                { role: 'user', content: userPrompt }
+                                                                        ],
+                                                                        max_tokens: 10,
+                                                                        temperature: 0.3
+                                                                },
+                                                                { headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` } }
+                                                        )
+                                                );
+                                                parkerName = completion.data.choices[0].message.content.trim();
+                                                console.log(`${OPENAI_MODEL} name for ${username}: ${parkerName}`);
+                                        }
+
+                                        const originalName = parkerName;
+                                        parkerName = ensureValidParkerName(parkerName, username, profileName);
+                                        if (parkerName !== originalName) {
+                                                // Parker name was adjusted to meet validation rules
+                                        }
+
+                                        await pool.query('UPDATE fans SET parker_name=$2, is_custom=false, updatedAt=NOW() WHERE id=$1', [fanId, parkerName]);
+                                } catch (err) {
+                                        console.error(`Failed to process fan ${fanId}:`, sanitizeError(err));
+                                        failedFanIds.push(fanId);
                                 }
-
-                                const originalName = parkerName;
-                                parkerName = ensureValidParkerName(parkerName, username, profileName);
-                                if (parkerName !== originalName) {
-                                        // Parker name was adjusted to meet validation rules
-                                }
-
-                                await pool.query('UPDATE fans SET parker_name=$2, is_custom=false, updatedAt=NOW() WHERE id=$1', [fanId, parkerName]);
                         };
 
                         for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
                                 const batch = toProcess.slice(i, i + BATCH_SIZE);
-                                const results = await Promise.allSettled(batch.map(processFan));
-                                results.forEach((result, index) => {
-                                        if (result.status === 'rejected') {
-                                                const fan = batch[index];
-                                                console.error(`Failed to process fan ${fan.id}:`, sanitizeError(result.reason));
-                                                failedFanIds.push(fan.id);
-                                        }
-                                });
+                                await Promise.all(batch.map(processFan));
                         }
 
                         if (failedFanIds.length > 0) {
