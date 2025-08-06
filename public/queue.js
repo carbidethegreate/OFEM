@@ -40,38 +40,38 @@ window.Queue = {
     }
   },
   async edit(m) {
-    const newGreeting = prompt('New greeting:', m.greeting || '');
-    if (newGreeting === null) return;
     const newBody = prompt('New message body:', m.body || '');
     if (newBody === null) return;
-    const priceInput = prompt('New price:', m.price != null ? m.price : '');
-    if (priceInput === null) return;
-    const lockedInput = prompt('New locked text:', m.locked_text || '');
-    if (lockedInput === null) return;
     const defaultTime = m.scheduled_at ? m.scheduled_at.slice(0,16) : '';
     const newTime = prompt('New schedule time (YYYY-MM-DDTHH:MM):', defaultTime);
     if (newTime === null) return;
+    const newGreeting = prompt('New greeting:', m.greeting || '');
+    const newPrice = prompt('New price:', m.price != null ? m.price : '');
+    const newLocked = prompt('Lock message? (yes/no):', m.locked_text ? 'yes' : 'no');
     const payload = {};
-    if (newGreeting.trim() !== '') payload.greeting = newGreeting;
     if (newBody.trim() !== '') payload.body = newBody;
-    if (priceInput.trim() !== '') {
-      const priceNum = parseFloat(priceInput);
-      if (!isNaN(priceNum)) payload.price = priceNum;
-    }
-    if (lockedInput.trim() !== '') {
-      const lower = lockedInput.trim().toLowerCase();
-      if (lower === 'true') payload.lockedText = true;
-      else if (lower === 'false') payload.lockedText = false;
-      else payload.lockedText = lockedInput;
-    }
     if (newTime.trim() !== '') payload.scheduledTime = newTime;
+    if (newGreeting !== null) payload.greeting = newGreeting;
+    if (newPrice !== null) {
+      const trimmed = newPrice.trim();
+      if (trimmed === '') payload.price = null;
+      else {
+        const priceNum = Number(trimmed);
+        if (!isNaN(priceNum)) payload.price = priceNum;
+      }
+    }
+    if (newLocked !== null) {
+      const lower = newLocked.trim().toLowerCase();
+      if (lower === 'yes') payload.lockedText = true;
+      else if (lower === 'no') payload.lockedText = false;
+    }
     try {
-      await fetch(`/api/scheduledMessages/${m.id}`, {
+      const res = await fetch(`/api/scheduledMessages/${m.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      this.fetch();
+      if (res.ok) this.fetch();
     } catch (err) {
       console.error('Error editing message:', err);
     }
