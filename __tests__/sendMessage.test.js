@@ -181,7 +181,15 @@ test('forwards media and price fields', async () => {
   mockAxios.post.mockResolvedValueOnce({});
   await request(app)
     .post('/api/sendMessage')
-    .send({ userId: 1, greeting: '', body: 'Hello', price: 5, lockedText: true, mediaFiles: [1, 1, 2], previews: [2, 2] })
+    .send({
+      userId: 1,
+      greeting: '',
+      body: 'Hello',
+      price: 5,
+      lockedText: true,
+      mediaFiles: [1, 'x', 1, 2],
+      previews: [2, 'y', 2]
+    })
     .expect(200);
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
     text: '<p>Hello</p>',

@@ -798,14 +798,10 @@ app.post('/api/sendMessage', async (req, res) => {
 
                 // Normalize and sanitize media and preview arrays
                 let mediaFiles = Array.isArray(req.body.mediaFiles)
-                        ? req.body.mediaFiles
-                                  .map((id) => Number(id))
-                                  .filter((id) => !isNaN(id))
+                        ? req.body.mediaFiles.map(Number).filter(Number.isFinite)
                         : [];
                 let previews = Array.isArray(req.body.previews)
-                        ? req.body.previews
-                                  .map((id) => Number(id))
-                                  .filter((id) => !isNaN(id))
+                        ? req.body.previews.map(Number).filter(Number.isFinite)
                         : [];
 
                 // Deduplicate and remove overlaps
