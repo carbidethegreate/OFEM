@@ -192,10 +192,18 @@ async function sendPersonalizedMessage(
         template = template.replace(/\{username\}/g, userName);
         template = template.replace(/\{location\}/g, userLocation);
         const formatted = getEditorHtml(template);
+        const mediaIds = Array.isArray(mediaFiles)
+                ? mediaFiles.map(Number).filter(Number.isFinite)
+                : [];
+        const previewIds = Array.isArray(previews)
+                ? previews
+                        .map(Number)
+                        .filter(id => mediaIds.includes(id))
+                : [];
         const payload = {
                 text: formatted,
-                mediaFiles: Array.isArray(mediaFiles) ? mediaFiles : [],
-                previews: Array.isArray(previews) ? previews : [],
+                mediaFiles: mediaIds,
+                previews: previewIds,
                 price: typeof price === 'number' ? price : 0,
                 lockedText: lockedText === true
         };
