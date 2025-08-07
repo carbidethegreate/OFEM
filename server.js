@@ -40,6 +40,24 @@ const REQUIRED_ENV_VARS = ['ONLYFANS_API_KEY', 'DB_NAME', 'DB_USER', 'DB_PASSWOR
 const DEFAULT_OF_FETCH_LIMIT = 1000;
 const OF_FETCH_LIMIT = parseInt(process.env.OF_FETCH_LIMIT, 10) || DEFAULT_OF_FETCH_LIMIT;
 
+// Flags indicating availability of background-task tables
+let hasScheduledMessagesTable = true;
+let hasPpvSetsTable = true;
+
+// Utility to check for table existence using information_schema.columns
+async function tableExists(tableName) {
+        try {
+                const res = await pool.query(
+                        `SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+                        [tableName]
+                );
+                return res.rowCount > 0;
+        } catch (err) {
+                console.error(`Error checking for table ${tableName}:`, sanitizeError(err));
+                return false;
+        }
+}
+
 function getMissingEnvVars(list = REQUIRED_ENV_VARS) {
         return list.filter(v => !process.env[v]);
 }
@@ -1238,6 +1256,7 @@ app.get('/api/status', async (req, res) => {
 });
 
 async function processScheduledMessages() {
+        if (!hasScheduledMessagesTable) return;
         const missing = getMissingEnvVars();
         if (missing.length) {
                 console.error(`Missing environment variable(s): ${missing.join(', ')}`);
@@ -1293,6 +1312,7 @@ function shouldSendNow(ppv, now = new Date()) {
 }
 
 async function processRecurringPPVs() {
+       if (!hasPpvSetsTable) return;
        const missing = getMissingEnvVars();
        if (missing.length) {
                console.error(`Missing environment variable(s): ${missing.join(', ')}`);
@@ -1333,12 +1353,26 @@ async function processAllSchedules() {
 
 // Start the server only if this file is executed directly (not required by tests)
 const port = process.env.PORT || 3000;
+async function initScheduling() {
+        hasScheduledMessagesTable = await tableExists('scheduled_messages');
+        if (!hasScheduledMessagesTable) {
+                console.warn("scheduled_messages table missing; skipping scheduled message processing");
+        }
+        hasPpvSetsTable = await tableExists('ppv_sets');
+        if (!hasPpvSetsTable) {
+                console.warn("ppv_sets table missing; skipping recurring PPV processing");
+        }
+        if (hasScheduledMessagesTable || hasPpvSetsTable) {
+                setInterval(processAllSchedules, 60000);
+                await processAllSchedules();
+        }
+}
+
 if (require.main === module) {
         app.listen(port, () => {
                 console.log(`OFEM server listening on http://localhost:${port}`);
         });
-        setInterval(processAllSchedules, 60000);
-        processAllSchedules();
+        initScheduling();
 }
 
 // Export app for testing
