@@ -33,16 +33,42 @@ async function ensureDatabaseExists() {
             [DB_NAME]
         );
         if (checkDb.rowCount === 0) {
-            await client.query(`CREATE DATABASE ${DB_NAME}`);
-            console.log(`✅ Database "${DB_NAME}" created successfully.`);
+            try {
+                await client.query(`CREATE DATABASE ${DB_NAME}`);
+                console.log(`✅ Database "${DB_NAME}" created successfully.`);
+            } catch (createErr) {
+                const createPermDenied =
+                    createErr.code === '42501' ||
+                    (createErr.message && createErr.message.toLowerCase().includes('permission'));
+                if (createPermDenied) {
+                    console.warn(
+                        `⚠️  Permission denied to create database "${DB_NAME}". Please create it manually.`
+                    );
+                } else {
+                    throw createErr;
+                }
+            }
         } else {
             console.log(`Database "${DB_NAME}" already exists.`);
         }
     } catch (err) {
-        console.error(`Error ensuring database exists: ${err.message}`);
-        throw err; // Rethrow to allow caller to handle and exit appropriately
+        const permDenied =
+            err.code === '42501' ||
+            (err.message && err.message.toLowerCase().includes('permission'));
+        if (permDenied) {
+            console.warn(
+                `⚠️  Insufficient privileges to check or create database "${DB_NAME}". Skipping creation: ${err.message}`
+            );
+        } else {
+            console.error(`Error ensuring database exists: ${err.message}`);
+            throw err; // Rethrow to allow caller to handle and exit appropriately
+        }
     } finally {
-        await client.end();
+        try {
+            await client.end();
+        } catch (endErr) {
+            // Ignore errors during client shutdown
+        }
     }
 }
 
