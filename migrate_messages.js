@@ -27,8 +27,10 @@ CREATE TABLE IF NOT EXISTS messages (
         console.log('✅ "messages" table has been created/updated.');
     } catch (err) {
         console.error('Error running messages migration:', err.message);
+        process.exitCode = 1;
     } finally {
         await pool.end();
+        if (process.exitCode) process.exit(process.exitCode);
     }
 })();
 

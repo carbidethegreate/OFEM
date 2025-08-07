@@ -57,8 +57,10 @@ ALTER TABLE ppv_media
         console.log("✅ 'ppv_sets' and 'ppv_media' tables created.");
     } catch (err) {
         console.error('Error running PPV tables migration:', err.message);
+        process.exitCode = 1;
     } finally {
         await pool.end();
+        if (process.exitCode) process.exit(process.exitCode);
     }
 })();
 

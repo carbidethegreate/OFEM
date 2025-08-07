@@ -124,8 +124,10 @@ ALTER TABLE fans
         console.log('✅ "fans" table has been created/updated.');
     } catch (err) {
         console.error('Error running migration:', err.message);
+        process.exitCode = 1;
     } finally {
         await pool.end();
+        if (process.exitCode) process.exit(process.exitCode);
     }
 })();
 
