@@ -16,8 +16,34 @@ const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = process.env.DB_PORT || 5432;
 
-// Function to ensure the database exists. If it doesn't, create it.
+// Function to ensure the database exists. If it doesn't, create it (when permitted).
 async function ensureDatabaseExists() {
+    // First, try connecting directly to the target database. If this succeeds, the
+    // database already exists and no further action is required.
+    const appClient = new Client({
+        user: DB_USER,
+        password: DB_PASSWORD,
+        host: DB_HOST,
+        port: DB_PORT,
+        database: DB_NAME
+    });
+    try {
+        await appClient.connect();
+        console.log(`Database "${DB_NAME}" already exists.`);
+        return;
+    } catch (err) {
+        // If the database does not exist, PostgreSQL uses code 3D000
+        if (err.code !== '3D000') {
+            console.error(`Error connecting to database "${DB_NAME}": ${err.message}`);
+            throw err;
+        }
+    } finally {
+        try { await appClient.end(); } catch (e) {}
+    }
+
+    // Database is missing. Attempt to connect to the default "postgres" DB and
+    // create it. Restricted users may not be allowed to create databases, so we
+    // handle insufficient privilege errors gracefully.
     const defaultConfig = {
         user: DB_USER,
         password: DB_PASSWORD,
@@ -28,21 +54,17 @@ async function ensureDatabaseExists() {
     const client = new Client(defaultConfig);
     try {
         await client.connect();
-        const checkDb = await client.query(
-            `SELECT 1 FROM pg_database WHERE datname = $1`,
-            [DB_NAME]
-        );
-        if (checkDb.rowCount === 0) {
-            await client.query(`CREATE DATABASE ${DB_NAME}`);
-            console.log(`✅ Database "${DB_NAME}" created successfully.`);
-        } else {
-            console.log(`Database "${DB_NAME}" already exists.`);
-        }
+        await client.query(`CREATE DATABASE ${DB_NAME}`);
+        console.log(`✅ Database "${DB_NAME}" created successfully.`);
     } catch (err) {
-        console.error(`Error ensuring database exists: ${err.message}`);
-        throw err; // Rethrow to allow caller to handle and exit appropriately
+        if (err.code === '42501' || /permission denied/i.test(err.message)) {
+            console.warn(`⚠️  Permission denied to create database "${DB_NAME}". It must exist before running.`);
+        } else {
+            console.error(`Error ensuring database exists: ${err.message}`);
+            throw err; // Rethrow to allow caller to handle and exit appropriately
+        }
     } finally {
-        await client.end();
+        try { await client.end(); } catch (e) {}
     }
 }
 
