@@ -315,3 +315,46 @@ test('retries OpenAI 500 errors and continues processing other fans', async () =
   expect(fan2.parker_name).toBe('Bob');
   expect(counts.user1).toBeGreaterThan(1);
 });
+
+test('GET /api/fans/unfollowed returns only unsubscribed fans', async () => {
+  await pool.query(
+    `INSERT INTO fans (id, username, isSubscribed) VALUES (1, 'user1', false), (2, 'user2', true)`
+  );
+
+  const res = await request(app).get('/api/fans/unfollowed').expect(200);
+  expect(res.body.fans).toEqual([{ id: 1, username: 'user1' }]);
+});
+
+test('POST /api/fans/:id/follow calls OnlyFans API and updates DB', async () => {
+  await pool.query(`INSERT INTO fans (id, username, isSubscribed) VALUES (1, 'user1', false)`);
+
+  mockAxios.get.mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValueOnce({ data: {} });
+
+  await request(app).post('/api/fans/1/follow').expect(200);
+
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/users/1/follow');
+  const dbRes = await pool.query('SELECT isSubscribed FROM fans WHERE id=1');
+  expect(dbRes.rows[0].issubscribed).toBe(true);
+});
+
+test('POST /api/fans/followAll streams progress and updates DB', async () => {
+  await pool.query(
+    `INSERT INTO fans (id, username, isSubscribed) VALUES (1, 'user1', false), (2, 'user2', false)`
+  );
+
+  mockAxios.get.mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValue({ data: {} });
+
+  const res = await request(app).post('/api/fans/followAll').expect(200);
+  expect(mockAxios.post).toHaveBeenCalledTimes(2);
+  expect(res.text).toContain('"id":1');
+  expect(res.text).toContain('"id":2');
+  expect(res.text).toContain('"done":true');
+
+  const dbRes = await pool.query('SELECT id, isSubscribed FROM fans ORDER BY id');
+  expect(dbRes.rows).toEqual([
+    { id: 1, issubscribed: true },
+    { id: 2, issubscribed: true }
+  ]);
+});
