@@ -15,7 +15,21 @@
       <a href="follow.html" class="btn btn-primary">Follow Fans and Followers</a>
     </nav>
   </header>
+
   <h1>Follow Fans and Followers</h1>
-  <p>Manage following fans and followers from this page.</p>
+  <p>Click "Follow Now" to follow all unfollowed fans and followers.</p>
+  <button id="followBtn" class="btn btn-primary">Follow Now</button>
+  <div id="statusMsg" class="status-msg"></div>
+  <table id="followTable" class="form-table">
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="followTableBody"></tbody>
+  </table>
+
+  <script src="follow.js"></script>
 </body>
 </html>
