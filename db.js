@@ -16,6 +16,11 @@ const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = process.env.DB_PORT || 5432;
 
+// Helper to detect permission-related errors
+function isPermissionError(err) {
+    return err && (err.code === '42501' || /permission denied/i.test(err.message));
+}
+
 // Function to ensure the database exists. If it doesn't, create it.
 async function ensureDatabaseExists() {
     const defaultConfig = {
@@ -33,16 +38,36 @@ async function ensureDatabaseExists() {
             [DB_NAME]
         );
         if (checkDb.rowCount === 0) {
-            await client.query(`CREATE DATABASE ${DB_NAME}`);
-            console.log(`✅ Database "${DB_NAME}" created successfully.`);
+            try {
+                await client.query(`CREATE DATABASE ${DB_NAME}`);
+                console.log(`✅ Database "${DB_NAME}" created successfully.`);
+            } catch (createErr) {
+                if (isPermissionError(createErr)) {
+                    console.warn(
+                        `⚠️  Insufficient privileges to create database "${DB_NAME}". Please create it manually.`
+                    );
+                } else {
+                    throw createErr;
+                }
+            }
         } else {
             console.log(`Database "${DB_NAME}" already exists.`);
         }
     } catch (err) {
-        console.error(`Error ensuring database exists: ${err.message}`);
-        throw err; // Rethrow to allow caller to handle and exit appropriately
+        if (isPermissionError(err)) {
+            console.warn(
+                `⚠️  Unable to verify or create database "${DB_NAME}" due to insufficient privileges. Assuming it already exists.`
+            );
+        } else {
+            console.error(`Error ensuring database exists: ${err.message}`);
+            throw err; // Rethrow to allow caller to handle and exit appropriately
+        }
     } finally {
-        await client.end();
+        try {
+            await client.end();
+        } catch (_) {
+            // ignore
+        }
     }
 }
 
@@ -66,5 +91,6 @@ const pool = new Pool({
 });
 
 module.exports = pool;
+module.exports.ensureDatabaseExists = ensureDatabaseExists;
 
 /* End of File – Last modified 2025-08-02 */
