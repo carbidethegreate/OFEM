@@ -162,7 +162,7 @@ function removeEmojis(str = "") {
         return str.replace(/\p{Extended_Pictographic}/gu, "");
 }
 
-async function sendPersonalizedMessage(
+let sendPersonalizedMessage = async function (
         fanId,
         greeting = "",
         body = "",
@@ -216,7 +216,7 @@ async function sendPersonalizedMessage(
         if (payload.mediaFiles.length) logMsg += ` [media:${payload.mediaFiles.length}]`;
         if (payload.price) logMsg += ` [price:${payload.price}]`;
 console.log(logMsg);
-}
+};
 
 
 
@@ -1341,5 +1341,10 @@ if (require.main === module) {
 // Export app for testing
 module.exports = app;
 module.exports.shouldSendNow = shouldSendNow;
+module.exports.processRecurringPPVs = processRecurringPPVs;
+module.exports.sendPersonalizedMessage = (...args) => sendPersonalizedMessage(...args);
+module.exports._setSendPersonalizedMessage = fn => {
+        sendPersonalizedMessage = fn;
+};
 
 /* End of File – Last modified 2025-08-02 */
