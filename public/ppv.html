@@ -101,7 +101,7 @@
       tbody.innerHTML = '';
       for (const p of ppvs) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${p.ppv_number}</td><td>${p.description}</td><td>${p.price}</td><td>${p.schedule_day ?? ''}</td><td>${p.schedule_time ?? ''}</td><td><button class="btn btn-secondary" onclick="deletePpv(${p.id})">Delete</button></td>`;
+        tr.innerHTML = `<td>${p.ppv_number}</td><td>${p.description}</td><td>${p.price}</td><td>${p.scheduleDay ?? ''}</td><td>${p.scheduleTime ?? ''}</td><td><button class="btn btn-secondary" onclick="deletePpv(${p.id})">Delete</button></td>`;
         tbody.appendChild(tr);
       }
     }
