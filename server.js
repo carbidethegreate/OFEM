@@ -1205,49 +1205,55 @@ async function processScheduledMessages() {
         }
 }
 
+function shouldSendNow(ppv, now = new Date()) {
+        const { schedule_day: scheduleDay, schedule_time: scheduleTime, last_sent_at: lastSentAt } = ppv;
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const day = now.getDate();
+        const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+        if (scheduleDay > lastDayOfMonth) return false;
+        if (scheduleDay !== day) return false;
+        const match = /^([0-9]{2}):([0-9]{2})$/.exec(scheduleTime);
+        if (!match) return false;
+        const minutesNow = now.getHours() * 60 + now.getMinutes();
+        const scheduledMinutes = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+        if (minutesNow < scheduledMinutes) return false;
+        if (lastSentAt) {
+                const last = new Date(lastSentAt);
+                if (last.getFullYear() === year && last.getMonth() === month) return false;
+        }
+        return true;
+}
+
 async function processRecurringPPVs() {
-        const missing = getMissingEnvVars();
-        if (missing.length) {
-                console.error(`Missing environment variable(s): ${missing.join(', ')}`);
-                return;
-        }
-        try {
-                const now = new Date();
-                const currentDay = now.getDate();
-                const currentMonth = now.getMonth();
-                const currentYear = now.getFullYear();
-                const minutesNow = now.getHours() * 60 + now.getMinutes();
-                const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-                const ppvRes = await pool.query('SELECT id, description, price, schedule_day, schedule_time, last_sent_at FROM ppv_sets WHERE schedule_day IS NOT NULL AND schedule_time IS NOT NULL');
-                if (ppvRes.rows.length === 0) return;
-                const fansRes = await pool.query('SELECT id FROM fans WHERE isSubscribed = TRUE AND canReceiveChatMessage = TRUE');
-                const fanIds = fansRes.rows.map(r => r.id);
-                for (const ppv of ppvRes.rows) {
-                        const { id, description, price, schedule_day: scheduleDay, schedule_time: scheduleTime, last_sent_at: lastSentAt } = ppv;
-                        if (scheduleDay > daysInMonth || scheduleDay !== currentDay) continue;
-                        const match = /^([0-9]{2}):([0-9]{2})$/.exec(scheduleTime);
-                        if (!match) continue;
-                        const scheduledMinutes = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-                        if (minutesNow < scheduledMinutes) continue;
-                        if (lastSentAt) {
-                                const last = new Date(lastSentAt);
-                                if (last.getFullYear() === currentYear && last.getMonth() === currentMonth) continue;
-                        }
-                        const mediaRes = await pool.query('SELECT media_id, is_preview FROM ppv_media WHERE ppv_id=$1', [id]);
-                        const mediaFiles = mediaRes.rows.map(r => r.media_id);
-                        const previews = mediaRes.rows.filter(r => r.is_preview).map(r => r.media_id);
-                        for (const fanId of fanIds) {
-                                try {
-                                        await sendPersonalizedMessage(fanId, '', description || '', price, false, mediaFiles, previews);
-                                } catch (err) {
-                                        console.error(`Error sending PPV ${id} to fan ${fanId}:`, err.message);
-                                }
-                        }
-                        await pool.query('UPDATE ppv_sets SET last_sent_at = NOW() WHERE id=$1', [id]);
-                }
-        } catch (err) {
-                console.error('Error processing recurring PPVs:', sanitizeError(err));
-        }
+       const missing = getMissingEnvVars();
+       if (missing.length) {
+               console.error(`Missing environment variable(s): ${missing.join(', ')}`);
+               return;
+       }
+       try {
+               const ppvRes = await pool.query('SELECT id, description, price, schedule_day, schedule_time, last_sent_at FROM ppv_sets WHERE schedule_day IS NOT NULL AND schedule_time IS NOT NULL');
+               if (ppvRes.rows.length === 0) return;
+               const fansRes = await pool.query('SELECT id FROM fans WHERE isSubscribed = TRUE AND canReceiveChatMessage = TRUE');
+               const fanIds = fansRes.rows.map(r => r.id);
+               for (const ppv of ppvRes.rows) {
+                       if (!shouldSendNow(ppv)) continue;
+                       const { id, description, price } = ppv;
+                       const mediaRes = await pool.query('SELECT media_id, is_preview FROM ppv_media WHERE ppv_id=$1', [id]);
+                       const mediaFiles = mediaRes.rows.map(r => r.media_id);
+                       const previews = mediaRes.rows.filter(r => r.is_preview).map(r => r.media_id);
+                       for (const fanId of fanIds) {
+                               try {
+                                       await sendPersonalizedMessage(fanId, '', description || '', price, false, mediaFiles, previews);
+                               } catch (err) {
+                                       console.error(`Error sending PPV ${id} to fan ${fanId}:`, err.message);
+                               }
+                       }
+                       await pool.query('UPDATE ppv_sets SET last_sent_at = NOW() WHERE id=$1', [id]);
+               }
+       } catch (err) {
+               console.error('Error processing recurring PPVs:', sanitizeError(err));
+       }
 }
 
 // Serve frontend static files
@@ -1270,5 +1276,6 @@ if (require.main === module) {
 
 // Export app for testing
 module.exports = app;
+module.exports.shouldSendNow = shouldSendNow;
 
 /* End of File – Last modified 2025-08-02 */

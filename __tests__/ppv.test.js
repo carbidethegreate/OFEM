@@ -11,6 +11,7 @@ const mockAxios = require('axios');
 mockAxios.create.mockReturnValue(mockAxios);
 
 let app;
+let shouldSendNow;
 
 beforeAll(async () => {
   process.env.ONLYFANS_API_KEY = 'test';
@@ -38,6 +39,7 @@ beforeAll(async () => {
     );
   `);
   app = require('../server');
+  ({ shouldSendNow } = app);
 });
 
 beforeEach(async () => {
@@ -100,4 +102,18 @@ test('rejects invalid scheduleTime', async () => {
     });
   expect(res.status).toBe(400);
   expect(res.body).toEqual({ error: expect.stringContaining('scheduleTime') });
+});
+
+describe('shouldSendNow', () => {
+  test('returns false for schedule day beyond February length', () => {
+    const ppv = { schedule_day: 31, schedule_time: '10:00', last_sent_at: null };
+    const now = new Date('2023-02-28T12:00:00Z');
+    expect(shouldSendNow(ppv, now)).toBe(false);
+  });
+
+  test('returns false for schedule day beyond April length', () => {
+    const ppv = { schedule_day: 31, schedule_time: '10:00', last_sent_at: null };
+    const now = new Date('2023-04-30T12:00:00Z');
+    expect(shouldSendNow(ppv, now)).toBe(false);
+  });
 });
