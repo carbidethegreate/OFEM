@@ -791,6 +791,70 @@ const setRes = await client.query('INSERT INTO ppv_sets (ppv_number, description
         }
 });
 
+app.put('/api/ppv/:id', async (req, res) => {
+        try {
+                const id = req.params.id;
+                const { description, price, scheduleDay, scheduleTime } = req.body || {};
+
+                const existingRes = await pool.query('SELECT schedule_day, schedule_time FROM ppv_sets WHERE id=$1', [id]);
+                if (existingRes.rowCount === 0) {
+                        return res.status(404).json({ error: 'PPV not found' });
+                }
+                const existing = existingRes.rows[0];
+
+                if ((scheduleDay !== undefined) !== (scheduleTime !== undefined)) {
+                        return res.status(400).json({ error: 'Both scheduleDay and scheduleTime must be provided together' });
+                }
+                if (scheduleDay !== undefined && scheduleDay !== null) {
+                        if (!Number.isInteger(scheduleDay) || scheduleDay < 1 || scheduleDay > 31) {
+                                return res.status(400).json({ error: 'scheduleDay must be an integer between 1 and 31' });
+                        }
+                        if (typeof scheduleTime !== 'string' || !/^\d{2}:\d{2}$/.test(scheduleTime)) {
+                                return res.status(400).json({ error: 'scheduleTime must be in HH:MM format' });
+                        }
+                        const [h, m] = scheduleTime.split(':').map(Number);
+                        if (h < 0 || h > 23 || m < 0 || m > 59) {
+                                return res.status(400).json({ error: 'scheduleTime must be in 24-hour HH:MM format' });
+                        }
+                }
+
+                const fields = [];
+                const values = [];
+                let idx = 1;
+                if (description !== undefined) { fields.push(`description=$${idx++}`); values.push(description); }
+                if (price !== undefined) { fields.push(`price=$${idx++}`); values.push(price); }
+                if (scheduleDay !== undefined) {
+                        fields.push(`schedule_day=$${idx++}`); values.push(scheduleDay);
+                        fields.push(`schedule_time=$${idx++}`); values.push(scheduleTime);
+                }
+                if (!fields.length) {
+                        return res.status(400).json({ error: 'No valid fields to update.' });
+                }
+
+                values.push(id);
+                const updateRes = await pool.query(`UPDATE ppv_sets SET ${fields.join(', ')} WHERE id=$${idx} RETURNING *`, values);
+                const updated = updateRes.rows[0];
+
+                if (scheduleDay !== undefined && (existing.schedule_day !== scheduleDay || existing.schedule_time !== scheduleTime)) {
+                        await pool.query('UPDATE ppv_sets SET last_sent_at = NULL WHERE id=$1', [id]);
+                        console.log(`Reset last_sent_at for PPV ${id} due to schedule change`);
+                        updated.last_sent_at = null;
+                }
+
+                const ppv = {
+                        ...updated,
+                        scheduleDay: updated.schedule_day,
+                        scheduleTime: updated.schedule_time
+                };
+                delete ppv.schedule_day;
+                delete ppv.schedule_time;
+                res.json({ ppv });
+        } catch (err) {
+                console.error('Error updating PPV:', sanitizeError(err));
+                res.status(500).json({ error: 'Failed to update PPV' });
+        }
+});
+
 app.delete('/api/ppv/:id', async (req, res) => {
         try {
                 const id = req.params.id;
