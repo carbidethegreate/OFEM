@@ -41,7 +41,7 @@
     <fieldset class="schedule-section mb-8">
       <legend>Scheduling</legend>
       <label>Send every:
-        <select id="sendDay" class="form-input w-80">
+        <select id="scheduleDay" class="form-input w-80">
           <option value="">--</option>
           <option value="1">1</option>
           <option value="2">2</option>
@@ -76,7 +76,7 @@
           <option value="31">31</option>
         </select>
       </label>
-      <label>Time: <input type="time" id="sendTime" class="form-input w-200" /> <span>(EST)</span></label>
+      <label>Time: <input type="time" id="scheduleTime" class="form-input w-200" /> <span>(EST)</span></label>
     </fieldset>
     <div class="mb-8">
       <button id="loadVaultBtn" type="button" class="btn btn-primary">Load Vault Media</button>
@@ -169,22 +169,22 @@
       const price = parseFloat(document.getElementById('price').value);
       const mediaFiles = Array.from(document.querySelectorAll('.mediaCheckbox:checked')).map(cb => Number(cb.value));
       const previews = Array.from(document.querySelectorAll('.previewCheckbox:checked')).map(cb => Number(cb.value));
-      const sendDayVal = document.getElementById('sendDay').value;
-      const sendTime = document.getElementById('sendTime').value;
-      const sendDay = sendDayVal ? parseInt(sendDayVal, 10) : null;
+      const scheduleDayVal = document.getElementById('scheduleDay').value;
+      const scheduleTime = document.getElementById('scheduleTime').value;
+      const scheduleDay = scheduleDayVal ? parseInt(scheduleDayVal, 10) : null;
       try {
         const res = await fetch('/api/ppv', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ppvNumber, description, price, mediaFiles, previews, sendDay, sendTime })
+          body: JSON.stringify({ ppvNumber, description, price, mediaFiles, previews, scheduleDay, scheduleTime })
         });
         const result = await res.json();
         if (res.ok) {
           document.getElementById('ppvNumber').value = '';
           document.getElementById('description').value = '';
           document.getElementById('price').value = '';
-          document.getElementById('sendDay').value = '';
-          document.getElementById('sendTime').value = '';
+          document.getElementById('scheduleDay').value = '';
+          document.getElementById('scheduleTime').value = '';
           document.getElementById('vaultMediaList').innerHTML = '';
           fetchPpvs();
         } else {
