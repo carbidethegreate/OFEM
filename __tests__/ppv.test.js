@@ -66,8 +66,8 @@ test('accepts valid schedule inputs', async () => {
     });
 
   expect(res.status).toBe(201);
-  expect(res.body.ppv.schedule_day).toBe(15);
-  expect(res.body.ppv.schedule_time).toBe('13:30');
+  expect(res.body.ppv.scheduleDay).toBe(15);
+  expect(res.body.ppv.scheduleTime).toBe('13:30');
 });
 
 test('rejects invalid scheduleDay', async () => {

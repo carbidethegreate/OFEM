@@ -697,7 +697,12 @@ app.get('/api/vault-media', async (req, res) => {
 app.get('/api/ppv', async (req, res) => {
         try {
                 const dbRes = await pool.query('SELECT id, ppv_number, description, price, vault_list_id, schedule_day, schedule_time, last_sent_at, created_at FROM ppv_sets ORDER BY ppv_number');
-                res.json({ ppvs: dbRes.rows });
+                const ppvs = dbRes.rows.map(({ schedule_day, schedule_time, ...rest }) => ({
+                        ...rest,
+                        scheduleDay: schedule_day,
+                        scheduleTime: schedule_time
+                }));
+                res.json({ ppvs });
         } catch (err) {
                 console.error('Error fetching PPVs:', sanitizeError(err));
                 res.status(500).json({ error: 'Failed to fetch PPVs' });
@@ -764,7 +769,15 @@ const setRes = await client.query('INSERT INTO ppv_sets (ppv_number, description
                 } finally {
                         client.release();
                 }
-                res.status(201).json({ ppv: { ...ppvRow, media: mediaFiles.map(id => ({ media_id: id, is_preview: previews.includes(id) })) } });
+                const ppv = {
+                        ...ppvRow,
+                        scheduleDay: ppvRow.schedule_day,
+                        scheduleTime: ppvRow.schedule_time,
+                        media: mediaFiles.map(id => ({ media_id: id, is_preview: previews.includes(id) }))
+                };
+                delete ppv.schedule_day;
+                delete ppv.schedule_time;
+                res.status(201).json({ ppv });
         } catch (err) {
                 if (vaultListId) {
                         try {
@@ -1210,14 +1223,14 @@ async function processRecurringPPVs() {
                 const fansRes = await pool.query('SELECT id FROM fans WHERE isSubscribed = TRUE AND canReceiveChatMessage = TRUE');
                 const fanIds = fansRes.rows.map(r => r.id);
                 for (const ppv of ppvRes.rows) {
-                        const { id, description, price, schedule_day, schedule_time, last_sent_at } = ppv;
-                        if (schedule_day > daysInMonth || schedule_day !== currentDay) continue;
-                        const match = /^([0-9]{2}):([0-9]{2})$/.exec(schedule_time);
+                        const { id, description, price, schedule_day: scheduleDay, schedule_time: scheduleTime, last_sent_at: lastSentAt } = ppv;
+                        if (scheduleDay > daysInMonth || scheduleDay !== currentDay) continue;
+                        const match = /^([0-9]{2}):([0-9]{2})$/.exec(scheduleTime);
                         if (!match) continue;
                         const scheduledMinutes = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
                         if (minutesNow < scheduledMinutes) continue;
-                        if (last_sent_at) {
-                                const last = new Date(last_sent_at);
+                        if (lastSentAt) {
+                                const last = new Date(lastSentAt);
                                 if (last.getFullYear() === currentYear && last.getMonth() === currentMonth) continue;
                         }
                         const mediaRes = await pool.query('SELECT media_id, is_preview FROM ppv_media WHERE ppv_id=$1', [id]);
