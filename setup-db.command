@@ -30,4 +30,5 @@ node migrate_add_fan_fields.js
 node migrate_messages.js
 node migrate_scheduled_messages.js
 node migrate_add_ppv_tables.js
+node migrate_add_ppv_schedule_fields.js
 
