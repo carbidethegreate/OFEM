@@ -160,6 +160,16 @@ Run `./addtodatabase.command` to apply both migrations to an existing database i
 6. Click **Send Personalised DM to All Fans** to start sending.  Use **Abort Sending**
    to stop early.
 
+## Follow Fans and Followers
+
+Open <http://localhost:3000/follow.html> to follow back users who are not yet
+subscribed. The page calls `GET /api/fans/unfollowed` to list accounts where
+`isSubscribed` is `false`. Selecting **Follow All** issues a `POST
+/api/fans/:id/follow` for each entry.
+
+Requests are throttled with a 500 ms delay to respect OnlyFans rate limits. The
+`ONLYFANS_API_KEY` environment variable must be set for the page to function.
+
 ## API
 
 ### Usage Sequence
@@ -241,7 +251,8 @@ Run the unit tests with:
 npm test
 ```
 
-Jest is the configured test runner, so contributors should ensure all tests pass before committing.
+Jest is the configured test runner and includes suites such as
+`__tests__/followFans.test.js`. Ensure all tests pass before committing.
 
 ## Notes
 
