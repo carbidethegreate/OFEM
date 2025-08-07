@@ -688,7 +688,7 @@ app.get('/api/vault-media', async (req, res) => {
 // PPV management endpoints
 app.get('/api/ppv', async (req, res) => {
         try {
-                const dbRes = await pool.query('SELECT id, ppv_number, description, price, vault_list_id, created_at FROM ppv_sets ORDER BY ppv_number');
+                const dbRes = await pool.query('SELECT id, ppv_number, description, price, vault_list_id, schedule_day, schedule_time, last_sent_at, created_at FROM ppv_sets ORDER BY ppv_number');
                 res.json({ ppvs: dbRes.rows });
         } catch (err) {
                 console.error('Error fetching PPVs:', sanitizeError(err));
@@ -697,8 +697,8 @@ app.get('/api/ppv', async (req, res) => {
 });
 
 app.post('/api/ppv', async (req, res) => {
-        const { ppvNumber, description, price, mediaFiles, previews } = req.body || {};
-        if (!Number.isInteger(ppvNumber) || typeof description !== 'string' || description.trim() === '' || !Number.isFinite(price) || !Array.isArray(mediaFiles) || mediaFiles.length === 0 || !Array.isArray(previews)) {
+        const { ppvNumber, description, price, mediaFiles, previews, sendDay, sendTime } = req.body || {};
+        if (!Number.isInteger(ppvNumber) || typeof description !== 'string' || description.trim() === '' || !Number.isFinite(price) || !Array.isArray(mediaFiles) || mediaFiles.length === 0 || !Array.isArray(previews) || (sendDay != null && !Number.isInteger(sendDay)) || (sendTime != null && typeof sendTime !== 'string')) {
                 return res.status(400).json({ error: 'Invalid PPV data.' });
         }
         let vaultListId;
@@ -720,7 +720,7 @@ app.post('/api/ppv', async (req, res) => {
                 let ppvRow;
                 try {
                         await client.query('BEGIN');
-                        const setRes = await client.query('INSERT INTO ppv_sets (ppv_number, description, price, vault_list_id) VALUES ($1,$2,$3,$4) RETURNING *', [ppvNumber, description, price, vaultListId]);
+                        const setRes = await client.query('INSERT INTO ppv_sets (ppv_number, description, price, vault_list_id, schedule_day, schedule_time) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [ppvNumber, description, price, vaultListId, sendDay, sendTime]);
                         ppvRow = setRes.rows[0];
                         for (const mediaId of mediaFiles) {
                                 const isPreview = previews.includes(mediaId);
