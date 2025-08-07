@@ -705,20 +705,27 @@ app.get('/api/ppv', async (req, res) => {
 });
 
 app.post('/api/ppv', async (req, res) => {
-const { ppvNumber, description, price, mediaFiles, previews, scheduleDay, scheduleTime } = req.body || {};
-let dayValid = true;
-let timeValid = true;
-if (scheduleDay != null || scheduleTime != null) {
-dayValid = Number.isInteger(scheduleDay) && scheduleDay >= 1 && scheduleDay <= 31;
-timeValid = typeof scheduleTime === 'string' && /^\d{2}:\d{2}$/.test(scheduleTime);
-if (timeValid) {
-const [h, m] = scheduleTime.split(':').map(Number);
-timeValid = h >= 0 && h < 24 && m >= 0 && m < 60;
-}
-}
-if (!Number.isInteger(ppvNumber) || typeof description !== 'string' || description.trim() === '' || !Number.isFinite(price) || !Array.isArray(mediaFiles) || mediaFiles.length === 0 || !Array.isArray(previews) || scheduleDay == null !== (scheduleTime == null) || !dayValid || !timeValid) {
-return res.status(400).json({ error: 'Invalid PPV data.' });
-}
+        const { ppvNumber, description, price, mediaFiles, previews, scheduleDay, scheduleTime } = req.body || {};
+
+        if ((scheduleDay == null) !== (scheduleTime == null)) {
+                return res.status(400).json({ error: 'Both scheduleDay and scheduleTime must be provided together' });
+        }
+        if (scheduleDay != null) {
+                if (!Number.isInteger(scheduleDay) || scheduleDay < 1 || scheduleDay > 31) {
+                        return res.status(400).json({ error: 'scheduleDay must be an integer between 1 and 31' });
+                }
+                if (typeof scheduleTime !== 'string' || !/^\d{2}:\d{2}$/.test(scheduleTime)) {
+                        return res.status(400).json({ error: 'scheduleTime must be in HH:MM format' });
+                }
+                const [h, m] = scheduleTime.split(':').map(Number);
+                if (h < 0 || h > 23 || m < 0 || m > 59) {
+                        return res.status(400).json({ error: 'scheduleTime must be in 24-hour HH:MM format' });
+                }
+        }
+
+        if (!Number.isInteger(ppvNumber) || typeof description !== 'string' || description.trim() === '' || !Number.isFinite(price) || !Array.isArray(mediaFiles) || mediaFiles.length === 0 || !Array.isArray(previews)) {
+                return res.status(400).json({ error: 'Invalid PPV data.' });
+        }
         let vaultListId;
         try {
                 if (!OFAccountId) {
