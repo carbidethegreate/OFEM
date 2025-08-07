@@ -9,16 +9,30 @@ dotenv.config(); // Load environment variables for db.js
 
 const pool = require('./db');
 
+// Check if schedule_day column already exists
+const checkScheduleDayQuery = `
+SELECT 1
+FROM information_schema.columns
+WHERE table_name = 'ppv_sets' AND column_name = 'schedule_day';
+`;
+
 // SQL to add scheduling columns to ppv_sets table
 const alterPpvSetsSchedule = `
-ALTER TABLE ppv_sets
-    ADD COLUMN IF NOT EXISTS schedule_day INTEGER,
-    ADD COLUMN IF NOT EXISTS schedule_time TEXT,
+ALTER TABLE IF EXISTS ppv_sets
+    ADD COLUMN IF NOT EXISTS schedule_day INTEGER;
+ALTER TABLE IF EXISTS ppv_sets
+    ADD COLUMN IF NOT EXISTS schedule_time TEXT;
+ALTER TABLE IF EXISTS ppv_sets
     ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMP;
 `;
 
 (async () => {
     try {
+        const { rowCount } = await pool.query(checkScheduleDayQuery);
+        if (rowCount > 0) {
+            console.log('PPV schedule fields already present');
+            return;
+        }
         await pool.query(alterPpvSetsSchedule);
         console.log("✅ 'ppv_sets' table altered with scheduling fields.");
     } catch (err) {
