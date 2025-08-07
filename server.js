@@ -1026,6 +1026,90 @@ app.get('/api/fans', async (req, res) => {
         }
 });
 
+// Retrieve fans that are not currently followed
+app.get('/api/fans/unfollowed', async (req, res) => {
+        try {
+                const dbRes = await pool.query('SELECT id, username FROM fans WHERE isSubscribed = FALSE ORDER BY id');
+                res.json({ fans: dbRes.rows });
+        } catch (err) {
+                console.error('Error in GET /api/fans/unfollowed:', sanitizeError(err));
+                res.status(500).json({ error: 'Failed to retrieve unfollowed fans.' });
+        }
+});
+
+// Follow a single fan by ID
+app.post('/api/fans/:id/follow', async (req, res) => {
+        try {
+                const fanId = req.params.id;
+                if (!fanId) return res.status(400).json({ error: 'Missing fan id.' });
+
+                // Resolve OnlyFans account ID if not already known
+                if (!OFAccountId) {
+                        const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
+                        const rawAccounts = accountsResp.data?.data || accountsResp.data;
+                        const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
+                        if (!accounts || accounts.length === 0) {
+                                return res.status(400).json({ error: 'No OnlyFans account is connected to this API key.' });
+                        }
+                        OFAccountId = accounts[0].id;
+                        console.log(`Using OnlyFans account: ${OFAccountId}`);
+                }
+
+                await ofApiRequest(() => ofApi.post(`/${OFAccountId}/users/${fanId}/follow`));
+                await pool.query('UPDATE fans SET isSubscribed = TRUE WHERE id=$1', [fanId]);
+                res.json({ success: true });
+        } catch (err) {
+                console.error('Error in POST /api/fans/:id/follow:', sanitizeError(err));
+                const status = err.status || err.response?.status;
+                const message = status === 429
+                        ? 'OnlyFans API rate limit exceeded. Please try again later.'
+                        : (err.response ? err.response.statusText || err.response.data : err.message);
+                res.status(status || 500).json({ error: message });
+        }
+});
+
+// Bulk follow all unfollowed fans with streaming progress
+app.post('/api/fans/followAll', async (req, res) => {
+        try {
+                // Resolve OnlyFans account ID if not already known
+                if (!OFAccountId) {
+                        const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
+                        const rawAccounts = accountsResp.data?.data || accountsResp.data;
+                        const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
+                        if (!accounts || accounts.length === 0) {
+                                return res.status(400).json({ error: 'No OnlyFans account is connected to this API key.' });
+                        }
+                        OFAccountId = accounts[0].id;
+                        console.log(`Using OnlyFans account: ${OFAccountId}`);
+                }
+
+                const dbRes = await pool.query('SELECT id, username FROM fans WHERE isSubscribed = FALSE ORDER BY id');
+                const fans = dbRes.rows;
+
+                res.setHeader('Content-Type', 'text/event-stream');
+                res.setHeader('Cache-Control', 'no-cache');
+                res.setHeader('Connection', 'keep-alive');
+                if (res.flushHeaders) res.flushHeaders();
+
+                for (const fan of fans) {
+                        try {
+                                await ofApiRequest(() => ofApi.post(`/${OFAccountId}/users/${fan.id}/follow`));
+                                await pool.query('UPDATE fans SET isSubscribed = TRUE WHERE id=$1', [fan.id]);
+                                res.write(`data: ${JSON.stringify({ id: fan.id, username: fan.username, success: true })}\n\n`);
+                        } catch (err) {
+                                const msg = err.response ? err.response.statusText || err.response.data : err.message;
+                                res.write(`data: ${JSON.stringify({ id: fan.id, username: fan.username, success: false, error: msg })}\n\n`);
+                        }
+                }
+                res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+                res.end();
+        } catch (err) {
+                console.error('Error in POST /api/fans/followAll:', sanitizeError(err));
+                res.write(`data: ${JSON.stringify({ error: 'Failed to follow all fans.' })}\n\n`);
+                res.end();
+        }
+});
+
 // System status endpoint
 app.get('/api/status', async (req, res) => {
         const status = {
