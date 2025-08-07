@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS ppv_sets (
     description TEXT,
     price DECIMAL(10,2) NOT NULL,
     vault_list_id BIGINT,
+    schedule_day INTEGER,
+    schedule_time TEXT,
+    last_sent_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW()
 );
 `;
@@ -37,6 +40,9 @@ ALTER TABLE ppv_sets
     ADD COLUMN IF NOT EXISTS description TEXT,
     ADD COLUMN IF NOT EXISTS price DECIMAL(10,2) NOT NULL,
     ADD COLUMN IF NOT EXISTS vault_list_id BIGINT,
+    ADD COLUMN IF NOT EXISTS schedule_day INTEGER,
+    ADD COLUMN IF NOT EXISTS schedule_time TEXT,
+    ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMP,
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
 `;
 

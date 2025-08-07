@@ -161,8 +161,40 @@ input {
   min-height: 60px;
 }
 .vault-section { margin-top: 10px; }
-.vault-media-list { max-height: 150px; overflow: auto; margin-top: 5px; }
-.schedule-section { margin-top: 10px; }
+.vault-media-list {
+  max-height: 150px;
+  overflow: auto;
+  margin-top: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.media-item {
+  border: 1px solid var(--border-color);
+  padding: 5px;
+  text-align: center;
+}
+.media-item img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto 4px;
+}
+.media-item label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 0.9em;
+}
+.schedule-section {
+  margin-top: 10px;
+  border: 1px solid var(--border-color);
+  padding: 10px;
+}
+.schedule-section legend {
+  font-weight: bold;
+}
 
 /* History page */
 ul { list-style: none; padding-left: 0; }

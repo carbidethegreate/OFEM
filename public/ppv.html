@@ -36,6 +36,16 @@
     <div class="mb-8">
       <label>Price: <input type="number" id="price" min="0" step="0.01" class="form-input w-80" /></label>
     </div>
+    <fieldset class="schedule-section mb-8">
+      <legend>Scheduling</legend>
+      <label>Send every:
+        <select id="scheduleDay" class="form-input w-80"></select>
+      </label>
+      <label>Time:
+        <input type="time" id="scheduleTime" class="form-input w-200" />
+        <span>(EST)</span>
+      </label>
+    </fieldset>
     <div class="mb-8">
       <button id="loadVaultBtn" type="button" class="btn btn-primary">Load Vault Media</button>
       <div id="vaultMediaList" class="vault-media-list"></div>
@@ -64,6 +74,17 @@
       }
     }
 
+    function populateScheduleOptions() {
+      const daySelect = document.getElementById('scheduleDay');
+      daySelect.innerHTML = '';
+      for (let i = 1; i <= 31; i++) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = i;
+        daySelect.appendChild(opt);
+      }
+    }
+
     async function loadVaultMedia() {
       try {
         const res = await fetch('/api/vault-media');
@@ -74,31 +95,46 @@
         container.innerHTML = '';
         for (const m of items) {
           const div = document.createElement('div');
-          const mediaCb = document.createElement('input');
-          mediaCb.type = 'checkbox';
-          mediaCb.className = 'mediaCheckbox';
-          mediaCb.value = m.id;
-          div.appendChild(mediaCb);
-
-          const previewCb = document.createElement('input');
-          previewCb.type = 'checkbox';
-          previewCb.className = 'previewCheckbox';
-          previewCb.value = m.id;
-          div.appendChild(previewCb);
-
-          const span = document.createElement('span');
-          span.textContent = 'Media ' + m.id;
-          div.appendChild(span);
+          div.className = 'media-item';
 
           const thumb = (m.preview && (m.preview.url || m.preview.src)) ||
                         (m.thumb && (m.thumb.url || m.thumb.src));
           if (thumb) {
             const img = document.createElement('img');
             img.src = thumb;
-            img.width = 50;
-            img.style.marginLeft = '5px';
+            img.alt = `Media ${m.id}`;
             div.appendChild(img);
           }
+
+          const idSpan = document.createElement('div');
+          idSpan.textContent = `ID: ${m.id}`;
+          div.appendChild(idSpan);
+
+          const includeLabel = document.createElement('label');
+          const includeCb = document.createElement('input');
+          includeCb.type = 'checkbox';
+          includeCb.className = 'mediaCheckbox';
+          includeCb.value = m.id;
+          includeLabel.appendChild(includeCb);
+          includeLabel.appendChild(document.createTextNode(' Include'));
+
+          const previewLabel = document.createElement('label');
+          const previewCb = document.createElement('input');
+          previewCb.type = 'checkbox';
+          previewCb.className = 'previewCheckbox';
+          previewCb.value = m.id;
+          previewLabel.appendChild(previewCb);
+          previewLabel.appendChild(document.createTextNode(' Preview'));
+
+          includeCb.addEventListener('change', () => {
+            if (!includeCb.checked) previewCb.checked = false;
+          });
+          previewCb.addEventListener('change', () => {
+            if (previewCb.checked) includeCb.checked = true;
+          });
+
+          div.appendChild(includeLabel);
+          div.appendChild(previewLabel);
           container.appendChild(div);
         }
       } catch (err) {
@@ -110,19 +146,23 @@
       const ppvNumber = parseInt(document.getElementById('ppvNumber').value, 10);
       const description = document.getElementById('description').value.trim();
       const price = parseFloat(document.getElementById('price').value);
+      const scheduleDay = parseInt(document.getElementById('scheduleDay').value, 10);
+      const scheduleTime = document.getElementById('scheduleTime').value;
       const mediaFiles = Array.from(document.querySelectorAll('.mediaCheckbox:checked')).map(cb => Number(cb.value));
       const previews = Array.from(document.querySelectorAll('.previewCheckbox:checked')).map(cb => Number(cb.value));
       try {
         const res = await fetch('/api/ppv', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ppvNumber, description, price, mediaFiles, previews })
+          body: JSON.stringify({ ppvNumber, description, price, mediaFiles, previews, scheduleDay, scheduleTime })
         });
         const result = await res.json();
         if (res.ok) {
           document.getElementById('ppvNumber').value = '';
           document.getElementById('description').value = '';
           document.getElementById('price').value = '';
+          document.getElementById('scheduleDay').selectedIndex = 0;
+          document.getElementById('scheduleTime').value = '';
           document.getElementById('vaultMediaList').innerHTML = '';
           fetchPpvs();
         } else {
@@ -149,6 +189,7 @@
 
     document.getElementById('loadVaultBtn').addEventListener('click', loadVaultMedia);
     document.getElementById('saveBtn').addEventListener('click', savePpv);
+    populateScheduleOptions();
     fetchPpvs();
   </script>
 </body>
