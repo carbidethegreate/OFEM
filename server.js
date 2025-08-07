@@ -697,10 +697,20 @@ app.get('/api/ppv', async (req, res) => {
 });
 
 app.post('/api/ppv', async (req, res) => {
-        const { ppvNumber, description, price, mediaFiles, previews, sendDay, sendTime } = req.body || {};
-        if (!Number.isInteger(ppvNumber) || typeof description !== 'string' || description.trim() === '' || !Number.isFinite(price) || !Array.isArray(mediaFiles) || mediaFiles.length === 0 || !Array.isArray(previews) || (sendDay != null && !Number.isInteger(sendDay)) || (sendTime != null && typeof sendTime !== 'string')) {
-                return res.status(400).json({ error: 'Invalid PPV data.' });
-        }
+const { ppvNumber, description, price, mediaFiles, previews, scheduleDay, scheduleTime } = req.body || {};
+let dayValid = true;
+let timeValid = true;
+if (scheduleDay != null || scheduleTime != null) {
+dayValid = Number.isInteger(scheduleDay) && scheduleDay >= 1 && scheduleDay <= 31;
+timeValid = typeof scheduleTime === 'string' && /^\d{2}:\d{2}$/.test(scheduleTime);
+if (timeValid) {
+const [h, m] = scheduleTime.split(':').map(Number);
+timeValid = h >= 0 && h < 24 && m >= 0 && m < 60;
+}
+}
+if (!Number.isInteger(ppvNumber) || typeof description !== 'string' || description.trim() === '' || !Number.isFinite(price) || !Array.isArray(mediaFiles) || mediaFiles.length === 0 || !Array.isArray(previews) || scheduleDay == null !== (scheduleTime == null) || !dayValid || !timeValid) {
+return res.status(400).json({ error: 'Invalid PPV data.' });
+}
         let vaultListId;
         try {
                 if (!OFAccountId) {
@@ -720,7 +730,7 @@ app.post('/api/ppv', async (req, res) => {
                 let ppvRow;
                 try {
                         await client.query('BEGIN');
-                        const setRes = await client.query('INSERT INTO ppv_sets (ppv_number, description, price, vault_list_id, schedule_day, schedule_time) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [ppvNumber, description, price, vaultListId, sendDay, sendTime]);
+const setRes = await client.query('INSERT INTO ppv_sets (ppv_number, description, price, vault_list_id, schedule_day, schedule_time) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [ppvNumber, description, price, vaultListId, scheduleDay, scheduleTime]);
                         ppvRow = setRes.rows[0];
                         for (const mediaId of mediaFiles) {
                                 const isPreview = previews.includes(mediaId);
@@ -1083,8 +1093,58 @@ async function processScheduledMessages() {
         }
 }
 
+async function processRecurringPPVs() {
+        const missing = getMissingEnvVars();
+        if (missing.length) {
+                console.error(`Missing environment variable(s): ${missing.join(', ')}`);
+                return;
+        }
+        try {
+                const now = new Date();
+                const currentDay = now.getDate();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+                const minutesNow = now.getHours() * 60 + now.getMinutes();
+                const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+                const ppvRes = await pool.query('SELECT id, description, price, schedule_day, schedule_time, last_sent_at FROM ppv_sets WHERE schedule_day IS NOT NULL AND schedule_time IS NOT NULL');
+                if (ppvRes.rows.length === 0) return;
+                const fansRes = await pool.query('SELECT id FROM fans WHERE isSubscribed = TRUE AND canReceiveChatMessage = TRUE');
+                const fanIds = fansRes.rows.map(r => r.id);
+                for (const ppv of ppvRes.rows) {
+                        const { id, description, price, schedule_day, schedule_time, last_sent_at } = ppv;
+                        if (schedule_day > daysInMonth || schedule_day !== currentDay) continue;
+                        const match = /^([0-9]{2}):([0-9]{2})$/.exec(schedule_time);
+                        if (!match) continue;
+                        const scheduledMinutes = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+                        if (minutesNow < scheduledMinutes) continue;
+                        if (last_sent_at) {
+                                const last = new Date(last_sent_at);
+                                if (last.getFullYear() === currentYear && last.getMonth() === currentMonth) continue;
+                        }
+                        const mediaRes = await pool.query('SELECT media_id, is_preview FROM ppv_media WHERE ppv_id=$1', [id]);
+                        const mediaFiles = mediaRes.rows.map(r => r.media_id);
+                        const previews = mediaRes.rows.filter(r => r.is_preview).map(r => r.media_id);
+                        for (const fanId of fanIds) {
+                                try {
+                                        await sendPersonalizedMessage(fanId, '', description || '', price, false, mediaFiles, previews);
+                                } catch (err) {
+                                        console.error(`Error sending PPV ${id} to fan ${fanId}:`, err.message);
+                                }
+                        }
+                        await pool.query('UPDATE ppv_sets SET last_sent_at = NOW() WHERE id=$1', [id]);
+                }
+        } catch (err) {
+                console.error('Error processing recurring PPVs:', sanitizeError(err));
+        }
+}
+
 // Serve frontend static files
 app.use(express.static(path.join(__dirname, 'public')));
+
+async function processAllSchedules() {
+        await processScheduledMessages();
+        await processRecurringPPVs();
+}
 
 // Start the server only if this file is executed directly (not required by tests)
 const port = process.env.PORT || 3000;
@@ -1092,8 +1152,8 @@ if (require.main === module) {
         app.listen(port, () => {
                 console.log(`OFEM server listening on http://localhost:${port}`);
         });
-        setInterval(processScheduledMessages, 60000);
-        processScheduledMessages();
+        setInterval(processAllSchedules, 60000);
+        processAllSchedules();
 }
 
 // Export app for testing
