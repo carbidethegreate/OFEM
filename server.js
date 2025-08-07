@@ -43,33 +43,36 @@ const OF_FETCH_LIMIT = parseInt(process.env.OF_FETCH_LIMIT, 10) || DEFAULT_OF_FE
 function getMissingEnvVars(list = REQUIRED_ENV_VARS) {
         return list.filter(v => !process.env[v]);
 }
+const MAX_OF_BACKOFF = 32000;
+let ofBackoffDelay = 1000;
 // Wrapper to handle OnlyFans API rate limiting with retries
 async function ofApiRequest(requestFn, maxRetries = 5) {
-        maxRetries++; // include initial attempt
-        let delay = 1000; // start with 1s
-        for (let attempt = 0; attempt < maxRetries; attempt++) {
-                try {
-                        return await requestFn();
-                } catch (err) {
-                        if (err.code === 'ECONNABORTED') {
-                                console.error('OnlyFans API request timed out');
-                                const timeoutErr = new Error('OnlyFans API request timed out');
-                                timeoutErr.status = 504;
-                                throw timeoutErr;
-                        }
-                        const status = err.response?.status;
-                        if (status !== 429) throw err;
-                        if (attempt === maxRetries - 1) {
-                                const rateErr = new Error('OnlyFans API rate limit exceeded');
-                                rateErr.status = 429;
-                                throw rateErr;
-                        }
-                        const retryAfter = parseInt(err.response.headers['retry-after'], 10);
-                        const wait = Number.isFinite(retryAfter) ? retryAfter * 1000 : delay;
-                        await new Promise(r => setTimeout(r, wait));
-                        delay *= 2;
-                }
-        }
+       maxRetries++; // include initial attempt
+       for (let attempt = 0; attempt < maxRetries; attempt++) {
+               try {
+                       const res = await requestFn();
+                       ofBackoffDelay = 1000; // reset after success
+                       return res;
+               } catch (err) {
+                       if (err.code === 'ECONNABORTED') {
+                               console.error('OnlyFans API request timed out');
+                               const timeoutErr = new Error('OnlyFans API request timed out');
+                               timeoutErr.status = 504;
+                               throw timeoutErr;
+                       }
+                       const status = err.response?.status;
+                       if (status !== 429) throw err;
+                       if (attempt === maxRetries - 1) {
+                               const rateErr = new Error('OnlyFans API rate limit exceeded');
+                               rateErr.status = 429;
+                               throw rateErr;
+                       }
+                       const wait = ofBackoffDelay;
+                       console.warn(`OnlyFans API rate limit. Retry ${attempt + 1} in ${wait / 1000}s`);
+                       await new Promise(r => setTimeout(r, wait));
+                       ofBackoffDelay = Math.min(ofBackoffDelay * 2, MAX_OF_BACKOFF);
+               }
+       }
 }
 
 // Wrapper to handle OpenAI rate limiting with retries
