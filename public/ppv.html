@@ -36,6 +36,46 @@
     <div class="mb-8">
       <label>Price: <input type="number" id="price" min="0" step="0.01" class="form-input w-80" /></label>
     </div>
+    <fieldset class="schedule-section mb-8">
+      <legend>Scheduling</legend>
+      <label>Send every:
+        <select id="sendDay" class="form-input w-80">
+          <option value="">--</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+          <option value="8">8</option>
+          <option value="9">9</option>
+          <option value="10">10</option>
+          <option value="11">11</option>
+          <option value="12">12</option>
+          <option value="13">13</option>
+          <option value="14">14</option>
+          <option value="15">15</option>
+          <option value="16">16</option>
+          <option value="17">17</option>
+          <option value="18">18</option>
+          <option value="19">19</option>
+          <option value="20">20</option>
+          <option value="21">21</option>
+          <option value="22">22</option>
+          <option value="23">23</option>
+          <option value="24">24</option>
+          <option value="25">25</option>
+          <option value="26">26</option>
+          <option value="27">27</option>
+          <option value="28">28</option>
+          <option value="29">29</option>
+          <option value="30">30</option>
+          <option value="31">31</option>
+        </select>
+      </label>
+      <label>Time: <input type="time" id="sendTime" class="form-input w-200" /> <span>(EST)</span></label>
+    </fieldset>
     <div class="mb-8">
       <button id="loadVaultBtn" type="button" class="btn btn-primary">Load Vault Media</button>
       <div id="vaultMediaList" class="vault-media-list"></div>
@@ -74,31 +114,46 @@
         container.innerHTML = '';
         for (const m of items) {
           const div = document.createElement('div');
-          const mediaCb = document.createElement('input');
-          mediaCb.type = 'checkbox';
-          mediaCb.className = 'mediaCheckbox';
-          mediaCb.value = m.id;
-          div.appendChild(mediaCb);
-
-          const previewCb = document.createElement('input');
-          previewCb.type = 'checkbox';
-          previewCb.className = 'previewCheckbox';
-          previewCb.value = m.id;
-          div.appendChild(previewCb);
-
-          const span = document.createElement('span');
-          span.textContent = 'Media ' + m.id;
-          div.appendChild(span);
+          div.className = 'media-item';
 
           const thumb = (m.preview && (m.preview.url || m.preview.src)) ||
                         (m.thumb && (m.thumb.url || m.thumb.src));
           if (thumb) {
             const img = document.createElement('img');
             img.src = thumb;
-            img.width = 50;
-            img.style.marginLeft = '5px';
             div.appendChild(img);
           }
+
+          const idSpan = document.createElement('span');
+          idSpan.className = 'media-id';
+          idSpan.textContent = 'ID: ' + m.id;
+          div.appendChild(idSpan);
+
+          const includeLabel = document.createElement('label');
+          const mediaCb = document.createElement('input');
+          mediaCb.type = 'checkbox';
+          mediaCb.className = 'mediaCheckbox';
+          mediaCb.value = m.id;
+          includeLabel.appendChild(mediaCb);
+          includeLabel.append(' Include');
+          div.appendChild(includeLabel);
+
+          const previewLabel = document.createElement('label');
+          const previewCb = document.createElement('input');
+          previewCb.type = 'checkbox';
+          previewCb.className = 'previewCheckbox';
+          previewCb.value = m.id;
+          previewLabel.appendChild(previewCb);
+          previewLabel.append(' Preview');
+          div.appendChild(previewLabel);
+
+          mediaCb.addEventListener('change', () => {
+            if (!mediaCb.checked) previewCb.checked = false;
+          });
+          previewCb.addEventListener('change', () => {
+            if (previewCb.checked) mediaCb.checked = true;
+          });
+
           container.appendChild(div);
         }
       } catch (err) {
@@ -112,17 +167,22 @@
       const price = parseFloat(document.getElementById('price').value);
       const mediaFiles = Array.from(document.querySelectorAll('.mediaCheckbox:checked')).map(cb => Number(cb.value));
       const previews = Array.from(document.querySelectorAll('.previewCheckbox:checked')).map(cb => Number(cb.value));
+      const sendDayVal = document.getElementById('sendDay').value;
+      const sendTime = document.getElementById('sendTime').value;
+      const sendDay = sendDayVal ? parseInt(sendDayVal, 10) : null;
       try {
         const res = await fetch('/api/ppv', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ppvNumber, description, price, mediaFiles, previews })
+          body: JSON.stringify({ ppvNumber, description, price, mediaFiles, previews, sendDay, sendTime })
         });
         const result = await res.json();
         if (res.ok) {
           document.getElementById('ppvNumber').value = '';
           document.getElementById('description').value = '';
           document.getElementById('price').value = '';
+          document.getElementById('sendDay').value = '';
+          document.getElementById('sendTime').value = '';
           document.getElementById('vaultMediaList').innerHTML = '';
           fetchPpvs();
         } else {
