@@ -2,7 +2,7 @@
 # OnlyFans Express Messenger (OFEM) - Migration Runner
 # Usage: Double-click this file or run in Terminal to apply non-destructive migrations.
 # Created: 2025-08-05 – v1.0
-# Includes migrations for scheduled messages and PPV tables.
+# Runs all database migrations via migrate_all.js.
 
 set -e
 cd "$(dirname "$0")"
@@ -24,9 +24,5 @@ if [ "$missing" = true ]; then
   npm install >/dev/null
 fi
 
-node migrate_add_fan_fields.js
-node migrate_messages.js
-node migrate_scheduled_messages.js
-node migrate_add_ppv_tables.js
-node migrate_add_ppv_schedule_fields.js
+node migrate_all.js
 

@@ -157,7 +157,7 @@ their purposes are:
 - `price` – media price
 - `created_at` – timestamp when the message was created
 
-Run `./addtodatabase.command` to apply both migrations to an existing database in one step.
+Run `./addtodatabase.command` or `node migrate_all.js` to apply all migrations to an existing database in one step.
 
 ## Usage
 
