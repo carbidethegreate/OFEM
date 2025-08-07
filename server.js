@@ -551,8 +551,13 @@ app.post('/api/refreshFans', async (req, res) => {
                 res.json({ fans: all.rows });
         } catch (err) {
                 console.error('Error in /api/refreshFans:', sanitizeError(err));
-                const status = err.status || 500;
-                const message = status === 429 ? 'OnlyFans API rate limit exceeded. Please try again later.' : (err.message || 'Failed to refresh fan list.');
+                const status =
+                        err.status ||
+                        (err.message && err.message.includes('No OnlyFans account') ? 400 : 500);
+                const message =
+                        status === 429
+                                ? 'OnlyFans API rate limit exceeded. Please try again later.'
+                                : (err.message || 'Failed to refresh fan list.');
                 res.status(status).json({ error: message });
         }
 });
@@ -656,12 +661,12 @@ app.put('/api/fans/:id', async (req, res) => {
                 const fanId = req.params.id;
                 const rawName = req.body.parker_name;
                 if (!fanId || !rawName) {
-                        return res.status(400).send("Missing fan id or name.");
+                        return res.status(400).json({ error: "Missing fan id or name." });
                 }
                 const sanitized = removeEmojis(rawName).trim();
                 const checked = ensureValidParkerName(sanitized, "", "");
                 if (checked !== sanitized) {
-                        return res.status(400).send("Invalid Parker name.");
+                        return res.status(400).json({ error: "Invalid Parker name." });
                 }
                 await pool.query(
                         'UPDATE fans SET parker_name=$1, is_custom=$2 WHERE id=$3',
@@ -671,7 +676,7 @@ app.put('/api/fans/:id', async (req, res) => {
                 res.json({ success: true });
         } catch (err) {
                 console.error("Error in /api/fans/:id PUT:", sanitizeError(err));
-                res.status(500).send("Failed to update name.");
+                res.status(500).json({ error: "Failed to update name." });
         }
 });
 
@@ -933,7 +938,7 @@ app.post('/api/sendMessage', async (req, res) => {
                 console.error("Error sending message to fan:", err.response ? err.response.data || err.response.statusText : err.message);
                 const status = err.status || err.response?.status;
                 const message = status === 429 ? 'OnlyFans API rate limit exceeded. Please try again later.' : (err.response ? err.response.statusText || err.response.data : err.message);
-                res.status(status || 500).json({ success: false, error: message });
+                res.status(status || 500).json({ error: message });
         }
 });
 
@@ -961,7 +966,7 @@ app.post('/api/scheduleMessage', async (req, res) => {
                 res.json({ success: true });
         } catch (err) {
                 console.error('Error scheduling message:', sanitizeError(err));
-                res.status(500).json({ success: false, error: err.message });
+                res.status(500).json({ error: err.message });
         }
 });
 
@@ -998,7 +1003,7 @@ app.put('/api/scheduledMessages/:id', async (req, res) => {
                 res.json({ success: true });
         } catch (err) {
                 console.error('Error updating scheduled message:', sanitizeError(err));
-                res.status(500).json({ success: false, error: err.message });
+                res.status(500).json({ error: err.message });
         }
 });
 
@@ -1008,7 +1013,7 @@ app.delete('/api/scheduledMessages/:id', async (req, res) => {
                 res.json({ success: true });
         } catch (err) {
                 console.error('Error canceling scheduled message:', sanitizeError(err));
-                res.status(500).json({ success: false, error: err.message });
+                res.status(500).json({ error: err.message });
         }
 });
 
@@ -1105,7 +1110,7 @@ app.get('/api/fans', async (req, res) => {
                 res.json({ fans: dbRes.rows });
         } catch (err) {
                 console.error("Error in GET /api/fans:", sanitizeError(err));
-                res.status(500).send("Failed to retrieve fans.");
+                res.status(500).json({ error: "Failed to retrieve fans." });
         }
 });
 
@@ -1147,34 +1152,39 @@ app.post('/api/fans/:id/follow', async (req, res) => {
 
 // Bulk follow all unfollowed fans with streaming progress
 app.post('/api/fans/followAll', async (req, res) => {
+        let accountId;
         try {
-               const accountId = await getOFAccountId();
-               const dbRes = await pool.query('SELECT id, username FROM fans WHERE isSubscribed = FALSE ORDER BY id');
-               const fans = dbRes.rows;
-
-                res.setHeader('Content-Type', 'text/event-stream');
-                res.setHeader('Cache-Control', 'no-cache');
-                res.setHeader('Connection', 'keep-alive');
-                if (res.flushHeaders) res.flushHeaders();
-
-               for (const fan of fans) {
-                       try {
-                               await ofApiRequest(() => ofApi.post(`/${accountId}/users/${fan.id}/follow`));
-                               await pool.query('UPDATE fans SET isSubscribed = TRUE WHERE id=$1', [fan.id]);
-                               res.write(`data: ${JSON.stringify({ id: fan.id, username: fan.username, success: true })}\n\n`);
-                       } catch (err) {
-                               const msg = err.response ? err.response.statusText || err.response.data : err.message;
-                               res.write(`data: ${JSON.stringify({ id: fan.id, username: fan.username, success: false, error: msg })}\n\n`);
-                       }
-               }
-               res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-               res.end();
+                accountId = await getOFAccountId();
         } catch (err) {
-               console.error('Error in POST /api/fans/followAll:', sanitizeError(err));
-               const statusMsg = err.message.includes('OnlyFans account') ? err.message : 'Failed to follow all fans.';
-               res.write(`data: ${JSON.stringify({ error: statusMsg })}\n\n`);
-               res.end();
+                return res.status(400).json({ error: err.message });
         }
+
+        let fans;
+        try {
+                const dbRes = await pool.query('SELECT id, username FROM fans WHERE isSubscribed = FALSE ORDER BY id');
+                fans = dbRes.rows;
+        } catch (err) {
+                console.error('Error in POST /api/fans/followAll:', sanitizeError(err));
+                return res.status(500).json({ error: 'Failed to fetch fans.' });
+        }
+
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        if (res.flushHeaders) res.flushHeaders();
+
+        for (const fan of fans) {
+                try {
+                        await ofApiRequest(() => ofApi.post(`/${accountId}/users/${fan.id}/follow`));
+                        await pool.query('UPDATE fans SET isSubscribed = TRUE WHERE id=$1', [fan.id]);
+                        res.write(`data: ${JSON.stringify({ id: fan.id, username: fan.username, success: true })}\n\n`);
+                } catch (err) {
+                        const msg = err.response ? err.response.statusText || err.response.data : err.message;
+                        res.write(`data: ${JSON.stringify({ id: fan.id, username: fan.username, success: false, error: msg })}\n\n`);
+                }
+        }
+        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+        res.end();
 });
 
 // System status endpoint
