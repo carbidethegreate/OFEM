@@ -106,6 +106,17 @@
       }
     }
 
+    function linkPreviewInclude(includeCb, previewCb) {
+      // Previewing a media item without including it would break the PPV message,
+      // so keep the "Include" and "Preview" checkboxes in sync.
+      includeCb.addEventListener('change', () => {
+        if (!includeCb.checked) previewCb.checked = false;
+      });
+      previewCb.addEventListener('change', () => {
+        if (previewCb.checked) includeCb.checked = true;
+      });
+    }
+
     async function loadVaultMedia() {
       try {
         const res = await fetch('/api/vault-media');
@@ -149,12 +160,7 @@
           previewLabel.append(' Preview');
           div.appendChild(previewLabel);
 
-          mediaCb.addEventListener('change', () => {
-            if (!mediaCb.checked) previewCb.checked = false;
-          });
-          previewCb.addEventListener('change', () => {
-            if (previewCb.checked) mediaCb.checked = true;
-          });
+          linkPreviewInclude(mediaCb, previewCb);
 
           container.appendChild(div);
         }
