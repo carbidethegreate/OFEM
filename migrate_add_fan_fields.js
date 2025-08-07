@@ -65,8 +65,10 @@ const columns = [
         console.log('✅ Fan fields migration complete.');
     } catch (err) {
         console.error('Error running fan fields migration:', err.message);
+        process.exitCode = 1;
     } finally {
         await pool.end();
+        if (process.exitCode) process.exit(process.exitCode);
     }
 })();
 

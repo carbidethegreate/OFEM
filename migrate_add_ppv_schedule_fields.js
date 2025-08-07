@@ -37,8 +37,10 @@ ALTER TABLE IF EXISTS ppv_sets
         console.log("✅ 'ppv_sets' table altered with scheduling fields.");
     } catch (err) {
         console.error('Error running PPV schedule migration:', err.message);
+        process.exitCode = 1;
     } finally {
         await pool.end();
+        if (process.exitCode) process.exit(process.exitCode);
     }
 })();
 
