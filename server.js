@@ -127,6 +127,19 @@ async function openaiRequest(requestFn, maxRetries = 5) {
                 }
         }
 }
+
+async function getOFAccountId(refresh = false) {
+       if (!refresh && OFAccountId) return OFAccountId;
+       const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
+       const rawAccounts = accountsResp.data?.data || accountsResp.data;
+       const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
+       if (!accounts || accounts.length === 0) {
+               throw new Error('No OnlyFans account is connected to this API key.');
+       }
+       OFAccountId = accounts[0].id;
+       console.log(`Using OnlyFans account: ${OFAccountId}`);
+       return OFAccountId;
+}
 // Determine if an OnlyFans account appears system generated
 function isSystemGenerated(username = "", profileName = "") {
         const usernameSystem = /^u\d+$/.test(username) || /^\d+$/.test(username);
@@ -195,15 +208,8 @@ let sendPersonalizedMessage = async function (
         if (!fanId || (!greeting && !body)) {
                 throw new Error('Missing userId or message.');
         }
-        let template = [greeting, body].filter(Boolean).join(' ').trim();
-        if (!OFAccountId) {
-                const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
-                const accounts = accountsResp.data.accounts || accountsResp.data;
-                if (!accounts || accounts.length === 0) {
-                        throw new Error('No OnlyFans account available.');
-                }
-                OFAccountId = accounts[0].id;
-        }
+       let template = [greeting, body].filter(Boolean).join(' ').trim();
+       const accountId = await getOFAccountId();
         const dbRes = await pool.query('SELECT parker_name, username, location FROM fans WHERE id=$1', [fanId]);
         const row = dbRes.rows[0] || {};
         const parkerName = removeEmojis(row.parker_name || "");
@@ -228,7 +234,7 @@ let sendPersonalizedMessage = async function (
                 price: typeof price === 'number' ? price : 0,
                 lockedText: lockedText === true
         };
-        await ofApiRequest(() => ofApi.post(`/${OFAccountId}/chats/${fanId}/messages`, payload));
+       await ofApiRequest(() => ofApi.post(`/${accountId}/chats/${fanId}/messages`, payload));
         await pool.query(
                 'INSERT INTO messages (fan_id, direction, body, price) VALUES ($1, $2, $3, $4)',
                 [fanId, 'outgoing', formatted, payload.price ?? null]
@@ -248,21 +254,13 @@ app.post('/api/refreshFans', async (req, res) => {
                 return res.status(400).json({ error: `Missing environment variable(s): ${missing.join(', ')}` });
         }
 
-        try {
-                // 1. Verify API key and get connected account ID
-                const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
-                const rawAccounts = accountsResp.data?.data || accountsResp.data;
-                const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
-                if (!accounts || accounts.length === 0) {
-                        return res.status(400).send("No OnlyFans account is connected to this API key.");
-                }
-                OFAccountId = accounts[0].id;
-                console.log(`Using OnlyFans account: ${OFAccountId}`);
+       try {
+               const accountId = await getOFAccountId(true);
 
-                // 2. Determine which subset of users to fetch
-                const validFilters = new Set(['all', 'active', 'expired']);
-                const rawFilter = (req.query.filter || process.env.OF_FAN_FILTER || 'all').toLowerCase();
-                const filter = validFilters.has(rawFilter) ? rawFilter : 'all';
+               // 2. Determine which subset of users to fetch
+               const validFilters = new Set(['all', 'active', 'expired']);
+               const rawFilter = (req.query.filter || process.env.OF_FAN_FILTER || 'all').toLowerCase();
+               const filter = validFilters.has(rawFilter) ? rawFilter : 'all';
 
                 // 3. Fetch all fans and following users
                 const limit = 32;
@@ -294,8 +292,8 @@ app.post('/api/refreshFans', async (req, res) => {
                         return results;
                 };
 
-                const fansList = await fetchPaged(`/${OFAccountId}/fans/${filter}`);
-                const followingList = await fetchPaged(`/${OFAccountId}/following/${filter}`);
+               const fansList = await fetchPaged(`/${accountId}/fans/${filter}`);
+               const followingList = await fetchPaged(`/${accountId}/following/${filter}`);
                 const fanMap = new Map();
                 [...fansList, ...followingList].forEach(user => {
                         fanMap.set(user.id, user);
@@ -679,39 +677,29 @@ app.put('/api/fans/:id', async (req, res) => {
 
 // Retrieve all media from OnlyFans vault with pagination
 app.get('/api/vault-media', async (req, res) => {
-        try {
-                // Resolve OnlyFans account ID if not already known
-                if (!OFAccountId) {
-                        const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
-                        const rawAccounts = accountsResp.data?.data || accountsResp.data;
-                        const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
-                        if (!accounts || accounts.length === 0) {
-                                return res.status(400).send('No OnlyFans account is connected to this API key.');
-                        }
-                        OFAccountId = accounts[0].id;
-                        console.log(`Using OnlyFans account: ${OFAccountId}`);
-                }
+       try {
+               const accountId = await getOFAccountId();
+               const media = [];
+               const limit = 100;
+               let offset = 0;
+               while (true) {
+                       const resp = await ofApiRequest(() =>
+                               ofApi.get(`/${accountId}/media/vault`, {
+                                       params: { limit, offset }
+                               })
+                       );
+                       const items = resp.data?.media || resp.data?.list || resp.data?.data || resp.data;
+                       if (!Array.isArray(items) || items.length === 0) break;
+                       media.push(...items);
+                       offset += limit;
+               }
 
-                const media = [];
-                const limit = 100;
-                let offset = 0;
-                while (true) {
-                        const resp = await ofApiRequest(() =>
-                                ofApi.get(`/${OFAccountId}/media/vault`, {
-                                        params: { limit, offset }
-                                })
-                        );
-                        const items = resp.data?.media || resp.data?.list || resp.data?.data || resp.data;
-                        if (!Array.isArray(items) || items.length === 0) break;
-                        media.push(...items);
-                        offset += limit;
-                }
-
-                res.json({ media });
-        } catch (err) {
-                console.error('Error fetching vault media:', sanitizeError(err));
-                res.status(500).json({ error: 'Failed to fetch vault media' });
-        }
+               res.json({ media });
+       } catch (err) {
+               console.error('Error fetching vault media:', sanitizeError(err));
+               const status = err.message.includes('OnlyFans account') ? 400 : 500;
+               res.status(status).json({ error: status === 400 ? err.message : 'Failed to fetch vault media' });
+       }
 });
 
 // PPV management endpoints
@@ -752,25 +740,18 @@ app.post('/api/ppv', async (req, res) => {
         if (!Number.isInteger(ppvNumber) || typeof description !== 'string' || description.trim() === '' || !Number.isFinite(price) || !Array.isArray(mediaFiles) || mediaFiles.length === 0 || !Array.isArray(previews)) {
                 return res.status(400).json({ error: 'Invalid PPV data.' });
         }
-        let vaultListId;
-        try {
-                if (!OFAccountId) {
-                        const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
-                        const rawAccounts = accountsResp.data?.data || accountsResp.data;
-                        const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
-                        if (!accounts || accounts.length === 0) {
-                                return res.status(400).json({ error: 'No OnlyFans account is connected to this API key.' });
-                        }
-                        OFAccountId = accounts[0].id;
-                }
-                const listResp = await ofApiRequest(() => ofApi.post(`/${OFAccountId}/media/vault/lists`, { name: `PPV ${ppvNumber}` }));
-                vaultListId = listResp.data?.id || listResp.data?.list?.id;
-                await ofApiRequest(() => ofApi.post(`/${OFAccountId}/media/vault/lists/${vaultListId}/media`, { media_ids: mediaFiles }));
+       let vaultListId;
+       let accountId;
+       try {
+               accountId = await getOFAccountId();
+               const listResp = await ofApiRequest(() => ofApi.post(`/${accountId}/media/vault/lists`, { name: `PPV ${ppvNumber}` }));
+               vaultListId = listResp.data?.id || listResp.data?.list?.id;
+               await ofApiRequest(() => ofApi.post(`/${accountId}/media/vault/lists/${vaultListId}/media`, { media_ids: mediaFiles }));
 
-                const client = await pool.connect();
-                let ppvRow;
-                try {
-                        await client.query('BEGIN');
+               const client = await pool.connect();
+               let ppvRow;
+               try {
+                       await client.query('BEGIN');
 const setRes = await client.query('INSERT INTO ppv_sets (ppv_number, description, price, vault_list_id, schedule_day, schedule_time) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [ppvNumber, description, price, vaultListId, scheduleDay, scheduleTime]);
                         ppvRow = setRes.rows[0];
                         for (const mediaId of mediaFiles) {
@@ -779,17 +760,17 @@ const setRes = await client.query('INSERT INTO ppv_sets (ppv_number, description
                         }
                         await client.query('COMMIT');
                 } catch (dbErr) {
-                        await client.query('ROLLBACK');
-                        try {
-                                await ofApiRequest(() => ofApi.delete(`/${OFAccountId}/media/vault/lists/${vaultListId}`));
-                                vaultListId = null;
-                        } catch (cleanupErr) {
-                                console.error('Error cleaning up vault list:', cleanupErr.response ? cleanupErr.response.data || cleanupErr.response.statusText : cleanupErr.message);
-                        }
-                        throw dbErr;
-                } finally {
-                        client.release();
-                }
+                               await client.query('ROLLBACK');
+                               try {
+                                       await ofApiRequest(() => ofApi.delete(`/${accountId}/media/vault/lists/${vaultListId}`));
+                                       vaultListId = null;
+                               } catch (cleanupErr) {
+                                        console.error('Error cleaning up vault list:', cleanupErr.response ? cleanupErr.response.data || cleanupErr.response.statusText : cleanupErr.message);
+                               }
+                               throw dbErr;
+                       } finally {
+                               client.release();
+                       }
                 const ppv = {
                         ...ppvRow,
                         scheduleDay: ppvRow.schedule_day,
@@ -799,17 +780,18 @@ const setRes = await client.query('INSERT INTO ppv_sets (ppv_number, description
                 delete ppv.schedule_day;
                 delete ppv.schedule_time;
                 res.status(201).json({ ppv });
-        } catch (err) {
-                if (vaultListId) {
-                        try {
-                                await ofApiRequest(() => ofApi.delete(`/${OFAccountId}/media/vault/lists/${vaultListId}`));
-                        } catch (cleanupErr) {
-                                console.error('Error cleaning up vault list:', cleanupErr.response ? cleanupErr.response.data || cleanupErr.response.statusText : cleanupErr.message);
-                        }
-                }
-                console.error('Error creating PPV:', err.response ? err.response.data || err.response.statusText : err.message);
-                res.status(500).json({ error: 'Failed to create PPV' });
-        }
+       } catch (err) {
+               if (vaultListId && accountId) {
+                       try {
+                               await ofApiRequest(() => ofApi.delete(`/${accountId}/media/vault/lists/${vaultListId}`));
+                       } catch (cleanupErr) {
+                               console.error('Error cleaning up vault list:', cleanupErr.response ? cleanupErr.response.data || cleanupErr.response.statusText : cleanupErr.message);
+                       }
+               }
+               console.error('Error creating PPV:', err.response ? err.response.data || err.response.statusText : err.message);
+               const status = err.message.includes('OnlyFans account') ? 400 : 500;
+               res.status(status).json({ error: status === 400 ? err.message : 'Failed to create PPV' });
+       }
 });
 
 app.put('/api/ppv/:id', async (req, res) => {
@@ -883,23 +865,22 @@ app.delete('/api/ppv/:id', async (req, res) => {
                 if (dbRes.rows.length === 0) {
                         return res.status(404).json({ error: 'PPV not found' });
                 }
-                const vaultListId = dbRes.rows[0].vault_list_id;
-                if (vaultListId) {
-                        if (!OFAccountId) {
-                                const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
-                                const accounts = accountsResp.data.accounts || accountsResp.data;
-                                if (accounts && accounts.length > 0) {
-                                        OFAccountId = accounts[0].id;
-                                }
-                        }
-                        if (OFAccountId) {
-                                try {
-                                        await ofApiRequest(() => ofApi.delete(`/${OFAccountId}/media/vault/lists/${vaultListId}`));
-                                } catch (apiErr) {
-                                        console.error('Error deleting OnlyFans vault list:', apiErr.response ? apiErr.response.data || apiErr.response.statusText : apiErr.message);
-                                }
-                        }
-                }
+               const vaultListId = dbRes.rows[0].vault_list_id;
+               if (vaultListId) {
+                       let accountId;
+                       try {
+                               accountId = await getOFAccountId();
+                       } catch (_) {
+                               accountId = null;
+                       }
+                       if (accountId) {
+                               try {
+                                       await ofApiRequest(() => ofApi.delete(`/${accountId}/media/vault/lists/${vaultListId}`));
+                               } catch (apiErr) {
+                                       console.error('Error deleting OnlyFans vault list:', apiErr.response ? apiErr.response.data || apiErr.response.statusText : apiErr.message);
+                               }
+                       }
+               }
                 await pool.query('DELETE FROM ppv_sets WHERE id=$1', [id]);
                 res.json({ success: true });
         } catch (err) {
@@ -1040,23 +1021,20 @@ app.get('/api/messages/history', async (req, res) => {
                         return res.status(400).json({ error: 'fanId required' });
                 }
                 if (!Number.isFinite(limit) || limit <= 0) limit = 20;
-                // Ensure account id
-                if (!OFAccountId) {
-                        const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
-                        const accounts = accountsResp.data.accounts || accountsResp.data;
-                        if (!accounts || accounts.length === 0) {
-                                return res.status(400).json({ error: 'No OnlyFans account available.' });
-                        }
-                        OFAccountId = accounts[0].id;
-                }
-                const resp = await ofApiRequest(() => ofApi.get(`/${OFAccountId}/chats/${fanId}/messages`, { params: { limit } }));
-                const raw = resp.data?.messages || resp.data?.list || resp.data?.data?.messages || resp.data?.data?.list || [];
-                const messages = Array.isArray(raw) ? raw : [];
-                for (const m of messages) {
-                        const msgId = m.id;
-                        const direction = (m.fromUser?.id || m.user?.id || m.senderId) === OFAccountId ? 'outgoing' : 'incoming';
-                        const body = m.text || m.body || '';
-                        const price = m.price ?? null;
+               let accountId;
+               try {
+                       accountId = await getOFAccountId();
+               } catch (err) {
+                       return res.status(400).json({ error: err.message });
+               }
+               const resp = await ofApiRequest(() => ofApi.get(`/${accountId}/chats/${fanId}/messages`, { params: { limit } }));
+               const raw = resp.data?.messages || resp.data?.list || resp.data?.data?.messages || resp.data?.data?.list || [];
+               const messages = Array.isArray(raw) ? raw : [];
+               for (const m of messages) {
+                       const msgId = m.id;
+                       const direction = (m.fromUser?.id || m.user?.id || m.senderId) === accountId ? 'outgoing' : 'incoming';
+                       const body = m.text || m.body || '';
+                       const price = m.price ?? null;
                         const created = new Date((m.createdAt || m.created_at || m.postedAt || m.time || 0) * 1000);
                         await pool.query(
                                 'INSERT INTO messages (id, fan_id, direction, body, price, created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET fan_id=EXCLUDED.fan_id, direction=EXCLUDED.direction, body=EXCLUDED.body, price=EXCLUDED.price, created_at=EXCLUDED.created_at',
@@ -1147,20 +1125,14 @@ app.post('/api/fans/:id/follow', async (req, res) => {
         try {
                 const fanId = req.params.id;
                 if (!fanId) return res.status(400).json({ error: 'Missing fan id.' });
+               let accountId;
+               try {
+                       accountId = await getOFAccountId();
+               } catch (err) {
+                       return res.status(400).json({ error: err.message });
+               }
 
-                // Resolve OnlyFans account ID if not already known
-                if (!OFAccountId) {
-                        const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
-                        const rawAccounts = accountsResp.data?.data || accountsResp.data;
-                        const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
-                        if (!accounts || accounts.length === 0) {
-                                return res.status(400).json({ error: 'No OnlyFans account is connected to this API key.' });
-                        }
-                        OFAccountId = accounts[0].id;
-                        console.log(`Using OnlyFans account: ${OFAccountId}`);
-                }
-
-                await ofApiRequest(() => ofApi.post(`/${OFAccountId}/users/${fanId}/follow`));
+               await ofApiRequest(() => ofApi.post(`/${accountId}/users/${fanId}/follow`));
                 await pool.query('UPDATE fans SET isSubscribed = TRUE WHERE id=$1', [fanId]);
                 res.json({ success: true });
         } catch (err) {
@@ -1176,42 +1148,32 @@ app.post('/api/fans/:id/follow', async (req, res) => {
 // Bulk follow all unfollowed fans with streaming progress
 app.post('/api/fans/followAll', async (req, res) => {
         try {
-                // Resolve OnlyFans account ID if not already known
-                if (!OFAccountId) {
-                        const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
-                        const rawAccounts = accountsResp.data?.data || accountsResp.data;
-                        const accounts = Array.isArray(rawAccounts) ? rawAccounts : rawAccounts?.accounts || [];
-                        if (!accounts || accounts.length === 0) {
-                                return res.status(400).json({ error: 'No OnlyFans account is connected to this API key.' });
-                        }
-                        OFAccountId = accounts[0].id;
-                        console.log(`Using OnlyFans account: ${OFAccountId}`);
-                }
-
-                const dbRes = await pool.query('SELECT id, username FROM fans WHERE isSubscribed = FALSE ORDER BY id');
-                const fans = dbRes.rows;
+               const accountId = await getOFAccountId();
+               const dbRes = await pool.query('SELECT id, username FROM fans WHERE isSubscribed = FALSE ORDER BY id');
+               const fans = dbRes.rows;
 
                 res.setHeader('Content-Type', 'text/event-stream');
                 res.setHeader('Cache-Control', 'no-cache');
                 res.setHeader('Connection', 'keep-alive');
                 if (res.flushHeaders) res.flushHeaders();
 
-                for (const fan of fans) {
-                        try {
-                                await ofApiRequest(() => ofApi.post(`/${OFAccountId}/users/${fan.id}/follow`));
-                                await pool.query('UPDATE fans SET isSubscribed = TRUE WHERE id=$1', [fan.id]);
-                                res.write(`data: ${JSON.stringify({ id: fan.id, username: fan.username, success: true })}\n\n`);
-                        } catch (err) {
-                                const msg = err.response ? err.response.statusText || err.response.data : err.message;
-                                res.write(`data: ${JSON.stringify({ id: fan.id, username: fan.username, success: false, error: msg })}\n\n`);
-                        }
-                }
-                res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-                res.end();
+               for (const fan of fans) {
+                       try {
+                               await ofApiRequest(() => ofApi.post(`/${accountId}/users/${fan.id}/follow`));
+                               await pool.query('UPDATE fans SET isSubscribed = TRUE WHERE id=$1', [fan.id]);
+                               res.write(`data: ${JSON.stringify({ id: fan.id, username: fan.username, success: true })}\n\n`);
+                       } catch (err) {
+                               const msg = err.response ? err.response.statusText || err.response.data : err.message;
+                               res.write(`data: ${JSON.stringify({ id: fan.id, username: fan.username, success: false, error: msg })}\n\n`);
+                       }
+               }
+               res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+               res.end();
         } catch (err) {
-                console.error('Error in POST /api/fans/followAll:', sanitizeError(err));
-                res.write(`data: ${JSON.stringify({ error: 'Failed to follow all fans.' })}\n\n`);
-                res.end();
+               console.error('Error in POST /api/fans/followAll:', sanitizeError(err));
+               const statusMsg = err.message.includes('OnlyFans account') ? err.message : 'Failed to follow all fans.';
+               res.write(`data: ${JSON.stringify({ error: statusMsg })}\n\n`);
+               res.end();
         }
 });
 
