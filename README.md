@@ -1,4 +1,4 @@
-<!-- Modified 2025-08-05 – v1.0 -->
+<!-- Modified 2025-02-14 – v1.0 -->
 
 # OnlyFans Express Messenger (OFEM)
 
@@ -67,7 +67,10 @@ The `/api/status` endpoint reports whether each variable has been configured.
    JSONB operations) and `dotenv`, installing them automatically if missing.
 
    When upgrading an existing database, remember to run
-   `node migrate_add_fan_fields.js` to add any new columns that may be required.
+   `node migrate_add_fan_fields.js`, `node migrate_messages.js`,
+   `node migrate_scheduled_messages.js`, `node migrate_add_ppv_tables.js`, and
+   `node migrate_add_ppv_schedule_fields.js` to add any new columns and tables
+   that may be required.
 
 4. **Start the server**
 
@@ -88,15 +91,22 @@ The `/api/status` endpoint reports whether each variable has been configured.
 ## Fan Fields Migration and New Columns
 
 Run the migration scripts below to ensure your database includes all of the latest fan
-profile fields and the message-history schema.
+profile fields, message-history schema, scheduled message tables, and PPV schedule
+support.
 
 ```bash
 node migrate_add_fan_fields.js
 node migrate_messages.js
+node migrate_scheduled_messages.js
+node migrate_add_ppv_tables.js
+node migrate_add_ppv_schedule_fields.js
 ```
 
 These scripts read connection details from your `.env` file. `migrate_add_fan_fields.js`
-adds any missing columns to the `fans` table. The new columns and their purposes are:
+adds any missing columns to the `fans` table, `migrate_messages.js` creates a
+`messages` table, `migrate_scheduled_messages.js` adds scheduling tables, and the
+PPV migrations create and extend PPV-related tables. The new `fans` columns and
+their purposes are:
 
 - `avatar` – URL to the fan's profile avatar
 - `header` – URL to the profile header image
@@ -263,4 +273,4 @@ Jest is the configured test runner and includes suites such as
 - The project currently supports only the two features described above but is structured
   to allow further expansion.
 
-<!-- End of File – Last modified 2025-08-05 -->
+<!-- End of File – Last modified 2025-02-14 -->
