@@ -49,7 +49,7 @@
     if (statusMsg) {
       statusMsg.textContent =
         unfollowed.length === 0
-          ? 'No fans to follow. Try running /api/refreshFans.'
+          ? 'No fans to follow. Please run /api/refreshFans to sync.'
           : '';
     }
   }
