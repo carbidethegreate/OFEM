@@ -82,6 +82,17 @@ beforeEach(async () => {
   mockAxios.post.mockReset();
 });
 
+test('returns 401 when OnlyFans API returns 401', async () => {
+  mockAxios.get
+    .mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } })
+    .mockRejectedValueOnce({ response: { status: 401 } });
+
+  const res = await request(app).post('/api/refreshFans').expect(401);
+  expect(res.body).toEqual({
+    error: 'Invalid or expired OnlyFans API key.',
+  });
+});
+
 test('inserts and retrieves fan with new columns', async () => {
   const ts = 1691000000;
   const iso = new Date(ts * 1000).toISOString();
