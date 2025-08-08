@@ -8,6 +8,16 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
     <link rel="stylesheet" href="public/css/predeploy.css" />
+    <script>
+      function runCommand(file) {
+        const link = document.createElement('a');
+        link.href = file;
+        link.download = '';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    </script>
   </head>
   <body>
     <h1>Getting Started with OFEM</h1>
@@ -46,7 +56,7 @@
             <li class="mt-sm">
               <button
                 class="btn btn-primary"
-                onclick="window.location.href='remove-quarantine.command'"
+                onclick="runCommand('remove-quarantine.command')"
               >
                 Allow command files
               </button>
@@ -73,7 +83,7 @@
             <li class="mt-sm">
               <button
                 class="btn btn-primary"
-                onclick="window.location.href='install-node.command'"
+                onclick="runCommand('install-node.command')"
               >
                 Install Node at Folder
               </button>
@@ -93,7 +103,7 @@
             <li class="mt-sm">
               <button
                 class="btn btn-secondary"
-                onclick="window.location.href='install-docker.command'"
+                onclick="runCommand('install-docker.command')"
               >
                 Install Docker
               </button>
@@ -116,7 +126,7 @@
             <li class="mt-sm">
               <button
                 class="btn btn-primary"
-                onclick="window.location.href='install.command'"
+                onclick="runCommand('install.command')"
               >
                 Run installer
               </button>
@@ -144,7 +154,7 @@
             <li class="mt-sm">
               <button
                 class="btn btn-secondary"
-                onclick="window.location.href='setup-env.command'"
+                onclick="runCommand('setup-env.command')"
               >
                 Configure API keys and DB
               </button>
@@ -174,7 +184,7 @@
             <li class="mt-sm">
               <button
                 class="btn btn-primary"
-                onclick="window.location.href='setup-db.command'"
+                onclick="runCommand('setup-db.command')"
               >
                 Set up new database
               </button>
@@ -215,7 +225,7 @@
             <li class="mt-sm">
               <button
                 class="btn btn-secondary"
-                onclick="window.location.href='addtodatabase.command'"
+                onclick="runCommand('addtodatabase.command')"
               >
                 Run migrations
               </button>
