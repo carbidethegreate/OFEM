@@ -13,6 +13,7 @@ const scripts = [
   'migrate_scheduled_messages.js',
   'migrate_add_ppv_tables.js',
   'migrate_add_ppv_schedule_fields.js',
+  'migrate_add_ppv_message_field.js',
 ];
 
 for (const script of scripts) {

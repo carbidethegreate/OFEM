@@ -27,7 +27,7 @@
       const day = p.scheduleDay != null ? p.scheduleDay : 'None';
       const time = p.scheduleTime ? formatTime(p.scheduleTime) : 'None';
       const tr = global.document.createElement('tr');
-      tr.innerHTML = `<td>${p.ppv_number}</td><td>${p.description}</td><td>${p.price}</td><td>${day}</td><td>${time}</td><td><button class="btn btn-secondary" onclick="App.PPV.deletePpv(${p.id})">Delete</button></td>`;
+      tr.innerHTML = `<td>${p.ppv_number}</td><td>${p.message || ''}</td><td>${p.price}</td><td>${day}</td><td>${time}</td><td><button class="btn btn-secondary" onclick="App.PPV.deletePpv(${p.id})">Delete</button></td>`;
       tbody.appendChild(tr);
     }
   }
@@ -123,7 +123,7 @@
 
   async function savePpv() {
     const ppvNumber = parseInt(global.document.getElementById('ppvNumber').value, 10);
-    const description = global.document.getElementById('description').value.trim();
+    const message = global.document.getElementById('message').value.trim();
     const price = parseFloat(global.document.getElementById('price').value);
     const mediaFiles = Array.from(
       global.document.querySelectorAll('.mediaCheckbox:checked'),
@@ -134,13 +134,38 @@
     const scheduleDayVal = global.document.getElementById('scheduleDay').value;
     const scheduleTime = global.document.getElementById('scheduleTime').value;
     const scheduleDay = scheduleDayVal ? parseInt(scheduleDayVal, 10) : null;
+
+    if ((scheduleDay == null) !== !scheduleTime) {
+      global.alert('Both schedule day and time must be provided');
+      return;
+    }
+    if (scheduleDay != null) {
+      if (
+        !Number.isInteger(scheduleDay) ||
+        scheduleDay < 1 ||
+        scheduleDay > 31
+      ) {
+        global.alert('scheduleDay must be an integer between 1 and 31');
+        return;
+      }
+      if (typeof scheduleTime !== 'string' || !/^\d{2}:\d{2}$/.test(scheduleTime)) {
+        global.alert('scheduleTime must be in HH:MM format');
+        return;
+      }
+      const [h, m] = scheduleTime.split(':').map(Number);
+      if (h < 0 || h > 23 || m < 0 || m > 59) {
+        global.alert('scheduleTime must be in 24-hour HH:MM format');
+        return;
+      }
+    }
+
     try {
       const res = await global.fetch('/api/ppv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ppvNumber,
-          description,
+          message,
           price,
           mediaFiles,
           previews,
@@ -151,7 +176,7 @@
       const result = await res.json();
       if (res.ok) {
         global.document.getElementById('ppvNumber').value = '';
-        global.document.getElementById('description').value = '';
+        global.document.getElementById('message').value = '';
         global.document.getElementById('price').value = '';
         global.document.getElementById('scheduleDay').value = '';
         global.document.getElementById('scheduleTime').value = '';
