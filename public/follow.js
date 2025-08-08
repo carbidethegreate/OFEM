@@ -42,25 +42,42 @@
     }
   }
 
-  async function followAll() {
+  function followAll() {
     const total = unfollowed.length;
     let success = 0;
-    for (const fan of unfollowed) {
+    let processed = 0;
+
+    document.getElementById('followBtn').disabled = true;
+    document.getElementById('statusMsg').innerText = 'Followed 0 of ' + total;
+
+    const source = new EventSource('/api/fans/followAll');
+
+    source.onmessage = event => {
       try {
-        const res = await fetch('/api/fans/' + fan.id + '/follow', { method: 'POST' });
-        if (res.ok) {
-          setStatusDot(fan.id, 'green');
-          success++;
-        } else {
-          setStatusDot(fan.id, 'red');
+        const data = JSON.parse(event.data);
+        if (data.done) {
+          source.close();
+          document.getElementById('followBtn').disabled = false;
+          return;
+        }
+        setStatusDot(data.id, data.success ? 'green' : 'red');
+        processed++;
+        if (data.success) success++;
+        document.getElementById('statusMsg').innerText = 'Followed ' + success + ' of ' + total;
+        if (processed >= total) {
+          source.close();
+          document.getElementById('followBtn').disabled = false;
         }
       } catch (err) {
-        console.error('Error following fan', fan.id, err);
-        setStatusDot(fan.id, 'red');
+        console.error('Error parsing SSE data', err);
       }
-      document.getElementById('statusMsg').innerText = 'Followed ' + success + ' of ' + total;
-      await new Promise(r => setTimeout(r, 500));
-    }
+    };
+
+    source.onerror = err => {
+      console.error('SSE error', err);
+      source.close();
+      document.getElementById('followBtn').disabled = false;
+    };
   }
 
   document.getElementById('followBtn').addEventListener('click', followAll);
