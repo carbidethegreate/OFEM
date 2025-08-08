@@ -54,6 +54,17 @@ async function ensureDatabaseExists() {
     const client = new Client(defaultConfig);
     try {
         await client.connect();
+    } catch (err) {
+        if (err.code === '42501' || /permission denied/i.test(err.message)) {
+            console.warn(`⚠️  Permission denied to connect to default database "postgres". ` +
+                        `Database "${DB_NAME}" must be created manually.`);
+            return;
+        }
+        console.error(`Error connecting to default database: ${err.message}`);
+        throw err;
+    }
+
+    try {
         await client.query(`CREATE DATABASE ${DB_NAME}`);
         console.log(`✅ Database "${DB_NAME}" created successfully.`);
     } catch (err) {
