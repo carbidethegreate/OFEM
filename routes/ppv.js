@@ -295,7 +295,7 @@ module.exports = function ({
         let accountId;
         try {
           accountId = await getOFAccountId();
-        } catch (_) {
+        } catch {
           accountId = null;
         }
         if (accountId) {

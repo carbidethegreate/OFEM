@@ -83,7 +83,7 @@ async function waitForPostgres(config, retries = 10) {
       await client.connect();
       await client.end();
       return true;
-    } catch (err) {
+    } catch {
       await new Promise((res) => setTimeout(res, 1000));
     }
   }
@@ -97,14 +97,14 @@ async function ensurePostgres(adminConfig) {
     await testClient.connect();
     await testClient.end();
     return true;
-  } catch (err) {
+  } catch {
     console.log(
       'PostgreSQL not reachable, attempting to start via docker compose...',
     );
     // First confirm docker is installed; otherwise the user needs to install or start Postgres manually.
     try {
       await execAsync('docker --version');
-    } catch (e) {
+    } catch {
       console.error(
         'Docker is not installed. Please install Docker Desktop or start PostgreSQL manually.',
       );

@@ -42,7 +42,7 @@ async function ensureDatabaseExists() {
   } finally {
     try {
       await appClient.end();
-    } catch (e) {}
+    } catch {}
   }
 
   // Database is missing. Attempt to connect to the default "postgres" DB and
@@ -85,7 +85,7 @@ async function ensureDatabaseExists() {
   } finally {
     try {
       await client.end();
-    } catch (e) {}
+    } catch {}
   }
 }
 
@@ -93,7 +93,7 @@ async function ensureDatabaseExists() {
 (async () => {
   try {
     await ensureDatabaseExists();
-  } catch (err) {
+  } catch {
     // Fail fast if database setup is incorrect
     process.exit(1);
   }
