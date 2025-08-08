@@ -277,10 +277,17 @@ let sendMessageToFan = async function (
   let template = [greeting, body].filter(Boolean).join(' ').trim();
   const accountId = await getOFAccountId();
   const dbRes = await pool.query(
-    'SELECT parker_name, username, location FROM fans WHERE id=$1',
+    'SELECT parker_name, username, location, isSubscribed AS "isSubscribed", canReceiveChatMessage AS "canReceiveChatMessage" FROM fans WHERE id=$1',
     [fanId],
   );
   const row = dbRes.rows[0] || {};
+  if (!row.isSubscribed || !row.canReceiveChatMessage) {
+    const err = new Error(
+      'Fan is not subscribed or cannot receive chat messages',
+    );
+    err.code = 'FAN_NOT_ELIGIBLE';
+    throw err;
+  }
   const parkerName = removeEmojis(row.parker_name || '');
   const userName = removeEmojis(row.username || '');
   const userLocation = removeEmojis(row.location || '');
@@ -428,6 +435,12 @@ async function processScheduledMessages() {
             row.previews || [],
           );
         } catch (err) {
+          if (err.code === 'FAN_NOT_ELIGIBLE') {
+            console.log(
+              `Skipping fan ${fanId} for scheduled message ${row.id}: ${err.message}`,
+            );
+            continue;
+          }
           allSent = false;
           console.error(
             `Error sending scheduled message ${row.id} to ${fanId}:`,
@@ -518,6 +531,12 @@ async function processRecurringPPVs() {
             previews,
           );
         } catch (err) {
+          if (err.code === 'FAN_NOT_ELIGIBLE') {
+            console.log(
+              `Skipping fan ${fanId} for PPV ${id}: ${err.message}`,
+            );
+            continue;
+          }
           console.error(
             `Error sending PPV ${id} to fan ${fanId}:`,
             err.message,

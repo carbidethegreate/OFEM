@@ -128,6 +128,9 @@ module.exports = function ({
       );
       res.json({ success: true });
     } catch (err) {
+      if (err.code === 'FAN_NOT_ELIGIBLE') {
+        return res.status(400).json({ error: err.message });
+      }
       console.error(
         'Error sending message to fan:',
         err.response
