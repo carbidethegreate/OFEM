@@ -3,7 +3,7 @@
 # OnlyFans Express Messenger (OFEM)
 
 OFEM is a small dashboard that helps an OnlyFans creator greet fans by name and send a
-personalised message to everyone in one pass.  It uses the official OnlyFans API to
+personalised message to everyone in one pass. It uses the official OnlyFans API to
 fetch the fan list and send direct messages and an OpenAI GPT model (default `gpt-4o-mini`) to generate friendly
 nicknames.
 
@@ -14,7 +14,7 @@ nicknames.
 - **Update Parker Names** – Generates a short “Parker name” with the configured OpenAI model (default `gpt-4o-mini`) only for fans who
   do not already have one. Names can be edited and saved.
 - **Send Personalised DM** – Sends a message to every fan, greeting each with their
-  Parker name.  Shows a green dot for success and red for failure.  Sending can be
+  Parker name. Shows a green dot for success and red for failure. Sending can be
   aborted and auto‑stops after ten consecutive errors.
 
 ## Prerequisites
@@ -29,17 +29,19 @@ nicknames.
 1. **Install dependencies**
 
    ```bash
-   npm install
+   npm run install-deps
    ```
+
+   This command detects your OS and installs Node.js, Docker, and project packages. If you already have these installed, run `npm install` instead.
 
 2. **Configure environment**
 
-   Run `./setup-env.command` (macOS) or `node setup-env.js` to enter your OnlyFans and
+   Run `npm run setup-env` to enter your OnlyFans and
    OpenAI API keys, database credentials, and admin credentials. This creates a `.env`
    file.
 
    Supplying database connection details and admin credentials now lets you reuse an
-   existing PostgreSQL database and skip the `setup-db.command` step.
+   existing PostgreSQL database and skip the `npm run setup-db` step.
 
 ### Environment Variables
 
@@ -60,7 +62,7 @@ The `/api/status` endpoint reports whether each variable has been configured.
 
 3. **Create the database**
 
-   Run `./setup-db.command` (macOS) or `node setup-db.js` to spin up PostgreSQL via Docker
+   Run `npm run setup-db` to spin up PostgreSQL via Docker
    (if needed), create a database with a random name, and write the credentials to your
    `.env` file. This step is unnecessary if you provided existing database credentials in
    the previous step. The script verifies required Node modules such as `pg` (used for
@@ -77,21 +79,17 @@ The `/api/status` endpoint reports whether each variable has been configured.
 4. **Start the server**
 
    ```bash
-   npm start
+   npm run start
    ```
 
    The server listens on <http://localhost:3000> by default. To use a different port,
    set the `PORT` environment variable before starting, for example:
 
    ```bash
-   PORT=8080 npm start
+   PORT=8080 npm run start
    ```
 
-   You can also define `PORT` in your `.env` file. A convenience script
-   `start.command` (macOS) installs npm packages if required, runs
-   `predeploy.command` to apply database migrations, and then launches the
-   server. On other systems run `./predeploy.command` or `node migrate_all.js`
-   before `npm start` to ensure the database schema is current.
+   You can also define `PORT` in your `.env` file. The start script automatically runs any pending database migrations. To apply migrations manually, run `npm run migrate`.
 
 ## Docker
 
@@ -186,7 +184,7 @@ their purposes are:
 - `price` – media price
 - `created_at` – timestamp when the message was created
 
-Run `./addtodatabase.command`, `./predeploy.command`, or `node migrate_all.js` to
+Run `npm run migrate` to
 apply all migrations to an existing database in one step.
 
 ## Usage
@@ -195,9 +193,9 @@ apply all migrations to an existing database in one step.
 2. **Step 1: Update Fan List** – fetch subscribers and followings and load them into the table.
 3. **Step 2: Update Parker Names** – generate and apply Parker names for fans missing them.
 4. Edit any names and click **Save** beside a fan to persist the change.
-5. Type the message to broadcast.  Use `{name}` or `[name]` as a placeholder or leave
+5. Type the message to broadcast. Use `{name}` or `[name]` as a placeholder or leave
    it out to have the greeting prefixed automatically.
-6. Click **Send Personalised DM to All Fans** to start sending.  Use **Abort Sending**
+6. Click **Send Personalised DM to All Fans** to start sending. Use **Abort Sending**
    to stop early.
 
 ## Follow Fans and Followers
@@ -213,6 +211,7 @@ Requests are throttled with a 500 ms delay to respect OnlyFans rate limits. Th
 ## API
 
 ### Usage Sequence
+
 1. **Step 1 – Update Fan List:** `POST /api/refreshFans` – sync subscribers and following users from OnlyFans.
 2. **Step 2 – Update Parker Names:** `POST /api/updateParkerNames` – generate Parker names for fans missing them.
 3. `GET /api/fans` – fetch the stored fan list with names.
@@ -280,6 +279,7 @@ JSONB columns such as `avatarThumbs`, `headerSize`, `headerThumbs`, `listsStates
 `subscribedByData`, `subscribedOnData`, and `promoOffers` are returned as objects.
 
 ### Migration from single-endpoint workflow
+
 Earlier versions used `/api/refreshFans` to also generate Parker names. Now call
 `/api/refreshFans` and then `/api/updateParkerNames` to populate names.
 
