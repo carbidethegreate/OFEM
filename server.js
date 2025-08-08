@@ -294,6 +294,13 @@ let sendMessageToFan = async function (
   template = template.replace(/\{name\}|\[name\]|\{parker_name\}/g, parkerName);
   template = template.replace(/\{username\}/g, userName);
   template = template.replace(/\{location\}/g, userLocation);
+  if (template.trim().length === 0) {
+    const err = new Error(
+      'Message template empty after placeholder substitution; provide fallback text.',
+    );
+    err.status = 400;
+    throw err;
+  }
   const formatted = getEditorHtml(template);
   const mediaIds = Array.isArray(mediaFiles)
     ? mediaFiles.map(Number).filter(Number.isFinite)
