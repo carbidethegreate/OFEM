@@ -349,6 +349,7 @@ const ppvRoutes = require('./routes/ppv')({
   ofApi,
   pool,
   sanitizeError,
+  sendMessageToFan,
 });
 const messagesRoutes = require('./routes/messages')({
   getOFAccountId,
