@@ -48,9 +48,7 @@
       const res = await global.fetch('/api/vault-media');
       if (!res.ok) return;
       const data = await res.json();
-      const items = Array.isArray(data)
-        ? data
-        : data.list || data.results || data.media || data.data || [];
+      const items = Array.isArray(data) ? data : [];
       const container = global.document.getElementById('vaultMediaList');
       if (!container) return;
       container.innerHTML = '';
@@ -96,6 +94,30 @@
       }
     } catch (err) {
       global.console.error('Error loading vault media:', err);
+    }
+  }
+
+  async function uploadMedia() {
+    const input = global.document.getElementById('mediaUploadInput');
+    if (!input || !input.files.length) return;
+    const formData = new global.FormData();
+    for (const file of input.files) {
+      formData.append('media', file);
+    }
+    try {
+      const res = await global.fetch('/api/vault-media', {
+        method: 'POST',
+        body: formData,
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        global.alert(result.error || 'Failed to upload media');
+        return;
+      }
+      input.value = '';
+      await loadVaultMedia();
+    } catch (err) {
+      global.console.error('Error uploading media:', err);
     }
   }
 
@@ -160,6 +182,8 @@
   function init() {
     const loadBtn = global.document.getElementById('loadVaultBtn');
     if (loadBtn) loadBtn.addEventListener('click', loadVaultMedia);
+    const uploadBtn = global.document.getElementById('uploadMediaBtn');
+    if (uploadBtn) uploadBtn.addEventListener('click', uploadMedia);
     const saveBtn = global.document.getElementById('saveBtn');
     if (saveBtn) saveBtn.addEventListener('click', savePpv);
     fetchPpvs();
@@ -171,6 +195,7 @@
     renderPpvTable,
     linkPreviewInclude,
     loadVaultMedia,
+    uploadMedia,
     savePpv,
     deletePpv,
     init,

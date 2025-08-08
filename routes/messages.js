@@ -1,4 +1,6 @@
 const express = require('express');
+const multer = require('multer');
+const FormData = require('form-data');
 
 module.exports = function ({
   getOFAccountId,
@@ -10,6 +12,8 @@ module.exports = function ({
   getMissingEnvVars,
 }) {
   const router = express.Router();
+  const upload = multer();
+
   router.get('/vault-media', async (req, res) => {
     try {
       const accountId = await getOFAccountId();
@@ -29,12 +33,47 @@ module.exports = function ({
         offset += limit;
       }
 
-      res.json({ media });
+      res.json(media);
     } catch (err) {
       console.error('Error fetching vault media:', sanitizeError(err));
       const status = err.message.includes('OnlyFans account') ? 400 : 500;
       res.status(status).json({
         error: status === 400 ? err.message : 'Failed to fetch vault media',
+      });
+    }
+  });
+
+  router.post('/vault-media', upload.array('media'), async (req, res) => {
+    try {
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: 'No files uploaded' });
+      }
+      const accountId = await getOFAccountId();
+      const ids = [];
+      for (const file of req.files) {
+        const form = new FormData();
+        form.append('media', file.buffer, {
+          filename: file.originalname,
+          contentType: file.mimetype,
+        });
+        const resp = await ofApiRequest(() =>
+          ofApi.post(`/${accountId}/media/upload`, form, {
+            headers: form.getHeaders(),
+          }),
+        );
+        const id =
+          resp.data?.media?.id ||
+          resp.data?.id ||
+          resp.data?.mediaId ||
+          resp.data?.media_id;
+        if (id != null) ids.push(id);
+      }
+      res.json({ mediaIds: ids });
+    } catch (err) {
+      console.error('Error uploading vault media:', sanitizeError(err));
+      const status = err.message.includes('OnlyFans account') ? 400 : 500;
+      res.status(status).json({
+        error: status === 400 ? err.message : 'Failed to upload vault media',
       });
     }
   });
