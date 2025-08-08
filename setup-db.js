@@ -199,6 +199,11 @@ async function main() {
     fs.writeFileSync(envPath, lines.join('\n') + '\n');
     console.log('.env file updated.');
 
+    // Step 4: run all migrations to ensure new tables/columns exist
+    console.log('Running migrations...');
+    await execAsync('node migrate_all.js');
+    console.log('Migrations complete.');
+
     console.log('✅ Database setup complete!');
     console.log(`   DB_NAME=${dbName}`);
     console.log(`   DB_USER=${dbUser}`);
