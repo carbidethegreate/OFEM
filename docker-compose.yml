@@ -5,6 +5,21 @@
 
 version: '3.8'
 services:
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DB_NAME: ofdb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: db
+      DB_PORT: 5432
+      ONLYFANS_API_KEY: ${ONLYFANS_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "3000:3000"
   db:
     image: postgres:15-alpine
     restart: unless-stopped
