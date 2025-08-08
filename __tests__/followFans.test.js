@@ -74,7 +74,7 @@ test('renderTable displays a message when there are no fans to follow', async ()
   const { renderTable } = require('../public/follow');
   renderTable();
   await Promise.resolve();
-  expect(
-    dom.window.document.getElementById('statusMsg').textContent,
-  ).toMatch(/no fans to follow/i);
+  const msg = dom.window.document.getElementById('statusMsg').textContent;
+  expect(msg).toMatch(/no fans to follow/i);
+  expect(msg).toMatch(/\/api\/refreshFans/);
 });
