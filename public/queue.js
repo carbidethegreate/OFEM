@@ -2,10 +2,12 @@ window.Queue = {
   async fetch() {
     try {
       const res = await fetch('/api/scheduledMessages');
+      if (!res.ok) throw new Error('Failed to fetch scheduled messages');
       const data = await res.json();
       this.render(data.messages || []);
     } catch (err) {
       console.error('Error fetching scheduled messages:', err);
+      alert('Error fetching scheduled messages');
     }
   },
   render(messages) {
@@ -33,10 +35,12 @@ window.Queue = {
   },
   async cancel(id) {
     try {
-      await fetch(`/api/scheduledMessages/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/scheduledMessages/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to cancel message');
       this.fetch();
     } catch (err) {
       console.error('Error canceling message:', err);
+      alert('Error canceling message');
     }
   },
   async edit(m) {
@@ -71,9 +75,11 @@ window.Queue = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (res.ok) this.fetch();
+      if (!res.ok) throw new Error('Failed to edit message');
+      this.fetch();
     } catch (err) {
       console.error('Error editing message:', err);
+      alert('Error editing message');
     }
   }
 };

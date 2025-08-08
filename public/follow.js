@@ -20,6 +20,7 @@
       renderTable();
     } catch (err) {
       console.error('Error loading unfollowed fans:', err);
+      alert('Failed to fetch unfollowed fans');
     }
   }
 
@@ -70,11 +71,13 @@
         }
       } catch (err) {
         console.error('Error parsing SSE data', err);
+        alert('Error processing follow response');
       }
     };
 
     source.onerror = err => {
       console.error('SSE error', err);
+      alert('Error following fans');
       source.close();
       document.getElementById('followBtn').disabled = false;
     };
