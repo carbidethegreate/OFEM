@@ -371,9 +371,11 @@ $40,$41,$42,$43
           : 500);
 
       if (status === 401 || status === 403) {
-        return res
-          .status(401)
-          .json({ error: 'Invalid or expired OnlyFans API key.' });
+        const msg =
+          err.response?.data?.error ||
+          err.response?.data?.message ||
+          'Invalid or expired OnlyFans API key.';
+        return res.status(401).json({ error: msg });
       }
 
       const message =

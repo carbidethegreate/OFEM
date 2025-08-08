@@ -93,6 +93,17 @@ test('returns 401 when OnlyFans API returns 401', async () => {
   });
 });
 
+test('returns OnlyFans error message when available on auth failures', async () => {
+  mockAxios.get
+    .mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } })
+    .mockRejectedValueOnce({
+      response: { status: 403, data: { error: 'Account suspended' } },
+    });
+
+  const res = await request(app).post('/api/refreshFans').expect(401);
+  expect(res.body).toEqual({ error: 'Account suspended' });
+});
+
 test('inserts and retrieves fan with new columns', async () => {
   const ts = 1691000000;
   const iso = new Date(ts * 1000).toISOString();
