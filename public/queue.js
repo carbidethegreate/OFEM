@@ -84,4 +84,9 @@ window.Queue = {
   }
 };
 
-document.addEventListener('DOMContentLoaded', () => Queue.fetch());
+document.addEventListener('DOMContentLoaded', () => {
+  Queue.fetch();
+  const refreshBtn = document.getElementById('refreshBtn');
+  if (refreshBtn) refreshBtn.addEventListener('click', () => Queue.fetch());
+  setInterval(() => Queue.fetch(), 60000);
+});
