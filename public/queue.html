@@ -27,6 +27,32 @@
     </thead>
     <tbody></tbody>
   </table>
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <h2>Edit Scheduled Message</h2>
+      <form id="editForm">
+        <label>Message
+          <textarea id="editBody" class="form-input"></textarea>
+        </label>
+        <label class="mt-5">Schedule Time
+          <input type="datetime-local" id="editTime" class="form-input">
+        </label>
+        <label class="mt-5">Greeting
+          <input type="text" id="editGreeting" class="form-input">
+        </label>
+        <label class="mt-5">Price
+          <input type="number" id="editPrice" class="form-input">
+        </label>
+        <label class="mt-5">
+          <input type="checkbox" id="editLocked"> Lock message
+        </label>
+        <div class="mt-10">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" id="editCancel" class="btn btn-secondary">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
   <script src="queue.js"></script>
 </body>
 </html>
