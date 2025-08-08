@@ -290,3 +290,16 @@ test('returns 400 for fans that cannot receive messages', async () => {
     .expect(400);
   expect(mockAxios.post).not.toHaveBeenCalled();
 });
+
+test('returns 400 when template is empty after substitution', async () => {
+  await mockPool.query(
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1, '', '', '', TRUE, TRUE)",
+  );
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  const res = await request(app)
+    .post('/api/sendMessage')
+    .send({ userId: 1, greeting: '', body: '{parker_name}' });
+  expect(res.status).toBe(400);
+  expect(res.body).toEqual({ error: expect.stringContaining('empty') });
+  expect(mockAxios.post).not.toHaveBeenCalled();
+});
