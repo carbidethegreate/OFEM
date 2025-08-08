@@ -63,9 +63,9 @@ CREATE TABLE IF NOT EXISTS fans (
 `;
 
 // Run a shell command and return a promise.
-function execAsync(cmd) {
+function execAsync(cmd, opts = {}) {
   return new Promise((resolve, reject) => {
-    exec(cmd, (error, stdout, stderr) => {
+    exec(cmd, opts, (error, stdout, stderr) => {
       if (error) {
         reject(error);
       } else {
@@ -171,7 +171,21 @@ async function main() {
     await newClient.end();
     console.log('Fans table created.');
 
-    // Step 3: update .env with new credentials, preserving other values
+    // Step 3: run migrations to ensure latest schema
+    console.log('Running migrations...');
+    await execAsync('node migrate_all.js', {
+      env: {
+        ...process.env,
+        DB_NAME: dbName,
+        DB_USER: dbUser,
+        DB_PASSWORD: dbPassword,
+        DB_HOST: adminConfig.host,
+        DB_PORT: adminConfig.port,
+      },
+    });
+    console.log('Migrations complete.');
+
+    // Step 4: update .env with new credentials, preserving other values
     const envPath = path.join(__dirname, '.env');
     const exampleEnvPath = path.join(__dirname, '.env.example');
     if (!fs.existsSync(envPath) && fs.existsSync(exampleEnvPath)) {
@@ -198,11 +212,6 @@ async function main() {
     lines.push(`DB_PORT=${adminConfig.port}`);
     fs.writeFileSync(envPath, lines.join('\n') + '\n');
     console.log('.env file updated.');
-
-    // Step 4: run all migrations to ensure new tables/columns exist
-    console.log('Running migrations...');
-    await execAsync('node migrate_all.js');
-    console.log('Migrations complete.');
 
     console.log('✅ Database setup complete!');
     console.log(`   DB_NAME=${dbName}`);
