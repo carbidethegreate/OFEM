@@ -218,9 +218,9 @@
           </div>
           <ol>
             <li>
-              If you're updating an existing install, run migrations to update
-              the schema without losing data. Fresh installations can skip this
-              step.
+              If you're updating an existing install, you must run migrations
+              whenever new ones are introduced to keep your schema up to date.
+              Fresh installations can skip this step.
             </li>
             <li class="mt-sm">
               <button
@@ -234,6 +234,10 @@
               If the browser shows the script code instead of running it, open
               the <code>OFEM</code> folder in Finder and double-click
               <code>addtodatabase.command</code> manually.
+            </li>
+            <li class="note">
+              Run <code>addtodatabase.command</code> each time new migrations
+              are added to the project.
             </li>
           </ol>
         </div>
