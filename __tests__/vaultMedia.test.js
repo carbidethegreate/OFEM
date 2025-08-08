@@ -15,6 +15,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   mockAxios.get.mockReset();
+  mockAxios.post.mockReset();
 });
 
 test('GET /api/vault-media retrieves all pages', async () => {
@@ -31,11 +32,28 @@ test('GET /api/vault-media retrieves all pages', async () => {
   expect(mockAxios.get).toHaveBeenNthCalledWith(3, '/acc1/media/vault', {
     params: { limit: 100, offset: 100 },
   });
-  expect(res.body).toEqual({ media: [{ id: 'm1' }, { id: 'm2' }] });
+  expect(res.body).toEqual([{ id: 'm1' }, { id: 'm2' }]);
 });
 
 test('GET /api/vault-media handles errors', async () => {
   mockAxios.get.mockRejectedValue(new Error('fail'));
   const res = await request(app).get('/api/vault-media').expect(500);
   expect(res.body).toEqual({ error: 'Failed to fetch vault media' });
+});
+
+test('POST /api/vault-media uploads files', async () => {
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValueOnce({ data: { id: 'm1' } });
+
+  const res = await request(app)
+    .post('/api/vault-media')
+    .attach('media', Buffer.from('file'), 'file.jpg')
+    .expect(200);
+
+  expect(mockAxios.post).toHaveBeenCalledWith(
+    '/acc1/media/upload',
+    expect.anything(),
+    expect.objectContaining({ headers: expect.any(Object) }),
+  );
+  expect(res.body).toEqual({ mediaIds: ['m1'] });
 });

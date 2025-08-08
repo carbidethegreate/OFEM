@@ -78,7 +78,7 @@
           <ol>
             <li>
               Click the button below to install Node.js (LTS) in this folder and
-              download all required npm packages.
+              download all required npm packages, including multer for media uploads.
             </li>
             <li class="mt-sm">
               <button
@@ -255,6 +255,25 @@
           <ol>
             <li>
               Double‑click <code>start.command</code> to launch the server.
+            </li>
+          </ol>
+        </div>
+      </li>
+      <li>
+        <div class="card">
+          <div class="card-header">
+            <i class="fa-solid fa-cloud-arrow-up step-icon"></i
+            ><strong>Verify Upload Route</strong>
+          </div>
+          <ol>
+            <li>
+              With the server running, open Terminal and run:
+            </li>
+            <li class="mt-sm">
+              <code>curl -F "media=@example.jpg" http://localhost:3000/api/vault-media</code>
+            </li>
+            <li class="note">
+              Replace <code>example.jpg</code> with a real file; an array of media IDs should be returned.
             </li>
           </ol>
         </div>
