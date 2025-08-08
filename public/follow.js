@@ -45,6 +45,13 @@
     });
     const btn = global.document.getElementById('followBtn');
     if (btn) btn.disabled = unfollowed.length === 0;
+    const statusMsg = global.document.getElementById('statusMsg');
+    if (statusMsg) {
+      statusMsg.textContent =
+        unfollowed.length === 0
+          ? 'No fans to follow. Try running /api/refreshFans.'
+          : '';
+    }
   }
 
   function setStatusDot(id, color) {
