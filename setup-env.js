@@ -38,9 +38,7 @@ async function main() {
 
   let onlyfansKey = '';
   while (!onlyfansKey) {
-    onlyfansKey = await prompt(
-      'Enter your OnlyFans API Key (required): ',
-    );
+    onlyfansKey = await prompt('Enter your OnlyFans API Key (required): ');
     if (!onlyfansKey)
       console.log(
         'ONLYFANS_API_KEY is required to make OnlyFans API requests.',
@@ -105,7 +103,7 @@ async function main() {
   console.log(
     'API keys saved. Database credentials and server port saved (default 3000).',
   );
-  console.log('Next run setup-db.command to create the database.');
+  console.log('Next run `npm run setup-db` to create the database.');
 }
 
 main();

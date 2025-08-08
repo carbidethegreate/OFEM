@@ -218,7 +218,7 @@ async function main() {
     console.log(`   DB_USER=${dbUser}`);
     console.log(`   DB_PASSWORD=${dbPassword}`);
     console.log(
-      'Add your API keys to .env and run ./start.command to launch the app.',
+      'Add your API keys to .env and run `npm run start` to launch the app.',
     );
   } catch (err) {
     console.error('❌ Setup failed:', err.message || err);
