@@ -68,6 +68,20 @@ async function tableExists(tableName) {
 function getMissingEnvVars(list = REQUIRED_ENV_VARS) {
   return list.filter((v) => !process.env[v]);
 }
+
+async function verifyOnlyFansToken() {
+  try {
+    await ofApi.get('/accounts');
+  } catch (err) {
+    const status = err.response?.status;
+    const msg =
+      status === 401
+        ? 'Invalid ONLYFANS_API_KEY: authorization failed.'
+        : `Unable to reach OnlyFans API: ${err.message}`;
+    console.error(msg);
+    process.exit(1);
+  }
+}
 const MAX_OF_BACKOFF_MS = 32000;
 let ofBackoffDelayMs = 1000;
 /**
@@ -551,10 +565,20 @@ async function initScheduling() {
 }
 
 if (require.main === module) {
-  app.listen(port, () => {
-    console.log(`OFEM server listening on http://localhost:${port}`);
-  });
-  initScheduling();
+  (async () => {
+    const missing = getMissingEnvVars(['ONLYFANS_API_KEY']);
+    if (missing.length) {
+      console.error(
+        `Missing environment variable(s): ${missing.join(', ')}`,
+      );
+      process.exit(1);
+    }
+    await verifyOnlyFansToken();
+    app.listen(port, () => {
+      console.log(`OFEM server listening on http://localhost:${port}`);
+    });
+    initScheduling();
+  })();
 }
 
 // Export app for testing

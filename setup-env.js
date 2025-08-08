@@ -36,9 +36,16 @@ async function main() {
 
   let envContent = fs.readFileSync(envPath, 'utf8');
 
-  const onlyfansKey = await prompt(
-    'Enter your OnlyFans API Key (leave blank to skip): ',
-  );
+  let onlyfansKey = '';
+  while (!onlyfansKey) {
+    onlyfansKey = await prompt(
+      'Enter your OnlyFans API Key (required): ',
+    );
+    if (!onlyfansKey)
+      console.log(
+        'ONLYFANS_API_KEY is required to make OnlyFans API requests.',
+      );
+  }
   const openaiKey = await prompt(
     'Enter your OpenAI API Key (leave blank to skip): ',
   );
