@@ -93,6 +93,28 @@ The `/api/status` endpoint reports whether each variable has been configured.
    server. On other systems run `./predeploy.command` or `node migrate_all.js`
    before `npm start` to ensure the database schema is current.
 
+## Docker
+
+A `Dockerfile` and `docker-compose.yml` are included for containerised
+development.
+
+1. **Build the image**
+
+   ```bash
+   docker build -t ofem-app .
+   ```
+
+2. **Run the app and database**
+
+   Ensure `ONLYFANS_API_KEY` and `OPENAI_API_KEY` are set in your environment
+   and then start the services:
+
+   ```bash
+   docker compose up --build
+   ```
+
+   The server will be available at <http://localhost:3000>.
+
 ## Fan Fields Migration and New Columns
 
 Run the migration scripts below to ensure your database includes all of the latest fan
