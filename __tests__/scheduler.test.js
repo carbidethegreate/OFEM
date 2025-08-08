@@ -74,9 +74,15 @@ afterEach(() => {
 });
 
 test('recurring PPVs send once per fan per month across cycles', async () => {
-  await mockPool.query(`INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE), (2, TRUE, TRUE);`);
-  await mockPool.query(`INSERT INTO ppv_sets (id, description, price, schedule_day, schedule_time) VALUES (1, 'desc', 5, 15, '10:00');`);
-  await mockPool.query(`INSERT INTO ppv_media (ppv_id, media_id, is_preview) VALUES (1, 100, FALSE);`);
+  await mockPool.query(
+    `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE), (2, TRUE, TRUE);`,
+  );
+  await mockPool.query(
+    `INSERT INTO ppv_sets (id, description, price, schedule_day, schedule_time) VALUES (1, 'desc', 5, 15, '10:00');`,
+  );
+  await mockPool.query(
+    `INSERT INTO ppv_media (ppv_id, media_id, is_preview) VALUES (1, 100, FALSE);`,
+  );
 
   jest.useFakeTimers();
   const sendSpy = jest.fn().mockResolvedValue();

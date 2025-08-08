@@ -1,58 +1,64 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <title>Scheduled Message Queue</title>
-  <link rel="stylesheet" href="css/app.css">
-</head>
-<body>
-  <header class="site-header">
-    <nav class="nav-bar">
-      <a href="index.html">Dashboard</a>
-      <a href="ppv.html">PPV Manager</a>
-      <a href="history.html">Message History</a>
-      <a href="queue.html">Scheduled Queue</a>
-    </nav>
-  </header>
-  <h1>Scheduled Message Queue</h1>
-  <button id="refreshBtn" class="btn btn-secondary">Refresh</button>
-  <table id="queueTable" class="form-table">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Message</th>
-        <th>Scheduled Time</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-  <div id="editModal" class="modal">
-    <div class="modal-content">
-      <h2>Edit Scheduled Message</h2>
-      <form id="editForm">
-        <label>Message
-          <textarea id="editBody" class="form-input"></textarea>
-        </label>
-        <label class="mt-5">Schedule Time
-          <input type="datetime-local" id="editTime" class="form-input">
-        </label>
-        <label class="mt-5">Greeting
-          <input type="text" id="editGreeting" class="form-input">
-        </label>
-        <label class="mt-5">Price
-          <input type="number" id="editPrice" class="form-input">
-        </label>
-        <label class="mt-5">
-          <input type="checkbox" id="editLocked"> Lock message
-        </label>
-        <div class="mt-10">
-          <button type="submit" class="btn btn-primary">Save</button>
-          <button type="button" id="editCancel" class="btn btn-secondary">Cancel</button>
-        </div>
-      </form>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Scheduled Message Queue</title>
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav-bar">
+        <a href="index.html">Dashboard</a>
+        <a href="ppv.html">PPV Manager</a>
+        <a href="history.html">Message History</a>
+        <a href="queue.html">Scheduled Queue</a>
+      </nav>
+    </header>
+    <h1>Scheduled Message Queue</h1>
+    <button id="refreshBtn" class="btn btn-secondary">Refresh</button>
+    <table id="queueTable" class="form-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Message</th>
+          <th>Scheduled Time</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div id="editModal" class="modal">
+      <div class="modal-content">
+        <h2>Edit Scheduled Message</h2>
+        <form id="editForm">
+          <label
+            >Message
+            <textarea id="editBody" class="form-input"></textarea>
+          </label>
+          <label class="mt-5"
+            >Schedule Time
+            <input type="datetime-local" id="editTime" class="form-input" />
+          </label>
+          <label class="mt-5"
+            >Greeting
+            <input type="text" id="editGreeting" class="form-input" />
+          </label>
+          <label class="mt-5"
+            >Price
+            <input type="number" id="editPrice" class="form-input" />
+          </label>
+          <label class="mt-5">
+            <input type="checkbox" id="editLocked" /> Lock message
+          </label>
+          <div class="mt-10">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" id="editCancel" class="btn btn-secondary">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
-  </div>
-  <script src="queue.js"></script>
-</body>
+    <script src="queue.js"></script>
+  </body>
 </html>

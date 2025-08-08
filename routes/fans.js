@@ -1,4 +1,4 @@
-const express = require("express");
+const express = require('express');
 
 module.exports = function ({
   getOFAccountId,
@@ -16,25 +16,25 @@ module.exports = function ({
 }) {
   const router = express.Router();
 
-  router.post("/refreshFans", async (req, res) => {
+  router.post('/refreshFans', async (req, res) => {
     const missing = [];
-    if (!process.env.ONLYFANS_API_KEY) missing.push("ONLYFANS_API_KEY");
+    if (!process.env.ONLYFANS_API_KEY) missing.push('ONLYFANS_API_KEY');
     if (missing.length) {
       return res.status(400).json({
-        error: `Missing environment variable(s): ${missing.join(", ")}`,
+        error: `Missing environment variable(s): ${missing.join(', ')}`,
       });
     }
 
     try {
       const accountId = await getOFAccountId(true);
 
-      const validFilters = new Set(["all", "active", "expired"]);
+      const validFilters = new Set(['all', 'active', 'expired']);
       const rawFilter = (
         req.query.filter ||
         process.env.OF_FAN_FILTER ||
-        "all"
+        'all'
       ).toLowerCase();
-      const filter = validFilters.has(rawFilter) ? rawFilter : "all";
+      const filter = validFilters.has(rawFilter) ? rawFilter : 'all';
 
       const limit = 32;
       const fetchPaged = async (endpoint) => {
@@ -64,7 +64,7 @@ module.exports = function ({
             const status = err.response?.status;
             if (status === 429) throw err;
             console.warn(
-              `Fetch ${endpoint} failed at offset ${offset} (status ${status || "unknown"}). Returning partial results.`,
+              `Fetch ${endpoint} failed at offset ${offset} (status ${status || 'unknown'}). Returning partial results.`,
             );
             break;
           }
@@ -86,7 +86,7 @@ module.exports = function ({
       );
 
       const dbRes = await pool.query(
-        "SELECT id, parker_name, is_custom FROM fans",
+        'SELECT id, parker_name, is_custom FROM fans',
       );
       const existingFans = {};
       for (const row of dbRes.rows) {
@@ -98,8 +98,8 @@ module.exports = function ({
 
       const processFan = async (fan) => {
         const fanId = fan.id.toString();
-        const username = fan.username || "";
-        const profileName = fan.name || "";
+        const username = fan.username || '';
+        const profileName = fan.name || '';
         const {
           avatar = null,
           header = null,
@@ -144,7 +144,7 @@ module.exports = function ({
         const parseTimestamp = (value) => {
           if (value === null || value === undefined) return null;
           const date =
-            typeof value === "number"
+            typeof value === 'number'
               ? new Date(value * 1000)
               : new Date(value);
           return isNaN(date.getTime()) ? null : date.toISOString();
@@ -356,43 +356,43 @@ $40,$41,$42,$43
         await processFan(fan);
       }
 
-      console.log("RefreshFans: Completed updating fan records.");
-      const all = await pool.query("SELECT * FROM fans");
+      console.log('RefreshFans: Completed updating fan records.');
+      const all = await pool.query('SELECT * FROM fans');
       res.json({ fans: all.rows });
     } catch (err) {
-      console.error("Error in /api/refreshFans:", sanitizeError(err));
+      console.error('Error in /api/refreshFans:', sanitizeError(err));
       const status =
         err.status ||
-        (err.message && err.message.includes("No OnlyFans account")
+        (err.message && err.message.includes('No OnlyFans account')
           ? 400
           : 500);
       const message =
         status === 429
-          ? "OnlyFans API rate limit exceeded. Please try again later."
-          : err.message || "Failed to refresh fan list.";
+          ? 'OnlyFans API rate limit exceeded. Please try again later.'
+          : err.message || 'Failed to refresh fan list.';
       res.status(status).json({ error: message });
     }
   });
 
   let parkerUpdateInProgress = false;
 
-  router.get("/updateParkerNames/status", (req, res) => {
+  router.get('/updateParkerNames/status', (req, res) => {
     res.json({ inProgress: parkerUpdateInProgress });
   });
 
-  router.post("/updateParkerNames", async (req, res) => {
+  router.post('/updateParkerNames', async (req, res) => {
     const missing = [];
-    if (!process.env.OPENAI_API_KEY) missing.push("OPENAI_API_KEY");
+    if (!process.env.OPENAI_API_KEY) missing.push('OPENAI_API_KEY');
     if (missing.length) {
       return res.status(400).json({
-        error: `Missing environment variable(s): ${missing.join(", ")}`,
+        error: `Missing environment variable(s): ${missing.join(', ')}`,
       });
     }
 
     if (parkerUpdateInProgress) {
       return res
         .status(409)
-        .json({ error: "Parker name update already in progress." });
+        .json({ error: 'Parker name update already in progress.' });
     }
 
     parkerUpdateInProgress = true;
@@ -400,10 +400,10 @@ $40,$41,$42,$43
     (async () => {
       try {
         const dbRes = await pool.query(
-          "SELECT id, username, name, parker_name, is_custom FROM fans",
+          'SELECT id, username, name, parker_name, is_custom FROM fans',
         );
         const toProcess = dbRes.rows.filter(
-          (f) => (!f.parker_name || f.parker_name === "") && !f.is_custom,
+          (f) => (!f.parker_name || f.parker_name === '') && !f.is_custom,
         );
 
         const systemPrompt = `You are Parker’s conversational assistant. Decide how to address a subscriber by evaluating their username and profile name.
@@ -420,23 +420,23 @@ Respond with only the chosen name.`;
 
         const processFan = async (fan) => {
           const fanId = fan.id;
-          const username = fan.username || "";
-          const profileName = fan.name || "";
+          const username = fan.username || '';
+          const profileName = fan.name || '';
 
           try {
             let parkerName;
             if (isSystemGenerated(username, profileName)) {
-              parkerName = "Cuddles";
+              parkerName = 'Cuddles';
             } else {
               const userPrompt = `Subscriber username: "${username}". Profile name: "${profileName}". What should be the display name?`;
               const completion = await openaiRequest(() =>
                 openaiAxios.post(
-                  "https://api.openai.com/v1/chat/completions",
+                  'https://api.openai.com/v1/chat/completions',
                   {
                     model: OPENAI_MODEL,
                     messages: [
-                      { role: "system", content: systemPrompt },
-                      { role: "user", content: userPrompt },
+                      { role: 'system', content: systemPrompt },
+                      { role: 'user', content: userPrompt },
                     ],
                     max_tokens: 10,
                     temperature: 0.3,
@@ -465,7 +465,7 @@ Respond with only the chosen name.`;
             }
 
             await pool.query(
-              "UPDATE fans SET parker_name=$2, is_custom=false, updatedAt=NOW() WHERE id=$1",
+              'UPDATE fans SET parker_name=$2, is_custom=false, updatedAt=NOW() WHERE id=$1',
               [fanId, parkerName],
             );
           } catch (err) {
@@ -484,12 +484,12 @@ Respond with only the chosen name.`;
 
         if (failedFanIds.length > 0) {
           console.log(
-            "Failed to update Parker names for fan IDs:",
+            'Failed to update Parker names for fan IDs:',
             failedFanIds,
           );
         }
       } catch (err) {
-        console.error("Error in /api/updateParkerNames:", sanitizeError(err));
+        console.error('Error in /api/updateParkerNames:', sanitizeError(err));
       } finally {
         parkerUpdateInProgress = false;
       }
@@ -498,20 +498,20 @@ Respond with only the chosen name.`;
     res.json({ started: true });
   });
 
-  router.put("/fans/:id", async (req, res) => {
+  router.put('/fans/:id', async (req, res) => {
     try {
       const fanId = req.params.id;
       const rawName = req.body.parker_name;
       if (!fanId || !rawName) {
-        return res.status(400).json({ error: "Missing fan id or name." });
+        return res.status(400).json({ error: 'Missing fan id or name.' });
       }
       const sanitized = removeEmojis(rawName).trim();
-      const checked = ensureValidParkerName(sanitized, "", "");
+      const checked = ensureValidParkerName(sanitized, '', '');
       if (checked !== sanitized) {
-        return res.status(400).json({ error: "Invalid Parker name." });
+        return res.status(400).json({ error: 'Invalid Parker name.' });
       }
       await pool.query(
-        "UPDATE fans SET parker_name=$1, is_custom=$2 WHERE id=$3",
+        'UPDATE fans SET parker_name=$1, is_custom=$2 WHERE id=$3',
         [checked, true, fanId],
       );
       console.log(
@@ -519,12 +519,12 @@ Respond with only the chosen name.`;
       );
       res.json({ success: true });
     } catch (err) {
-      console.error("Error in /api/fans/:id PUT:", sanitizeError(err));
-      res.status(500).json({ error: "Failed to update name." });
+      console.error('Error in /api/fans/:id PUT:', sanitizeError(err));
+      res.status(500).json({ error: 'Failed to update name.' });
     }
   });
 
-  router.get("/fans", async (req, res) => {
+  router.get('/fans', async (req, res) => {
     try {
       const dbRes = await pool.query(`
 SELECT
@@ -576,27 +576,27 @@ FROM fans
 ORDER BY id`);
       res.json({ fans: dbRes.rows });
     } catch (err) {
-      console.error("Error in GET /api/fans:", sanitizeError(err));
-      res.status(500).json({ error: "Failed to retrieve fans." });
+      console.error('Error in GET /api/fans:', sanitizeError(err));
+      res.status(500).json({ error: 'Failed to retrieve fans.' });
     }
   });
 
-  router.get("/fans/unfollowed", async (req, res) => {
+  router.get('/fans/unfollowed', async (req, res) => {
     try {
       const dbRes = await pool.query(
-        "SELECT id, username FROM fans WHERE isSubscribed = FALSE ORDER BY id",
+        'SELECT id, username FROM fans WHERE isSubscribed = FALSE ORDER BY id',
       );
       res.json({ fans: dbRes.rows });
     } catch (err) {
-      console.error("Error in GET /api/fans/unfollowed:", sanitizeError(err));
-      res.status(500).json({ error: "Failed to retrieve unfollowed fans." });
+      console.error('Error in GET /api/fans/unfollowed:', sanitizeError(err));
+      res.status(500).json({ error: 'Failed to retrieve unfollowed fans.' });
     }
   });
 
-  router.post("/fans/:id/follow", async (req, res) => {
+  router.post('/fans/:id/follow', async (req, res) => {
     try {
       const fanId = req.params.id;
-      if (!fanId) return res.status(400).json({ error: "Missing fan id." });
+      if (!fanId) return res.status(400).json({ error: 'Missing fan id.' });
       let accountId;
       try {
         accountId = await getOFAccountId();
@@ -607,16 +607,16 @@ ORDER BY id`);
       await ofApiRequest(() =>
         ofApi.post(`/${accountId}/users/${fanId}/follow`),
       );
-      await pool.query("UPDATE fans SET isSubscribed = TRUE WHERE id=$1", [
+      await pool.query('UPDATE fans SET isSubscribed = TRUE WHERE id=$1', [
         fanId,
       ]);
       res.json({ success: true });
     } catch (err) {
-      console.error("Error in POST /api/fans/:id/follow:", sanitizeError(err));
+      console.error('Error in POST /api/fans/:id/follow:', sanitizeError(err));
       const status = err.status || err.response?.status;
       const message =
         status === 429
-          ? "OnlyFans API rate limit exceeded. Please try again later."
+          ? 'OnlyFans API rate limit exceeded. Please try again later.'
           : err.response
             ? err.response.statusText || err.response.data
             : err.message;
@@ -624,7 +624,7 @@ ORDER BY id`);
     }
   });
 
-  router.post("/fans/followAll", async (req, res) => {
+  router.post('/fans/followAll', async (req, res) => {
     let accountId;
     try {
       accountId = await getOFAccountId();
@@ -635,17 +635,17 @@ ORDER BY id`);
     let fans;
     try {
       const dbRes = await pool.query(
-        "SELECT id, username FROM fans WHERE isSubscribed = FALSE ORDER BY id",
+        'SELECT id, username FROM fans WHERE isSubscribed = FALSE ORDER BY id',
       );
       fans = dbRes.rows;
     } catch (err) {
-      console.error("Error in POST /api/fans/followAll:", sanitizeError(err));
-      return res.status(500).json({ error: "Failed to fetch fans." });
+      console.error('Error in POST /api/fans/followAll:', sanitizeError(err));
+      return res.status(500).json({ error: 'Failed to fetch fans.' });
     }
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
     if (res.flushHeaders) res.flushHeaders();
 
     for (const fan of fans) {
@@ -653,7 +653,7 @@ ORDER BY id`);
         await ofApiRequest(() =>
           ofApi.post(`/${accountId}/users/${fan.id}/follow`),
         );
-        await pool.query("UPDATE fans SET isSubscribed = TRUE WHERE id=$1", [
+        await pool.query('UPDATE fans SET isSubscribed = TRUE WHERE id=$1', [
           fan.id,
         ]);
         res.write(

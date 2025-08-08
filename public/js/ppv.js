@@ -1,4 +1,4 @@
-(function() {
+(function () {
   async function fetchPpvs() {
     try {
       const res = await fetch('/api/ppv');
@@ -47,15 +47,18 @@
       const res = await fetch('/api/vault-media');
       if (!res.ok) return;
       const data = await res.json();
-      const items = Array.isArray(data) ? data : (data.list || data.results || data.media || data.data || []);
+      const items = Array.isArray(data)
+        ? data
+        : data.list || data.results || data.media || data.data || [];
       const container = document.getElementById('vaultMediaList');
       container.innerHTML = '';
       for (const m of items) {
         const div = document.createElement('div');
         div.className = 'media-item';
 
-        const thumb = (m.preview && (m.preview.url || m.preview.src)) ||
-                      (m.thumb && (m.thumb.url || m.thumb.src));
+        const thumb =
+          (m.preview && (m.preview.url || m.preview.src)) ||
+          (m.thumb && (m.thumb.url || m.thumb.src));
         if (thumb) {
           const img = document.createElement('img');
           img.src = thumb;
@@ -98,8 +101,12 @@
     const ppvNumber = parseInt(document.getElementById('ppvNumber').value, 10);
     const description = document.getElementById('description').value.trim();
     const price = parseFloat(document.getElementById('price').value);
-    const mediaFiles = Array.from(document.querySelectorAll('.mediaCheckbox:checked')).map(cb => Number(cb.value));
-    const previews = Array.from(document.querySelectorAll('.previewCheckbox:checked')).map(cb => Number(cb.value));
+    const mediaFiles = Array.from(
+      document.querySelectorAll('.mediaCheckbox:checked'),
+    ).map((cb) => Number(cb.value));
+    const previews = Array.from(
+      document.querySelectorAll('.previewCheckbox:checked'),
+    ).map((cb) => Number(cb.value));
     const scheduleDayVal = document.getElementById('scheduleDay').value;
     const scheduleTime = document.getElementById('scheduleTime').value;
     const scheduleDay = scheduleDayVal ? parseInt(scheduleDayVal, 10) : null;
@@ -107,7 +114,15 @@
       const res = await fetch('/api/ppv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ppvNumber, description, price, mediaFiles, previews, scheduleDay, scheduleTime })
+        body: JSON.stringify({
+          ppvNumber,
+          description,
+          price,
+          mediaFiles,
+          previews,
+          scheduleDay,
+          scheduleTime,
+        }),
       });
       const result = await res.json();
       if (res.ok) {
@@ -142,8 +157,9 @@
 
   window.deletePpv = deletePpv;
 
-  document.getElementById('loadVaultBtn').addEventListener('click', loadVaultMedia);
+  document
+    .getElementById('loadVaultBtn')
+    .addEventListener('click', loadVaultMedia);
   document.getElementById('saveBtn').addEventListener('click', savePpv);
   fetchPpvs();
 })();
-

@@ -61,13 +61,12 @@ CREATE TABLE fans (
 );
 `;
 
-
 let app;
 
 async function runParkerUpdate() {
   const res = await request(app).post('/api/updateParkerNames').expect(200);
   expect(res.body.started).toBe(true);
-  await new Promise(r => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
 }
 
 beforeAll(async () => {
@@ -95,7 +94,7 @@ test('inserts and retrieves fan with new columns', async () => {
     lastSeen: ts,
     isSubscribed: false,
     tipsSum: 100,
-    avatarThumbs: { foo: 1 }
+    avatarThumbs: { foo: 1 },
   };
 
   mockAxios.get
@@ -110,7 +109,7 @@ test('inserts and retrieves fan with new columns', async () => {
   expect(refreshRes.body.fans[0].parker_name).toBeNull();
 
   mockAxios.post.mockResolvedValueOnce({
-    data: { choices: [{ message: { content: 'Alice' } }] }
+    data: { choices: [{ message: { content: 'Alice' } }] },
   });
 
   await runParkerUpdate();
@@ -127,7 +126,7 @@ test('inserts and retrieves fan with new columns', async () => {
     tipsSum: 100,
     avatarThumbs: { foo: 1 },
     parker_name: 'Alice',
-    is_custom: false
+    is_custom: false,
   });
   expect(fan.lastSeen).toBe(iso);
 });
@@ -143,7 +142,7 @@ test('updates existing fan fields', async () => {
     lastSeen: ts,
     isSubscribed: false,
     tipsSum: 100,
-    avatarThumbs: { foo: 1 }
+    avatarThumbs: { foo: 1 },
   };
   const fanData2 = {
     ...fanData1,
@@ -151,11 +150,11 @@ test('updates existing fan fields', async () => {
     website: 'https://new.example.com',
     isSubscribed: true,
     tipsSum: 200,
-    avatarThumbs: { foo: 2 }
+    avatarThumbs: { foo: 2 },
   };
 
   mockAxios.post.mockResolvedValueOnce({
-    data: { choices: [{ message: { content: 'Alice' } }] }
+    data: { choices: [{ message: { content: 'Alice' } }] },
   });
 
   mockAxios.get
@@ -181,7 +180,7 @@ test('updates existing fan fields', async () => {
   expect(updateRes.body.fans[0]).toMatchObject({
     avatar: 'avatar2',
     website: 'https://new.example.com',
-    parker_name: 'Alice'
+    parker_name: 'Alice',
   });
 
   const res = await request(app).get('/api/fans').expect(200);
@@ -193,7 +192,7 @@ test('updates existing fan fields', async () => {
     isSubscribed: true,
     tipsSum: 200,
     avatarThumbs: { foo: 2 },
-    parker_name: 'Alice'
+    parker_name: 'Alice',
   });
 });
 
@@ -210,51 +209,76 @@ test('upserts followings with Parker names', async () => {
 
   const refreshRes = await request(app).post('/api/refreshFans').expect(200);
   expect(refreshRes.body.fans).toHaveLength(2);
-  expect(refreshRes.body.fans.every(f => f.parker_name === null)).toBe(true);
+  expect(refreshRes.body.fans.every((f) => f.parker_name === null)).toBe(true);
 
   mockAxios.post
-    .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Alice' } }] } })
-    .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Bob' } }] } });
+    .mockResolvedValueOnce({
+      data: { choices: [{ message: { content: 'Alice' } }] },
+    })
+    .mockResolvedValueOnce({
+      data: { choices: [{ message: { content: 'Bob' } }] },
+    });
 
   await runParkerUpdate();
 
   const res = await request(app).get('/api/fans').expect(200);
   expect(res.body.fans).toHaveLength(2);
-  const fanDb = res.body.fans.find(f => f.id === 1);
-  const followingDb = res.body.fans.find(f => f.id === 2);
+  const fanDb = res.body.fans.find((f) => f.id === 1);
+  const followingDb = res.body.fans.find((f) => f.id === 2);
   expect(fanDb.parker_name).toBe('Alice');
   expect(followingDb.parker_name).toBe('Bob');
 });
 
 test('merges fans and followings without duplication', async () => {
-  const fanData = { id: 1, username: 'user1', name: 'Profile One', avatar: 'a1', isSubscribed: false };
+  const fanData = {
+    id: 1,
+    username: 'user1',
+    name: 'Profile One',
+    avatar: 'a1',
+    isSubscribed: false,
+  };
   const followingDuplicate = { ...fanData, avatar: 'a2', isSubscribed: true };
-  const followingData = { id: 2, username: 'user2', name: 'Profile Two', avatar: 'b1' };
+  const followingData = {
+    id: 2,
+    username: 'user2',
+    name: 'Profile Two',
+    avatar: 'b1',
+  };
 
   mockAxios.get
     .mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } })
     .mockResolvedValueOnce({ data: { data: { list: [fanData] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } })
-    .mockResolvedValueOnce({ data: { data: { list: [followingDuplicate, followingData] } } })
+    .mockResolvedValueOnce({
+      data: { data: { list: [followingDuplicate, followingData] } },
+    })
     .mockResolvedValueOnce({ data: { data: { list: [] } } });
 
   const refreshRes = await request(app).post('/api/refreshFans').expect(200);
   expect(refreshRes.body.fans).toHaveLength(2);
-  expect(refreshRes.body.fans.every(f => f.parker_name === null)).toBe(true);
+  expect(refreshRes.body.fans.every((f) => f.parker_name === null)).toBe(true);
 
   mockAxios.post
-    .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Alice' } }] } })
-    .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Bob' } }] } });
+    .mockResolvedValueOnce({
+      data: { choices: [{ message: { content: 'Alice' } }] },
+    })
+    .mockResolvedValueOnce({
+      data: { choices: [{ message: { content: 'Bob' } }] },
+    });
 
   await runParkerUpdate();
 
   const res = await request(app).get('/api/fans').expect(200);
   expect(res.body.fans).toHaveLength(2);
-  const fanDb = res.body.fans.find(f => f.id === 1);
-  const followingDb = res.body.fans.find(f => f.id === 2);
-  expect(fanDb).toMatchObject({ avatar: 'a2', isSubscribed: true, parker_name: 'Alice' });
+  const fanDb = res.body.fans.find((f) => f.id === 1);
+  const followingDb = res.body.fans.find((f) => f.id === 2);
+  expect(fanDb).toMatchObject({
+    avatar: 'a2',
+    isSubscribed: true,
+    parker_name: 'Alice',
+  });
   expect(followingDb).toMatchObject({ username: 'user2', parker_name: 'Bob' });
-  expect(res.body.fans.filter(f => f.id === 1)).toHaveLength(1);
+  expect(res.body.fans.filter((f) => f.id === 1)).toHaveLength(1);
 });
 
 test('fetches active fans and followings when filter is active', async () => {
@@ -268,13 +292,19 @@ test('fetches active fans and followings when filter is active', async () => {
     .mockResolvedValueOnce({ data: { data: { list: [followingData] } } })
     .mockResolvedValueOnce({ data: { data: { list: [] } } });
 
-  const refreshRes = await request(app).post('/api/refreshFans?filter=active').expect(200);
+  const refreshRes = await request(app)
+    .post('/api/refreshFans?filter=active')
+    .expect(200);
   expect(refreshRes.body.fans).toHaveLength(2);
-  expect(refreshRes.body.fans.every(f => f.parker_name === null)).toBe(true);
+  expect(refreshRes.body.fans.every((f) => f.parker_name === null)).toBe(true);
 
   mockAxios.post
-    .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Alice' } }] } })
-    .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Bob' } }] } });
+    .mockResolvedValueOnce({
+      data: { choices: [{ message: { content: 'Alice' } }] },
+    })
+    .mockResolvedValueOnce({
+      data: { choices: [{ message: { content: 'Bob' } }] },
+    });
 
   await runParkerUpdate();
 
@@ -283,12 +313,15 @@ test('fetches active fans and followings when filter is active', async () => {
 
   const res = await request(app).get('/api/fans').expect(200);
   expect(res.body.fans).toHaveLength(2);
-  expect(res.body.fans.map(f => f.parker_name).sort()).toEqual(['Alice', 'Bob']);
+  expect(res.body.fans.map((f) => f.parker_name).sort()).toEqual([
+    'Alice',
+    'Bob',
+  ]);
 });
 
 test('retries OpenAI 500 errors and continues processing other fans', async () => {
   await pool.query(
-    `INSERT INTO fans (id, username, name) VALUES (1, 'user1', 'Profile One'), (2, 'user2', 'Profile Two')`
+    `INSERT INTO fans (id, username, name) VALUES (1, 'user1', 'Profile One'), (2, 'user2', 'Profile Two')`,
   );
 
   const counts = { user1: 0 };
@@ -297,20 +330,20 @@ test('retries OpenAI 500 errors and continues processing other fans', async () =
     if (prompt.includes('user1')) {
       counts.user1++;
       return Promise.reject({
-        response: { status: 500, headers: { 'retry-after': '0' } }
+        response: { status: 500, headers: { 'retry-after': '0' } },
       });
     }
     return Promise.resolve({
-      data: { choices: [{ message: { content: 'Bob' } }] }
+      data: { choices: [{ message: { content: 'Bob' } }] },
     });
   });
 
   await runParkerUpdate();
-  await new Promise(r => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
 
   const res = await request(app).get('/api/fans').expect(200);
-  const fan1 = res.body.fans.find(f => f.id === 1);
-  const fan2 = res.body.fans.find(f => f.id === 2);
+  const fan1 = res.body.fans.find((f) => f.id === 1);
+  const fan2 = res.body.fans.find((f) => f.id === 2);
   expect(fan1.parker_name).toBeNull();
   expect(fan2.parker_name).toBe('Bob');
   expect(counts.user1).toBeGreaterThan(1);
@@ -318,7 +351,7 @@ test('retries OpenAI 500 errors and continues processing other fans', async () =
 
 test('POST /api/fans/followAll streams progress and updates DB', async () => {
   await pool.query(
-    `INSERT INTO fans (id, username, isSubscribed) VALUES (1, 'user1', false), (2, 'user2', false)`
+    `INSERT INTO fans (id, username, isSubscribed) VALUES (1, 'user1', false), (2, 'user2', false)`,
   );
 
   mockAxios.get.mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } });
@@ -330,26 +363,32 @@ test('POST /api/fans/followAll streams progress and updates DB', async () => {
   expect(res.text).toContain('"id":2');
   expect(res.text).toContain('"done":true');
 
-  const dbRes = await pool.query('SELECT id, isSubscribed FROM fans ORDER BY id');
+  const dbRes = await pool.query(
+    'SELECT id, isSubscribed FROM fans ORDER BY id',
+  );
   expect(dbRes.rows).toEqual([
     { id: 1, issubscribed: true },
-    { id: 2, issubscribed: true }
+    { id: 2, issubscribed: true },
   ]);
 });
 
 test('updateParkerNames status endpoint reflects progress', async () => {
   await pool.query("INSERT INTO fans (id, username) VALUES (1, 'user1')");
 
-  mockAxios.post.mockImplementation(() =>
-    new Promise(resolve =>
-      setTimeout(
-        () => resolve({ data: { choices: [{ message: { content: 'Alice' } }] } }),
-        50
-      )
-    )
+  mockAxios.post.mockImplementation(
+    () =>
+      new Promise((resolve) =>
+        setTimeout(
+          () =>
+            resolve({ data: { choices: [{ message: { content: 'Alice' } }] } }),
+          50,
+        ),
+      ),
   );
 
-  const startRes = await request(app).post('/api/updateParkerNames').expect(200);
+  const startRes = await request(app)
+    .post('/api/updateParkerNames')
+    .expect(200);
   expect(startRes.body.started).toBe(true);
 
   const statusDuring = await request(app)
@@ -357,7 +396,7 @@ test('updateParkerNames status endpoint reflects progress', async () => {
     .expect(200);
   expect(statusDuring.body.inProgress).toBe(true);
 
-  await new Promise(r => setTimeout(r, 60));
+  await new Promise((r) => setTimeout(r, 60));
 
   const statusAfter = await request(app)
     .get('/api/updateParkerNames/status')

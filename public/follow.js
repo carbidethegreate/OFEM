@@ -1,14 +1,18 @@
-(function() {
+(function () {
   let unfollowed = [];
 
   function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, c => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    })[c]);
+    return String(str).replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        })[c],
+    );
   }
 
   async function loadUnfollowed() {
@@ -27,10 +31,15 @@
   function renderTable() {
     const tbody = document.getElementById('followTableBody');
     tbody.innerHTML = '';
-    unfollowed.forEach(fan => {
+    unfollowed.forEach((fan) => {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + escapeHtml(fan.username || '') + '</td>' +
-                     '<td id="status-' + fan.id + '"></td>';
+      tr.innerHTML =
+        '<td>' +
+        escapeHtml(fan.username || '') +
+        '</td>' +
+        '<td id="status-' +
+        fan.id +
+        '"></td>';
       tbody.appendChild(tr);
     });
     document.getElementById('followBtn').disabled = unfollowed.length === 0;
@@ -53,7 +62,7 @@
 
     const source = new EventSource('/api/fans/followAll');
 
-    source.onmessage = event => {
+    source.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data.done) {
@@ -64,7 +73,8 @@
         setStatusDot(data.id, data.success ? 'green' : 'red');
         processed++;
         if (data.success) success++;
-        document.getElementById('statusMsg').innerText = 'Followed ' + success + ' of ' + total;
+        document.getElementById('statusMsg').innerText =
+          'Followed ' + success + ' of ' + total;
         if (processed >= total) {
           source.close();
           document.getElementById('followBtn').disabled = false;
@@ -75,7 +85,7 @@
       }
     };
 
-    source.onerror = err => {
+    source.onerror = (err) => {
       console.error('SSE error', err);
       alert('Error following fans');
       source.close();

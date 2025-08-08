@@ -27,16 +27,16 @@ CREATE TABLE IF NOT EXISTS scheduled_messages (
 `;
 
 (async () => {
-    try {
-        await pool.query(createTableQuery);
-        console.log('✅ "scheduled_messages" table has been created/updated.');
-    } catch (err) {
-        console.error('Error running scheduled_messages migration:', err.message);
-        process.exitCode = 1;
-    } finally {
-        await pool.end();
-        if (process.exitCode) process.exit(process.exitCode);
-    }
+  try {
+    await pool.query(createTableQuery);
+    console.log('✅ "scheduled_messages" table has been created/updated.');
+  } catch (err) {
+    console.error('Error running scheduled_messages migration:', err.message);
+    process.exitCode = 1;
+  } finally {
+    await pool.end();
+    if (process.exitCode) process.exit(process.exitCode);
+  }
 })();
 
 /* End of File – Last modified 2025-08-06 */

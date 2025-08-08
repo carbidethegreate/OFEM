@@ -8,11 +8,17 @@ const allowedSpanClasses = [
   'm-editor-fs__lg',
   'm-editor-fc__gray',
   'm-editor-fc__blue-1',
-  'm-editor-fc__blue-2'
+  'm-editor-fc__blue-2',
 ];
 
 function getEditorHtml(input) {
-  const placeholders = ['{parker_name}', '{username}', '{location}', '{name}', '[name]'];
+  const placeholders = [
+    '{parker_name}',
+    '{username}',
+    '{location}',
+    '{name}',
+    '[name]',
+  ];
   const tokens = [];
   let safeInput = input;
   placeholders.forEach((ph, i) => {
@@ -24,11 +30,11 @@ function getEditorHtml(input) {
   let sanitized = sanitizeHtml(safeInput, {
     allowedTags: ['span', 'strong', 'em', 'br'],
     allowedAttributes: {
-      span: ['class']
+      span: ['class'],
     },
     allowedClasses: {
-      span: allowedSpanClasses
-    }
+      span: allowedSpanClasses,
+    },
   });
   tokens.forEach(({ token, ph }) => {
     sanitized = sanitized.split(token).join(ph);

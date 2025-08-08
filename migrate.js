@@ -5,9 +5,9 @@
 */
 
 const dotenv = require('dotenv');
-dotenv.config();  // Load environment variables (ensure .env is loaded for db.js)
+dotenv.config(); // Load environment variables (ensure .env is loaded for db.js)
 
-const pool = require('./db');  // Import the database pool from db.js
+const pool = require('./db'); // Import the database pool from db.js
 
 // Define the SQL query to create the "fans" table with required columns
 const createTableQuery = `
@@ -118,17 +118,17 @@ ALTER TABLE fans
 */
 
 (async () => {
-    try {
-        await pool.query(createTableQuery);
-        await pool.query(addColumnsQuery);
-        console.log('✅ "fans" table has been created/updated.');
-    } catch (err) {
-        console.error('Error running migration:', err.message);
-        process.exitCode = 1;
-    } finally {
-        await pool.end();
-        if (process.exitCode) process.exit(process.exitCode);
-    }
+  try {
+    await pool.query(createTableQuery);
+    await pool.query(addColumnsQuery);
+    console.log('✅ "fans" table has been created/updated.');
+  } catch (err) {
+    console.error('Error running migration:', err.message);
+    process.exitCode = 1;
+  } finally {
+    await pool.end();
+    if (process.exitCode) process.exit(process.exitCode);
+  }
 })();
 
 /* End of File – Last modified 2025-08-02 */
