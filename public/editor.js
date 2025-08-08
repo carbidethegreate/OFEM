@@ -81,19 +81,18 @@
     sel.addRange(range);
   }
 
-  global.applySize = applySize;
-  global.applyColor = applyColor;
-  global.applyBold = applyBold;
-  global.applyItalic = applyItalic;
-  global.insertPlaceholder = insertPlaceholder;
+  const Editor = {
+    applySize,
+    applyColor,
+    applyBold,
+    applyItalic,
+    insertPlaceholder,
+  };
+
+  global.App = global.App || {};
+  global.App.Editor = Editor;
 
   if (typeof module !== 'undefined') {
-    module.exports = {
-      applySize,
-      applyColor,
-      applyBold,
-      applyItalic,
-      insertPlaceholder,
-    };
+    module.exports = Editor;
   }
 })(typeof window !== 'undefined' ? window : global);

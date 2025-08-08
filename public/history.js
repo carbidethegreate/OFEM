@@ -88,13 +88,16 @@
     if (btn) btn.addEventListener('click', handleFetch);
   }
 
-  const api = {
+  const MessageHistory = {
     fetchMessageHistory,
     renderMessageHistory,
     handleFetch,
     populateFanSelect,
     init,
   };
-  if (typeof module !== 'undefined') module.exports = api;
-  else global.MessageHistory = api;
+
+  global.App = global.App || {};
+  global.App.MessageHistory = MessageHistory;
+
+  if (typeof module !== 'undefined') module.exports = MessageHistory;
 })(typeof window !== 'undefined' ? window : global);

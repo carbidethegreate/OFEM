@@ -52,7 +52,7 @@
     sendResults = Array.isArray(arr) ? arr : [];
   }
 
-  const api = {
+  const Results = {
     clearStatusDots,
     downloadResults,
     addResult,
@@ -61,13 +61,10 @@
     setSendResults,
   };
 
+  global.App = global.App || {};
+  global.App.Results = Results;
+
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = api;
-  } else {
-    global.clearStatusDots = clearStatusDots;
-    global.downloadResults = downloadResults;
-    global.addResult = addResult;
-    global.resultsToCSV = resultsToCSV;
-    global.OFEMResults = api;
+    module.exports = Results;
   }
 })(typeof window !== 'undefined' ? window : global);
