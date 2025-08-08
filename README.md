@@ -21,7 +21,7 @@ nicknames.
 
 - Node.js 22 LTS (v22.18.0)
 - PostgreSQL database accessible via `DATABASE_URL`
-- OnlyFans API key
+- OnlyFans API key (required)
 - OpenAI API key
 
 ## Setup
@@ -45,7 +45,7 @@ nicknames.
 
 The server reads the following variables from your environment or `.env` file:
 
-- `ONLYFANS_API_KEY` – authenticates requests to the OnlyFans API.
+- `ONLYFANS_API_KEY` – authenticates requests to the OnlyFans API. The server verifies this key at startup and exits if it is missing or invalid.
 - `OPENAI_API_KEY` – enables OpenAI GPT models for generating Parker names (required only
   for `/api/updateParkerNames`).
 - `OPENAI_MODEL` – OpenAI model to use for Parker name generation (default `gpt-4o-mini`).
