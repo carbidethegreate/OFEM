@@ -62,9 +62,11 @@ module.exports = function ({
             }
           } catch (err) {
             const status = err.response?.status;
-            if (status === 429) throw err;
+            if (status === 429 || status === 401 || status === 403) throw err;
             console.warn(
-              `Fetch ${endpoint} failed at offset ${offset} (status ${status || 'unknown'}). Returning partial results.`,
+              `Fetch ${endpoint} failed at offset ${offset} (status ${
+                status || 'unknown'
+              }). Returning partial results.`,
             );
             break;
           }
@@ -363,9 +365,17 @@ $40,$41,$42,$43
       console.error('Error in /api/refreshFans:', sanitizeError(err));
       const status =
         err.status ||
+        err.response?.status ||
         (err.message && err.message.includes('No OnlyFans account')
           ? 400
           : 500);
+
+      if (status === 401 || status === 403) {
+        return res
+          .status(401)
+          .json({ error: 'Invalid or expired OnlyFans API key.' });
+      }
+
       const message =
         status === 429
           ? 'OnlyFans API rate limit exceeded. Please try again later.'
