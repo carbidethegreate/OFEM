@@ -13,6 +13,7 @@ const scripts = [
   'migrate_scheduled_messages.js',
   'migrate_add_ppv_tables.js',
   'migrate_add_ppv_schedule_fields.js',
+  // PPV-related migrations
   'migrate_add_ppv_message_field.js',
   'migrate_add_ppv_sends.js',
 ];
@@ -30,4 +31,4 @@ for (const script of scripts) {
 
 console.log('✅ All migrations complete.');
 
-/* End of File – Last modified 2025-??-?? */
+/* End of File – Last modified 2025-08-08 */

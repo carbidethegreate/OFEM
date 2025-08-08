@@ -68,9 +68,11 @@ The `/api/status` endpoint reports whether each variable has been configured.
 
    When upgrading an existing database, remember to run
    `node migrate_add_fan_fields.js`, `node migrate_messages.js`,
-   `node migrate_scheduled_messages.js`, `node migrate_add_ppv_tables.js`, and
-   `node migrate_add_ppv_schedule_fields.js` to add any new columns and tables
-   that may be required.
+   `node migrate_scheduled_messages.js`, `node migrate_add_ppv_tables.js`,
+   `node migrate_add_ppv_schedule_fields.js`,
+   `node migrate_add_ppv_message_field.js`, and
+   `node migrate_add_ppv_sends.js` to add any new columns and tables that may be
+   required.
 
 4. **Start the server**
 
@@ -86,7 +88,10 @@ The `/api/status` endpoint reports whether each variable has been configured.
    ```
 
    You can also define `PORT` in your `.env` file. A convenience script
-   `start.command` (macOS) installs npm packages if required and then launches the server.
+   `start.command` (macOS) installs npm packages if required, runs
+   `predeploy.command` to apply database migrations, and then launches the
+   server. On other systems run `./predeploy.command` or `node migrate_all.js`
+   before `npm start` to ensure the database schema is current.
 
 ## Fan Fields Migration and New Columns
 
@@ -100,6 +105,8 @@ node migrate_messages.js
 node migrate_scheduled_messages.js
 node migrate_add_ppv_tables.js
 node migrate_add_ppv_schedule_fields.js
+node migrate_add_ppv_message_field.js
+node migrate_add_ppv_sends.js
 ```
 
 These scripts read connection details from your `.env` file. `migrate_add_fan_fields.js`
@@ -157,7 +164,8 @@ their purposes are:
 - `price` – media price
 - `created_at` – timestamp when the message was created
 
-Run `./addtodatabase.command` or `node migrate_all.js` to apply all migrations to an existing database in one step.
+Run `./addtodatabase.command`, `./predeploy.command`, or `node migrate_all.js` to
+apply all migrations to an existing database in one step.
 
 ## Usage
 
