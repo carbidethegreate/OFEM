@@ -1,12 +1,12 @@
-(function () {
+(function (global) {
   async function fetchPpvs() {
     try {
-      const res = await fetch('/api/ppv');
+      const res = await global.fetch('/api/ppv');
       if (!res.ok) return;
       const data = await res.json();
       renderPpvTable(data.ppvs || []);
     } catch (err) {
-      console.error('Error fetching PPVs:', err);
+      global.console.error('Error fetching PPVs:', err);
     }
   }
 
@@ -20,13 +20,14 @@
   }
 
   function renderPpvTable(ppvs) {
-    const tbody = document.getElementById('ppvTableBody');
+    const tbody = global.document.getElementById('ppvTableBody');
+    if (!tbody) return;
     tbody.innerHTML = '';
     for (const p of ppvs) {
       const day = p.scheduleDay != null ? p.scheduleDay : 'None';
       const time = p.scheduleTime ? formatTime(p.scheduleTime) : 'None';
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${p.ppv_number}</td><td>${p.description}</td><td>${p.price}</td><td>${day}</td><td>${time}</td><td><button class="btn btn-secondary" onclick="deletePpv(${p.id})">Delete</button></td>`;
+      const tr = global.document.createElement('tr');
+      tr.innerHTML = `<td>${p.ppv_number}</td><td>${p.description}</td><td>${p.price}</td><td>${day}</td><td>${time}</td><td><button class="btn btn-secondary" onclick="App.PPV.deletePpv(${p.id})">Delete</button></td>`;
       tbody.appendChild(tr);
     }
   }
@@ -44,34 +45,35 @@
 
   async function loadVaultMedia() {
     try {
-      const res = await fetch('/api/vault-media');
+      const res = await global.fetch('/api/vault-media');
       if (!res.ok) return;
       const data = await res.json();
       const items = Array.isArray(data)
         ? data
         : data.list || data.results || data.media || data.data || [];
-      const container = document.getElementById('vaultMediaList');
+      const container = global.document.getElementById('vaultMediaList');
+      if (!container) return;
       container.innerHTML = '';
       for (const m of items) {
-        const div = document.createElement('div');
+        const div = global.document.createElement('div');
         div.className = 'media-item';
 
         const thumb =
           (m.preview && (m.preview.url || m.preview.src)) ||
           (m.thumb && (m.thumb.url || m.thumb.src));
         if (thumb) {
-          const img = document.createElement('img');
+          const img = global.document.createElement('img');
           img.src = thumb;
           div.appendChild(img);
         }
 
-        const idSpan = document.createElement('span');
+        const idSpan = global.document.createElement('span');
         idSpan.className = 'media-id';
         idSpan.textContent = 'ID: ' + m.id;
         div.appendChild(idSpan);
 
-        const includeLabel = document.createElement('label');
-        const mediaCb = document.createElement('input');
+        const includeLabel = global.document.createElement('label');
+        const mediaCb = global.document.createElement('input');
         mediaCb.type = 'checkbox';
         mediaCb.className = 'mediaCheckbox';
         mediaCb.value = m.id;
@@ -79,8 +81,8 @@
         includeLabel.append(' Include');
         div.appendChild(includeLabel);
 
-        const previewLabel = document.createElement('label');
-        const previewCb = document.createElement('input');
+        const previewLabel = global.document.createElement('label');
+        const previewCb = global.document.createElement('input');
         previewCb.type = 'checkbox';
         previewCb.className = 'previewCheckbox';
         previewCb.value = m.id;
@@ -93,25 +95,25 @@
         container.appendChild(div);
       }
     } catch (err) {
-      console.error('Error loading vault media:', err);
+      global.console.error('Error loading vault media:', err);
     }
   }
 
   async function savePpv() {
-    const ppvNumber = parseInt(document.getElementById('ppvNumber').value, 10);
-    const description = document.getElementById('description').value.trim();
-    const price = parseFloat(document.getElementById('price').value);
+    const ppvNumber = parseInt(global.document.getElementById('ppvNumber').value, 10);
+    const description = global.document.getElementById('description').value.trim();
+    const price = parseFloat(global.document.getElementById('price').value);
     const mediaFiles = Array.from(
-      document.querySelectorAll('.mediaCheckbox:checked'),
+      global.document.querySelectorAll('.mediaCheckbox:checked'),
     ).map((cb) => Number(cb.value));
     const previews = Array.from(
-      document.querySelectorAll('.previewCheckbox:checked'),
+      global.document.querySelectorAll('.previewCheckbox:checked'),
     ).map((cb) => Number(cb.value));
-    const scheduleDayVal = document.getElementById('scheduleDay').value;
-    const scheduleTime = document.getElementById('scheduleTime').value;
+    const scheduleDayVal = global.document.getElementById('scheduleDay').value;
+    const scheduleTime = global.document.getElementById('scheduleTime').value;
     const scheduleDay = scheduleDayVal ? parseInt(scheduleDayVal, 10) : null;
     try {
-      const res = await fetch('/api/ppv', {
+      const res = await global.fetch('/api/ppv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -126,40 +128,60 @@
       });
       const result = await res.json();
       if (res.ok) {
-        document.getElementById('ppvNumber').value = '';
-        document.getElementById('description').value = '';
-        document.getElementById('price').value = '';
-        document.getElementById('scheduleDay').value = '';
-        document.getElementById('scheduleTime').value = '';
-        document.getElementById('vaultMediaList').innerHTML = '';
+        global.document.getElementById('ppvNumber').value = '';
+        global.document.getElementById('description').value = '';
+        global.document.getElementById('price').value = '';
+        global.document.getElementById('scheduleDay').value = '';
+        global.document.getElementById('scheduleTime').value = '';
+        global.document.getElementById('vaultMediaList').innerHTML = '';
         fetchPpvs();
       } else {
-        alert(result.error || 'Failed to save PPV');
+        global.alert(result.error || 'Failed to save PPV');
       }
     } catch (err) {
-      console.error('Error saving PPV:', err);
+      global.console.error('Error saving PPV:', err);
     }
   }
 
   async function deletePpv(id) {
-    if (!confirm('Delete this PPV?')) return;
+    if (!global.confirm('Delete this PPV?')) return;
     try {
-      const res = await fetch(`/api/ppv/${id}`, { method: 'DELETE' });
+      const res = await global.fetch(`/api/ppv/${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchPpvs();
       } else {
-        alert('Failed to delete PPV');
+        global.alert('Failed to delete PPV');
       }
     } catch (err) {
-      console.error('Error deleting PPV:', err);
+      global.console.error('Error deleting PPV:', err);
     }
   }
 
-  window.deletePpv = deletePpv;
+  function init() {
+    const loadBtn = global.document.getElementById('loadVaultBtn');
+    if (loadBtn) loadBtn.addEventListener('click', loadVaultMedia);
+    const saveBtn = global.document.getElementById('saveBtn');
+    if (saveBtn) saveBtn.addEventListener('click', savePpv);
+    fetchPpvs();
+  }
 
-  document
-    .getElementById('loadVaultBtn')
-    .addEventListener('click', loadVaultMedia);
-  document.getElementById('saveBtn').addEventListener('click', savePpv);
-  fetchPpvs();
-})();
+  const PPV = {
+    fetchPpvs,
+    formatTime,
+    renderPpvTable,
+    linkPreviewInclude,
+    loadVaultMedia,
+    savePpv,
+    deletePpv,
+    init,
+  };
+
+  global.App = global.App || {};
+  global.App.PPV = PPV;
+
+  if (typeof module !== 'undefined') {
+    module.exports = PPV;
+  }
+
+  global.document.addEventListener('DOMContentLoaded', init);
+})(typeof window !== 'undefined' ? window : global);

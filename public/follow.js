@@ -1,4 +1,4 @@
-(function () {
+(function (global) {
   let unfollowed = [];
 
   function escapeHtml(str) {
@@ -17,22 +17,23 @@
 
   async function loadUnfollowed() {
     try {
-      const res = await fetch('/api/fans/unfollowed');
+      const res = await global.fetch('/api/fans/unfollowed');
       if (!res.ok) throw new Error('Failed to fetch unfollowed fans');
       const data = await res.json();
       unfollowed = data.fans || [];
       renderTable();
     } catch (err) {
-      console.error('Error loading unfollowed fans:', err);
-      alert('Failed to fetch unfollowed fans');
+      global.console.error('Error loading unfollowed fans:', err);
+      global.alert('Failed to fetch unfollowed fans');
     }
   }
 
   function renderTable() {
-    const tbody = document.getElementById('followTableBody');
+    const tbody = global.document.getElementById('followTableBody');
+    if (!tbody) return;
     tbody.innerHTML = '';
     unfollowed.forEach((fan) => {
-      const tr = document.createElement('tr');
+      const tr = global.document.createElement('tr');
       tr.innerHTML =
         '<td>' +
         escapeHtml(fan.username || '') +
@@ -42,11 +43,12 @@
         '"></td>';
       tbody.appendChild(tr);
     });
-    document.getElementById('followBtn').disabled = unfollowed.length === 0;
+    const btn = global.document.getElementById('followBtn');
+    if (btn) btn.disabled = unfollowed.length === 0;
   }
 
   function setStatusDot(id, color) {
-    const el = document.getElementById('status-' + id);
+    const el = global.document.getElementById('status-' + id);
     if (el) {
       el.innerHTML = '<span class="dot ' + escapeHtml(color) + '"></span>';
     }
@@ -57,42 +59,64 @@
     let success = 0;
     let processed = 0;
 
-    document.getElementById('followBtn').disabled = true;
-    document.getElementById('statusMsg').innerText = 'Followed 0 of ' + total;
+    const followBtn = global.document.getElementById('followBtn');
+    if (followBtn) followBtn.disabled = true;
+    const statusMsg = global.document.getElementById('statusMsg');
+    if (statusMsg) statusMsg.innerText = 'Followed 0 of ' + total;
 
-    const source = new EventSource('/api/fans/followAll');
+    const source = new global.EventSource('/api/fans/followAll');
 
     source.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data.done) {
           source.close();
-          document.getElementById('followBtn').disabled = false;
+          if (followBtn) followBtn.disabled = false;
           return;
         }
         setStatusDot(data.id, data.success ? 'green' : 'red');
         processed++;
         if (data.success) success++;
-        document.getElementById('statusMsg').innerText =
-          'Followed ' + success + ' of ' + total;
+        if (statusMsg)
+          statusMsg.innerText = 'Followed ' + success + ' of ' + total;
         if (processed >= total) {
           source.close();
-          document.getElementById('followBtn').disabled = false;
+          if (followBtn) followBtn.disabled = false;
         }
       } catch (err) {
-        console.error('Error parsing SSE data', err);
-        alert('Error processing follow response');
+        global.console.error('Error parsing SSE data', err);
+        global.alert('Error processing follow response');
       }
     };
 
     source.onerror = (err) => {
-      console.error('SSE error', err);
-      alert('Error following fans');
+      global.console.error('SSE error', err);
+      global.alert('Error following fans');
       source.close();
-      document.getElementById('followBtn').disabled = false;
+      if (followBtn) followBtn.disabled = false;
     };
   }
 
-  document.getElementById('followBtn').addEventListener('click', followAll);
-  loadUnfollowed();
-})();
+  function init() {
+    const btn = global.document.getElementById('followBtn');
+    if (btn) btn.addEventListener('click', followAll);
+    loadUnfollowed();
+  }
+
+  const Follow = {
+    loadUnfollowed,
+    renderTable,
+    setStatusDot,
+    followAll,
+    init,
+  };
+
+  global.App = global.App || {};
+  global.App.Follow = Follow;
+
+  if (typeof module !== 'undefined') {
+    module.exports = Follow;
+  }
+
+  global.document.addEventListener('DOMContentLoaded', init);
+})(typeof window !== 'undefined' ? window : global);

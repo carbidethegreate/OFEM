@@ -474,7 +474,7 @@
         const previews = Array.from(
           document.querySelectorAll('.previewCheckbox:checked'),
         ).map((cb) => cb.value);
-        clearStatusDots();
+        App.Results.clearStatusDots();
         sendingInProgress = true;
         abortFlag = false;
         document.getElementById('refreshBtn').disabled = true;
@@ -511,7 +511,7 @@
             if (result.success) {
               // Success: mark green
               setStatusDot(fanId, 'green');
-              addResult({
+              App.Results.addResult({
                 fanId,
                 username: fan.username || '',
                 parkerName: fan.parker_name || '',
@@ -522,7 +522,7 @@
             } else {
               // Failure: mark red
               setStatusDot(fanId, 'red');
-              addResult({
+              App.Results.addResult({
                 fanId,
                 username: fan.username || '',
                 parkerName: fan.parker_name || '',
@@ -542,7 +542,7 @@
             console.error('Error sending to fan ' + fanId + ':', err);
             // Treat network or unexpected error as failure
             setStatusDot(fanId, 'red');
-            addResult({
+            App.Results.addResult({
               fanId,
               username: fan.username || '',
               parkerName: fan.parker_name || '',
@@ -663,27 +663,29 @@
         });
       document
         .getElementById('clearStatusBtn')
-        .addEventListener('click', clearStatusDots);
+        .addEventListener('click', App.Results.clearStatusDots);
       document
         .getElementById('downloadBtn')
-        .addEventListener('click', downloadResults);
+        .addEventListener('click', App.Results.downloadResults);
 
       document
         .getElementById('sizeSelect')
-        .addEventListener('change', (e) => applySize(e.target.value));
+        .addEventListener('change', (e) => App.Editor.applySize(e.target.value));
       document
         .getElementById('colorSelect')
-        .addEventListener('change', (e) => applyColor(e.target.value));
-      document.getElementById('boldBtn').addEventListener('click', applyBold);
+        .addEventListener('change', (e) => App.Editor.applyColor(e.target.value));
+      document
+        .getElementById('boldBtn')
+        .addEventListener('click', App.Editor.applyBold);
       document
         .getElementById('italicBtn')
-        .addEventListener('click', applyItalic);
+        .addEventListener('click', App.Editor.applyItalic);
       document
         .getElementById('placeholderSelect')
         .addEventListener('change', (e) => {
           const val = e.target.value;
           if (val) {
-            insertPlaceholder(val);
+            App.Editor.insertPlaceholder(val);
             e.target.value = '';
           }
         });
