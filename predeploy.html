@@ -218,9 +218,13 @@
           </div>
           <ol>
             <li>
-              If you're updating an existing install, you must run migrations
-              whenever new ones are introduced to keep your schema up to date.
-              Fresh installations can skip this step.
+              <strong>
+                Existing installs must run
+                <code>addtodatabase.command</code>
+                whenever new migrations are introduced to keep the schema up to
+                date.
+              </strong>
+              Fresh installations can skip this until a migration is added.
             </li>
             <li class="mt-sm">
               <button
@@ -236,8 +240,8 @@
               <code>addtodatabase.command</code> manually.
             </li>
             <li class="note">
-              Run <code>addtodatabase.command</code> each time new migrations
-              are added to the project.
+              This command is <em>required</em> each time new migrations are
+              added to the project.
             </li>
           </ol>
         </div>
