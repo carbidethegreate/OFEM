@@ -1,4 +1,4 @@
-const express = require("express");
+const express = require('express');
 
 module.exports = function ({
   getOFAccountId,
@@ -10,7 +10,7 @@ module.exports = function ({
   getMissingEnvVars,
 }) {
   const router = express.Router();
-  router.get("/vault-media", async (req, res) => {
+  router.get('/vault-media', async (req, res) => {
     try {
       const accountId = await getOFAccountId();
       const media = [];
@@ -31,25 +31,25 @@ module.exports = function ({
 
       res.json({ media });
     } catch (err) {
-      console.error("Error fetching vault media:", sanitizeError(err));
-      const status = err.message.includes("OnlyFans account") ? 400 : 500;
+      console.error('Error fetching vault media:', sanitizeError(err));
+      const status = err.message.includes('OnlyFans account') ? 400 : 500;
       res.status(status).json({
-        error: status === 400 ? err.message : "Failed to fetch vault media",
+        error: status === 400 ? err.message : 'Failed to fetch vault media',
       });
     }
   });
   /* Story 2: Send Personalized DM to All Fans */
-  router.post("/sendMessage", async (req, res) => {
+  router.post('/sendMessage', async (req, res) => {
     const missing = getMissingEnvVars();
     if (missing.length) {
       return res.status(400).json({
-        error: `Missing environment variable(s): ${missing.join(", ")}`,
+        error: `Missing environment variable(s): ${missing.join(', ')}`,
       });
     }
     try {
       const fanId = req.body.userId;
-      const greeting = req.body.greeting || "";
-      const body = req.body.body || "";
+      const greeting = req.body.greeting || '';
+      const body = req.body.body || '';
 
       // Normalize and sanitize media and preview arrays
       let mediaFiles = Array.isArray(req.body.mediaFiles)
@@ -90,7 +90,7 @@ module.exports = function ({
       res.json({ success: true });
     } catch (err) {
       console.error(
-        "Error sending message to fan:",
+        'Error sending message to fan:',
         err.response
           ? err.response.data || err.response.statusText
           : err.message,
@@ -98,7 +98,7 @@ module.exports = function ({
       const status = err.status || err.response?.status;
       const message =
         status === 429
-          ? "OnlyFans API rate limit exceeded. Please try again later."
+          ? 'OnlyFans API rate limit exceeded. Please try again later.'
           : err.response
             ? err.response.statusText || err.response.data
             : err.message;
@@ -106,10 +106,10 @@ module.exports = function ({
     }
   });
 
-  router.post("/scheduleMessage", async (req, res) => {
+  router.post('/scheduleMessage', async (req, res) => {
     try {
-      const greeting = req.body.greeting || "";
-      const body = req.body.body || "";
+      const greeting = req.body.greeting || '';
+      const body = req.body.body || '';
       const recipients = Array.isArray(req.body.recipients)
         ? req.body.recipients
         : [];
@@ -125,14 +125,14 @@ module.exports = function ({
       if (recipients.length === 0 || (!greeting && !body) || !scheduledTime) {
         return res
           .status(400)
-          .json({ error: "Missing recipients, message, or scheduledTime." });
+          .json({ error: 'Missing recipients, message, or scheduledTime.' });
       }
       const scheduledAt = new Date(scheduledTime);
       if (isNaN(scheduledAt)) {
-        return res.status(400).json({ error: "Invalid scheduledTime." });
+        return res.status(400).json({ error: 'Invalid scheduledTime.' });
       }
       await pool.query(
-        "INSERT INTO scheduled_messages (greeting, body, recipients, media_files, previews, price, locked_text, scheduled_at, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+        'INSERT INTO scheduled_messages (greeting, body, recipients, media_files, previews, price, locked_text, scheduled_at, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
         [
           greeting,
           body,
@@ -142,29 +142,29 @@ module.exports = function ({
           price ?? null,
           lockedText || null,
           scheduledAt,
-          "pending",
+          'pending',
         ],
       );
       res.json({ success: true });
     } catch (err) {
-      console.error("Error scheduling message:", sanitizeError(err));
+      console.error('Error scheduling message:', sanitizeError(err));
       res.status(500).json({ error: err.message });
     }
   });
 
-  router.get("/scheduledMessages", async (req, res) => {
+  router.get('/scheduledMessages', async (req, res) => {
     try {
       const dbRes = await pool.query(
         "SELECT id, greeting, body, recipients, media_files, previews, price, locked_text, scheduled_at, status FROM scheduled_messages WHERE status='pending' ORDER BY scheduled_at",
       );
       res.json({ messages: dbRes.rows });
     } catch (err) {
-      console.error("Error fetching scheduled messages:", sanitizeError(err));
+      console.error('Error fetching scheduled messages:', sanitizeError(err));
       res.status(500).json({ error: err.message });
     }
   });
 
-  router.put("/scheduledMessages/:id", async (req, res) => {
+  router.put('/scheduledMessages/:id', async (req, res) => {
     try {
       const fields = [];
       const values = [];
@@ -188,45 +188,45 @@ module.exports = function ({
       if (req.body.scheduledTime) {
         const newDate = new Date(req.body.scheduledTime);
         if (isNaN(newDate))
-          return res.status(400).json({ error: "Invalid scheduledTime." });
+          return res.status(400).json({ error: 'Invalid scheduledTime.' });
         fields.push(`scheduled_at=$${idx++}`);
         values.push(newDate);
       }
       if (!fields.length) {
-        return res.status(400).json({ error: "No valid fields to update." });
+        return res.status(400).json({ error: 'No valid fields to update.' });
       }
       values.push(req.params.id);
       await pool.query(
-        `UPDATE scheduled_messages SET ${fields.join(", ")} WHERE id=$${idx}`,
+        `UPDATE scheduled_messages SET ${fields.join(', ')} WHERE id=$${idx}`,
         values,
       );
       res.json({ success: true });
     } catch (err) {
-      console.error("Error updating scheduled message:", sanitizeError(err));
+      console.error('Error updating scheduled message:', sanitizeError(err));
       res.status(500).json({ error: err.message });
     }
   });
 
-  router.delete("/scheduledMessages/:id", async (req, res) => {
+  router.delete('/scheduledMessages/:id', async (req, res) => {
     try {
-      await pool.query("UPDATE scheduled_messages SET status=$1 WHERE id=$2", [
-        "canceled",
+      await pool.query('UPDATE scheduled_messages SET status=$1 WHERE id=$2', [
+        'canceled',
         req.params.id,
       ]);
       res.json({ success: true });
     } catch (err) {
-      console.error("Error canceling scheduled message:", sanitizeError(err));
+      console.error('Error canceling scheduled message:', sanitizeError(err));
       res.status(500).json({ error: err.message });
     }
   });
 
   // Retrieve message history for a fan
-  router.get("/messages/history", async (req, res) => {
+  router.get('/messages/history', async (req, res) => {
     try {
       const fanId = req.query.fanId;
       let limit = parseInt(req.query.limit, 10);
       if (!fanId) {
-        return res.status(400).json({ error: "fanId required" });
+        return res.status(400).json({ error: 'fanId required' });
       }
       if (!Number.isFinite(limit) || limit <= 0) limit = 20;
       let accountId;
@@ -251,15 +251,15 @@ module.exports = function ({
         const msgId = m.id;
         const direction =
           (m.fromUser?.id || m.user?.id || m.senderId) === accountId
-            ? "outgoing"
-            : "incoming";
-        const body = m.text || m.body || "";
+            ? 'outgoing'
+            : 'incoming';
+        const body = m.text || m.body || '';
         const price = m.price ?? null;
         const created = new Date(
           (m.createdAt || m.created_at || m.postedAt || m.time || 0) * 1000,
         );
         await pool.query(
-          "INSERT INTO messages (id, fan_id, direction, body, price, created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET fan_id=EXCLUDED.fan_id, direction=EXCLUDED.direction, body=EXCLUDED.body, price=EXCLUDED.price, created_at=EXCLUDED.created_at",
+          'INSERT INTO messages (id, fan_id, direction, body, price, created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET fan_id=EXCLUDED.fan_id, direction=EXCLUDED.direction, body=EXCLUDED.body, price=EXCLUDED.price, created_at=EXCLUDED.created_at',
           [msgId, fanId, direction, body, price, created],
         );
         m.direction = direction;
@@ -267,7 +267,7 @@ module.exports = function ({
       res.json({ messages });
     } catch (err) {
       console.error(
-        "Error fetching message history:",
+        'Error fetching message history:',
         err.response
           ? err.response.data || err.response.statusText
           : err.message,
@@ -275,7 +275,7 @@ module.exports = function ({
       const status = err.status || err.response?.status;
       const message =
         status === 429
-          ? "OnlyFans API rate limit exceeded. Please try again later."
+          ? 'OnlyFans API rate limit exceeded. Please try again later.'
           : err.response
             ? err.response.statusText || err.response.data
             : err.message;

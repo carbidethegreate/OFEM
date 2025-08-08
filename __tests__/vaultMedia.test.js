@@ -25,8 +25,12 @@ test('GET /api/vault-media retrieves all pages', async () => {
 
   const res = await request(app).get('/api/vault-media').expect(200);
 
-  expect(mockAxios.get).toHaveBeenNthCalledWith(2, '/acc1/media/vault', { params: { limit: 100, offset: 0 } });
-  expect(mockAxios.get).toHaveBeenNthCalledWith(3, '/acc1/media/vault', { params: { limit: 100, offset: 100 } });
+  expect(mockAxios.get).toHaveBeenNthCalledWith(2, '/acc1/media/vault', {
+    params: { limit: 100, offset: 0 },
+  });
+  expect(mockAxios.get).toHaveBeenNthCalledWith(3, '/acc1/media/vault', {
+    params: { limit: 100, offset: 100 },
+  });
   expect(res.body).toEqual({ media: [{ id: 'm1' }, { id: 'm2' }] });
 });
 

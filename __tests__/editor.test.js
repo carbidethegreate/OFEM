@@ -1,5 +1,10 @@
 const { JSDOM } = require('jsdom');
-const { applyColor, applyBold, applySize, insertPlaceholder } = require('../public/editor');
+const {
+  applyColor,
+  applyBold,
+  applySize,
+  insertPlaceholder,
+} = require('../public/editor');
 
 function setupDom(html) {
   const dom = new JSDOM(html);
@@ -30,7 +35,9 @@ test('applyBold wraps selection with default span and strong', () => {
   const el = document.getElementById('msg');
   selectElement(el);
   applyBold();
-  expect(el.innerHTML).toBe('<span class="m-editor-fs__default"><strong>hello</strong></span>');
+  expect(el.innerHTML).toBe(
+    '<span class="m-editor-fs__default"><strong>hello</strong></span>',
+  );
 });
 
 test('applySize uses OnlyFans size class', () => {

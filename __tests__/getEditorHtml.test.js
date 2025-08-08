@@ -10,12 +10,17 @@ test('converts newlines to <br>', () => {
 
 test('allows OnlyFans span classes', () => {
   const html = '<span class="m-editor-fs__l m-editor-fc__blue-2">Hi</span>';
-  expect(getEditorHtml(html)).toBe('<p><span class="m-editor-fs__l m-editor-fc__blue-2">Hi</span></p>');
+  expect(getEditorHtml(html)).toBe(
+    '<p><span class="m-editor-fs__l m-editor-fc__blue-2">Hi</span></p>',
+  );
 });
 
 test('allows newly whitelisted size classes', () => {
-  const html = '<span class="m-editor-fs__s">Hi</span><span class="m-editor-fs__lg">Bye</span>';
-  expect(getEditorHtml(html)).toBe('<p><span class="m-editor-fs__s">Hi</span><span class="m-editor-fs__lg">Bye</span></p>');
+  const html =
+    '<span class="m-editor-fs__s">Hi</span><span class="m-editor-fs__lg">Bye</span>';
+  expect(getEditorHtml(html)).toBe(
+    '<p><span class="m-editor-fs__s">Hi</span><span class="m-editor-fs__lg">Bye</span></p>',
+  );
 });
 
 test('strips disallowed tags and classes', () => {
@@ -25,5 +30,7 @@ test('strips disallowed tags and classes', () => {
 
 test('preserves placeholders', () => {
   const str = '{parker_name} {username} {location} {name} [name]';
-  expect(getEditorHtml(str)).toBe('<p>{parker_name} {username} {location} {name} [name]</p>');
+  expect(getEditorHtml(str)).toBe(
+    '<p>{parker_name} {username} {location} {name} [name]</p>',
+  );
 });

@@ -1,51 +1,57 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>OFEM System Status</title>
-  <link rel="stylesheet" href="css/app.css">
-</head>
-<body>
-  <header class="site-header">
-    <nav class="nav-bar">
-      <a href="index.html">Dashboard</a>
-      <a href="ppv.html">PPV Manager</a>
-      <a href="history.html">Message History</a>
-      <a href="queue.html">Scheduled Queue</a>
-    </nav>
-  </header>
-  <h1>System Status</h1>
-  <table id="statusTable" class="form-table mt-10">
-    <thead><tr><th>Component</th><th>Status</th><th>Details</th></tr></thead>
-    <tbody></tbody>
-  </table>
-  <script>
-    async function loadStatus() {
-      try {
-        const res = await fetch('/api/status');
-        const data = await res.json();
-        const tbody = document.querySelector('#statusTable tbody');
-        const addRow = (name, ok, detail='') => {
+  <head>
+    <meta charset="UTF-8" />
+    <title>OFEM System Status</title>
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav-bar">
+        <a href="index.html">Dashboard</a>
+        <a href="ppv.html">PPV Manager</a>
+        <a href="history.html">Message History</a>
+        <a href="queue.html">Scheduled Queue</a>
+      </nav>
+    </header>
+    <h1>System Status</h1>
+    <table id="statusTable" class="form-table mt-10">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Status</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <script>
+      async function loadStatus() {
+        try {
+          const res = await fetch('/api/status');
+          const data = await res.json();
+          const tbody = document.querySelector('#statusTable tbody');
+          const addRow = (name, ok, detail = '') => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${name}</td><td class="${ok ? 'ok' : 'fail'}">${ok ? 'OK' : 'FAIL'}</td><td>${detail}</td>`;
+            tbody.appendChild(tr);
+          };
+          addRow('.env file present', data.files.envFile);
+          Object.entries(data.env).forEach(([key, present]) => {
+            addRow(`env: ${key}`, present, present ? '' : 'missing');
+          });
+          addRow('Database', data.database.ok, data.database.error || '');
+          addRow('OnlyFans API', data.onlyfans.ok, data.onlyfans.error || '');
+          addRow('OpenAI API', data.openai.ok, data.openai.error || '');
+          addRow('Node version', true, data.node.version);
+        } catch (err) {
+          const tbody = document.querySelector('#statusTable tbody');
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${name}</td><td class="${ok ? 'ok' : 'fail'}">${ok ? 'OK' : 'FAIL'}</td><td>${detail}</td>`;
+          tr.innerHTML = `<td>Load</td><td class="fail">FAIL</td><td>${err.message}</td>`;
           tbody.appendChild(tr);
-        };
-        addRow('.env file present', data.files.envFile);
-        Object.entries(data.env).forEach(([key, present]) => {
-          addRow(`env: ${key}`, present, present ? '' : 'missing');
-        });
-        addRow('Database', data.database.ok, data.database.error || '');
-        addRow('OnlyFans API', data.onlyfans.ok, data.onlyfans.error || '');
-        addRow('OpenAI API', data.openai.ok, data.openai.error || '');
-        addRow('Node version', true, data.node.version);
-      } catch (err) {
-        const tbody = document.querySelector('#statusTable tbody');
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>Load</td><td class="fail">FAIL</td><td>${err.message}</td>`;
-        tbody.appendChild(tr);
+        }
       }
-    }
-    loadStatus();
-  </script>
-</body>
+      loadStatus();
+    </script>
+  </body>
 </html>

@@ -8,20 +8,22 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 
 const scripts = [
-    'migrate_add_fan_fields.js',
-    'migrate_messages.js',
-    'migrate_scheduled_messages.js',
-    'migrate_add_ppv_tables.js',
-    'migrate_add_ppv_schedule_fields.js',
+  'migrate_add_fan_fields.js',
+  'migrate_messages.js',
+  'migrate_scheduled_messages.js',
+  'migrate_add_ppv_tables.js',
+  'migrate_add_ppv_schedule_fields.js',
 ];
 
 for (const script of scripts) {
-    console.log(`➡️  Running ${script}`);
-    const result = spawnSync('node', [path.join(__dirname, script)], { stdio: 'inherit' });
-    if (result.status !== 0) {
-        console.error(`❌ Migration failed for ${script}`);
-        process.exit(result.status || 1);
-    }
+  console.log(`➡️  Running ${script}`);
+  const result = spawnSync('node', [path.join(__dirname, script)], {
+    stdio: 'inherit',
+  });
+  if (result.status !== 0) {
+    console.error(`❌ Migration failed for ${script}`);
+    process.exit(result.status || 1);
+  }
 }
 
 console.log('✅ All migrations complete.');

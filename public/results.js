@@ -1,31 +1,37 @@
-(function(global){
+(function (global) {
   let sendResults = [];
 
-  function clearStatusDots(){
+  function clearStatusDots() {
     sendResults = [];
-    if(!global.document) return;
+    if (!global.document) return;
     const nodes = global.document.querySelectorAll('[id^="status-"]');
-    nodes.forEach(n => { n.innerHTML = ''; });
+    nodes.forEach((n) => {
+      n.innerHTML = '';
+    });
   }
 
-  function addResult(result){
+  function addResult(result) {
     sendResults.push(result);
   }
 
-  function resultsToCSV(){
-    const header = ['fanId','username','parkerName','success','error'];
-    const rows = sendResults.map(r => [
+  function resultsToCSV() {
+    const header = ['fanId', 'username', 'parkerName', 'success', 'error'];
+    const rows = sendResults.map((r) => [
       r.fanId,
       r.username || '',
       r.parkerName || '',
       r.success ? 'success' : 'fail',
-      r.error || ''
+      r.error || '',
     ]);
     const all = [header, ...rows];
-    return all.map(row => row.map(val => '"' + String(val).replace(/"/g, '""') + '"').join(',')).join('\n');
+    return all
+      .map((row) =>
+        row.map((val) => '"' + String(val).replace(/"/g, '""') + '"').join(','),
+      )
+      .join('\n');
   }
 
-  function downloadResults(){
+  function downloadResults() {
     const csv = resultsToCSV();
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -38,17 +44,24 @@
     URL.revokeObjectURL(url);
   }
 
-  function getSendResults(){
+  function getSendResults() {
     return sendResults;
   }
 
-  function setSendResults(arr){
+  function setSendResults(arr) {
     sendResults = Array.isArray(arr) ? arr : [];
   }
 
-  const api = { clearStatusDots, downloadResults, addResult, resultsToCSV, getSendResults, setSendResults };
+  const api = {
+    clearStatusDots,
+    downloadResults,
+    addResult,
+    resultsToCSV,
+    getSendResults,
+    setSendResults,
+  };
 
-  if (typeof module !== 'undefined' && module.exports){
+  if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
   } else {
     global.clearStatusDots = clearStatusDots;

@@ -35,7 +35,7 @@ beforeEach(async () => {
 
 test('GET /api/fans/unfollowed returns only unsubscribed fans', async () => {
   await pool.query(
-    "INSERT INTO fans (id, username, isSubscribed) VALUES (1, 'user1', false), (2, 'user2', true)"
+    "INSERT INTO fans (id, username, isSubscribed) VALUES (1, 'user1', false), (2, 'user2', true)",
   );
 
   const res = await request(app).get('/api/fans/unfollowed').expect(200);
@@ -43,7 +43,9 @@ test('GET /api/fans/unfollowed returns only unsubscribed fans', async () => {
 });
 
 test('POST /api/fans/:id/follow calls OnlyFans API and updates DB', async () => {
-  await pool.query("INSERT INTO fans (id, username, isSubscribed) VALUES (1, 'user1', false)");
+  await pool.query(
+    "INSERT INTO fans (id, username, isSubscribed) VALUES (1, 'user1', false)",
+  );
 
   mockAxios.get.mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValueOnce({ data: {} });

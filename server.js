@@ -4,42 +4,42 @@
     Created: 2025-08-02 – v1.0
 */
 
-const express = require("express");
-const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
-const dotenv = require("dotenv");
-const getEditorHtml = require("./getEditorHtml");
-const { sanitizeError } = require("./sanitizeError");
+const express = require('express');
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+const getEditorHtml = require('./getEditorHtml');
+const { sanitizeError } = require('./sanitizeError');
 dotenv.config();
 
 // Database connection pool
-const pool = require("./db");
+const pool = require('./db');
 
 const app = express();
-app.disable("x-powered-by");
+app.disable('x-powered-by');
 app.use((req, res, next) => {
-  res.setHeader("Server", "OFEM");
+  res.setHeader('Server', 'OFEM');
   next();
 });
 app.use(express.json());
 
 // OnlyFans API client (bearer auth)
 const ofApi = axios.create({
-  baseURL: "https://app.onlyfansapi.com/api",
+  baseURL: 'https://app.onlyfansapi.com/api',
   headers: { Authorization: `Bearer ${process.env.ONLYFANS_API_KEY}` },
   timeout: 30000,
 });
 const openaiAxios = axios.create({ timeout: 30000 });
 // OpenAI model configuration with fallback
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 let OFAccountId = null;
 const REQUIRED_ENV_VARS = [
-  "ONLYFANS_API_KEY",
-  "DB_NAME",
-  "DB_USER",
-  "DB_PASSWORD",
-  "OPENAI_API_KEY",
+  'ONLYFANS_API_KEY',
+  'DB_NAME',
+  'DB_USER',
+  'DB_PASSWORD',
+  'OPENAI_API_KEY',
 ];
 // Configurable cap on OnlyFans records to fetch when paging. Prevents runaway loops if
 // the API keeps returning data. Override with OF_FETCH_LIMIT environment variable.
@@ -79,16 +79,16 @@ async function ofApiRequest(requestFn, maxRetries = 5) {
       ofBackoffDelay = 1000; // reset after success
       return res;
     } catch (err) {
-      if (err.code === "ECONNABORTED") {
-        console.error("OnlyFans API request timed out");
-        const timeoutErr = new Error("OnlyFans API request timed out");
+      if (err.code === 'ECONNABORTED') {
+        console.error('OnlyFans API request timed out');
+        const timeoutErr = new Error('OnlyFans API request timed out');
         timeoutErr.status = 504;
         throw timeoutErr;
       }
       const status = err.response?.status;
       if (status !== 429) throw err;
       if (attempt === maxRetries - 1) {
-        const rateErr = new Error("OnlyFans API rate limit exceeded");
+        const rateErr = new Error('OnlyFans API rate limit exceeded');
         rateErr.status = 429;
         throw rateErr;
       }
@@ -110,9 +110,9 @@ async function openaiRequest(requestFn, maxRetries = 5) {
     try {
       return await requestFn();
     } catch (err) {
-      if (err.code === "ECONNABORTED") {
-        console.error("OpenAI API request timed out");
-        const timeoutErr = new Error("OpenAI API request timed out");
+      if (err.code === 'ECONNABORTED') {
+        console.error('OpenAI API request timed out');
+        const timeoutErr = new Error('OpenAI API request timed out');
         timeoutErr.status = 504;
         throw timeoutErr;
       }
@@ -122,13 +122,13 @@ async function openaiRequest(requestFn, maxRetries = 5) {
       if (attempt === maxRetries - 1) {
         const aiErr = new Error(
           status === 429
-            ? "OpenAI API rate limit exceeded"
-            : "OpenAI API server error",
+            ? 'OpenAI API rate limit exceeded'
+            : 'OpenAI API server error',
         );
         aiErr.status = status;
         throw aiErr;
       }
-      const retryAfter = parseInt(err.response.headers["retry-after"], 10);
+      const retryAfter = parseInt(err.response.headers['retry-after'], 10);
       const wait = Number.isFinite(retryAfter) ? retryAfter * 1000 : delay;
       console.warn(
         `OpenAI API error ${status}. Retry ${attempt + 1} in ${wait}ms`,
@@ -141,46 +141,46 @@ async function openaiRequest(requestFn, maxRetries = 5) {
 
 async function getOFAccountId(refresh = false) {
   if (!refresh && OFAccountId) return OFAccountId;
-  const accountsResp = await ofApiRequest(() => ofApi.get("/accounts"));
+  const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
   const rawAccounts = accountsResp.data?.data || accountsResp.data;
   const accounts = Array.isArray(rawAccounts)
     ? rawAccounts
     : rawAccounts?.accounts || [];
   if (!accounts || accounts.length === 0) {
-    throw new Error("No OnlyFans account is connected to this API key.");
+    throw new Error('No OnlyFans account is connected to this API key.');
   }
   OFAccountId = accounts[0].id;
   console.log(`Using OnlyFans account: ${OFAccountId}`);
   return OFAccountId;
 }
 // Determine if an OnlyFans account appears system generated
-function isSystemGenerated(username = "", profileName = "") {
+function isSystemGenerated(username = '', profileName = '') {
   const usernameSystem = /^u\d+$/.test(username) || /^\d+$/.test(username);
-  const profileSystem = profileName.trim() === "" || /^\d+$/.test(profileName);
+  const profileSystem = profileName.trim() === '' || /^\d+$/.test(profileName);
   return usernameSystem && profileSystem;
 }
 
 // Validate parkerName output and provide deterministic fallbacks
-function isValidParkerName(name = "") {
+function isValidParkerName(name = '') {
   return (
-    typeof name === "string" &&
+    typeof name === 'string' &&
     name.length >= 2 &&
-    !name.includes("...") &&
+    !name.includes('...') &&
     /^[A-Za-z][A-Za-z\s'-]*$/.test(name)
   );
 }
 
-function capitalize(word = "") {
+function capitalize(word = '') {
   return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
-function cleanCandidate(name = "") {
-  return name.replace(/[^A-Za-z\s'-]/g, " ").trim();
+function cleanCandidate(name = '') {
+  return name.replace(/[^A-Za-z\s'-]/g, ' ').trim();
 }
 
-function deterministicFallback(username = "", profileName = "") {
+function deterministicFallback(username = '', profileName = '') {
   const profileCandidate = capitalize(
-    cleanCandidate(profileName).split(/\s+/)[0] || "",
+    cleanCandidate(profileName).split(/\s+/)[0] || '',
   );
   if (isValidParkerName(profileCandidate)) {
     console.log(`Fallback to profile name: ${profileCandidate}`);
@@ -188,10 +188,10 @@ function deterministicFallback(username = "", profileName = "") {
   }
 
   let userCandidate = username
-    .replace(/[_-]+/g, " ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2");
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2');
   userCandidate = capitalize(
-    cleanCandidate(userCandidate).split(/\s+/)[0] || "",
+    cleanCandidate(userCandidate).split(/\s+/)[0] || '',
   );
   if (isValidParkerName(userCandidate)) {
     console.log(`Fallback to username: ${userCandidate}`);
@@ -199,7 +199,7 @@ function deterministicFallback(username = "", profileName = "") {
   }
 
   console.log(`Fallback to default name: Cuddles`);
-  return "Cuddles";
+  return 'Cuddles';
 }
 
 function ensureValidParkerName(name, username, profileName) {
@@ -209,32 +209,32 @@ function ensureValidParkerName(name, username, profileName) {
 }
 
 // Remove emoji characters from a string
-function removeEmojis(str = "") {
-  return str.replace(/\p{Extended_Pictographic}/gu, "");
+function removeEmojis(str = '') {
+  return str.replace(/\p{Extended_Pictographic}/gu, '');
 }
 
 let sendPersonalizedMessage = async function (
   fanId,
-  greeting = "",
-  body = "",
+  greeting = '',
+  body = '',
   price = 0,
   lockedText = false,
   mediaFiles = [],
   previews = [],
 ) {
   if (!fanId || (!greeting && !body)) {
-    throw new Error("Missing userId or message.");
+    throw new Error('Missing userId or message.');
   }
-  let template = [greeting, body].filter(Boolean).join(" ").trim();
+  let template = [greeting, body].filter(Boolean).join(' ').trim();
   const accountId = await getOFAccountId();
   const dbRes = await pool.query(
-    "SELECT parker_name, username, location FROM fans WHERE id=$1",
+    'SELECT parker_name, username, location FROM fans WHERE id=$1',
     [fanId],
   );
   const row = dbRes.rows[0] || {};
-  const parkerName = removeEmojis(row.parker_name || "");
-  const userName = removeEmojis(row.username || "");
-  const userLocation = removeEmojis(row.location || "");
+  const parkerName = removeEmojis(row.parker_name || '');
+  const userName = removeEmojis(row.username || '');
+  const userLocation = removeEmojis(row.location || '');
   template = template.replace(/\{name\}|\[name\]|\{parker_name\}/g, parkerName);
   template = template.replace(/\{username\}/g, userName);
   template = template.replace(/\{location\}/g, userLocation);
@@ -249,15 +249,15 @@ let sendPersonalizedMessage = async function (
     text: formatted,
     mediaFiles: mediaIds,
     previews: previewIds,
-    price: typeof price === "number" ? price : 0,
+    price: typeof price === 'number' ? price : 0,
     lockedText: lockedText === true,
   };
   await ofApiRequest(() =>
     ofApi.post(`/${accountId}/chats/${fanId}/messages`, payload),
   );
   await pool.query(
-    "INSERT INTO messages (fan_id, direction, body, price) VALUES ($1, $2, $3, $4)",
-    [fanId, "outgoing", formatted, payload.price ?? null],
+    'INSERT INTO messages (fan_id, direction, body, price) VALUES ($1, $2, $3, $4)',
+    [fanId, 'outgoing', formatted, payload.price ?? null],
   );
   let logMsg = `Sent message to ${fanId}: ${template.substring(0, 30)}...`;
   if (payload.mediaFiles.length)
@@ -266,7 +266,7 @@ let sendPersonalizedMessage = async function (
   console.log(logMsg);
 };
 
-const fansRoutes = require("./routes/fans")({
+const fansRoutes = require('./routes/fans')({
   getOFAccountId,
   ofApiRequest,
   ofApi,
@@ -280,14 +280,14 @@ const fansRoutes = require("./routes/fans")({
   OPENAI_MODEL,
   OF_FETCH_LIMIT,
 });
-const ppvRoutes = require("./routes/ppv")({
+const ppvRoutes = require('./routes/ppv')({
   getOFAccountId,
   ofApiRequest,
   ofApi,
   pool,
   sanitizeError,
 });
-const messagesRoutes = require("./routes/messages")({
+const messagesRoutes = require('./routes/messages')({
   getOFAccountId,
   ofApiRequest,
   ofApi,
@@ -296,42 +296,42 @@ const messagesRoutes = require("./routes/messages")({
   sendPersonalizedMessage,
   getMissingEnvVars,
 });
-app.use("/api", fansRoutes);
-app.use("/api", ppvRoutes);
-app.use("/api", messagesRoutes);
+app.use('/api', fansRoutes);
+app.use('/api', ppvRoutes);
+app.use('/api', messagesRoutes);
 
 // System status endpoint
-app.get("/api/status", async (req, res) => {
+app.get('/api/status', async (req, res) => {
   const status = {
     env: {},
     database: {},
     onlyfans: {},
     openai: {},
-    files: { envFile: fs.existsSync(path.join(__dirname, ".env")) },
+    files: { envFile: fs.existsSync(path.join(__dirname, '.env')) },
     node: { version: process.version },
   };
   const requiredEnv = [
-    "ONLYFANS_API_KEY",
-    "OPENAI_API_KEY",
-    "OPENAI_MODEL",
-    "DB_NAME",
-    "DB_USER",
-    "DB_PASSWORD",
-    "DB_HOST",
-    "DB_PORT",
+    'ONLYFANS_API_KEY',
+    'OPENAI_API_KEY',
+    'OPENAI_MODEL',
+    'DB_NAME',
+    'DB_USER',
+    'DB_PASSWORD',
+    'DB_HOST',
+    'DB_PORT',
   ];
   requiredEnv.forEach((k) => {
     status.env[k] = !!process.env[k];
   });
   try {
-    await pool.query("SELECT 1");
+    await pool.query('SELECT 1');
     status.database.ok = true;
   } catch (err) {
     status.database.ok = false;
     status.database.error = err.message;
   }
   try {
-    await ofApi.get("/accounts");
+    await ofApi.get('/accounts');
     status.onlyfans.ok = true;
   } catch (err) {
     status.onlyfans.ok = false;
@@ -340,7 +340,7 @@ app.get("/api/status", async (req, res) => {
       : err.message;
   }
   try {
-    await openaiAxios.get("https://api.openai.com/v1/models", {
+    await openaiAxios.get('https://api.openai.com/v1/models', {
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
     });
     status.openai.ok = true;
@@ -357,7 +357,7 @@ async function processScheduledMessages() {
   if (!hasScheduledMessagesTable) return;
   const missing = getMissingEnvVars();
   if (missing.length) {
-    console.error(`Missing environment variable(s): ${missing.join(", ")}`);
+    console.error(`Missing environment variable(s): ${missing.join(', ')}`);
     return;
   }
   try {
@@ -371,8 +371,8 @@ async function processScheduledMessages() {
         try {
           await sendPersonalizedMessage(
             fanId,
-            row.greeting || "",
-            row.body || "",
+            row.greeting || '',
+            row.body || '',
             row.price,
             row.locked_text,
             row.media_files || [],
@@ -386,14 +386,14 @@ async function processScheduledMessages() {
           );
         }
       }
-      const newStatus = allSent ? "sent" : "failed";
-      await pool.query("UPDATE scheduled_messages SET status=$1 WHERE id=$2", [
+      const newStatus = allSent ? 'sent' : 'failed';
+      await pool.query('UPDATE scheduled_messages SET status=$1 WHERE id=$2', [
         newStatus,
         row.id,
       ]);
     }
   } catch (err) {
-    console.error("Error processing scheduled messages:", sanitizeError(err));
+    console.error('Error processing scheduled messages:', sanitizeError(err));
   }
 }
 
@@ -425,23 +425,23 @@ async function processRecurringPPVs() {
   if (!hasPpvSetsTable) return;
   const missing = getMissingEnvVars();
   if (missing.length) {
-    console.error(`Missing environment variable(s): ${missing.join(", ")}`);
+    console.error(`Missing environment variable(s): ${missing.join(', ')}`);
     return;
   }
   try {
     const ppvRes = await pool.query(
-      "SELECT id, description, price, schedule_day, schedule_time, last_sent_at FROM ppv_sets WHERE schedule_day IS NOT NULL AND schedule_time IS NOT NULL",
+      'SELECT id, description, price, schedule_day, schedule_time, last_sent_at FROM ppv_sets WHERE schedule_day IS NOT NULL AND schedule_time IS NOT NULL',
     );
     if (ppvRes.rows.length === 0) return;
     const fansRes = await pool.query(
-      "SELECT id FROM fans WHERE isSubscribed = TRUE AND canReceiveChatMessage = TRUE",
+      'SELECT id FROM fans WHERE isSubscribed = TRUE AND canReceiveChatMessage = TRUE',
     );
     const fanIds = fansRes.rows.map((r) => r.id);
     for (const ppv of ppvRes.rows) {
       if (!shouldSendNow(ppv)) continue;
       const { id, description, price } = ppv;
       const mediaRes = await pool.query(
-        "SELECT media_id, is_preview FROM ppv_media WHERE ppv_id=$1",
+        'SELECT media_id, is_preview FROM ppv_media WHERE ppv_id=$1',
         [id],
       );
       const mediaFiles = mediaRes.rows.map((r) => r.media_id);
@@ -452,8 +452,8 @@ async function processRecurringPPVs() {
         try {
           await sendPersonalizedMessage(
             fanId,
-            "",
-            description || "",
+            '',
+            description || '',
             price,
             false,
             mediaFiles,
@@ -466,17 +466,17 @@ async function processRecurringPPVs() {
           );
         }
       }
-      await pool.query("UPDATE ppv_sets SET last_sent_at = NOW() WHERE id=$1", [
+      await pool.query('UPDATE ppv_sets SET last_sent_at = NOW() WHERE id=$1', [
         id,
       ]);
     }
   } catch (err) {
-    console.error("Error processing recurring PPVs:", sanitizeError(err));
+    console.error('Error processing recurring PPVs:', sanitizeError(err));
   }
 }
 
 // Serve frontend static files
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, 'public')));
 
 async function processAllSchedules() {
   await processScheduledMessages();
@@ -486,15 +486,15 @@ async function processAllSchedules() {
 // Start the server only if this file is executed directly (not required by tests)
 const port = process.env.PORT || 3000;
 async function initScheduling() {
-  hasScheduledMessagesTable = await tableExists("scheduled_messages");
+  hasScheduledMessagesTable = await tableExists('scheduled_messages');
   if (!hasScheduledMessagesTable) {
     console.warn(
-      "scheduled_messages table missing; skipping scheduled message processing",
+      'scheduled_messages table missing; skipping scheduled message processing',
     );
   }
-  hasPpvSetsTable = await tableExists("ppv_sets");
+  hasPpvSetsTable = await tableExists('ppv_sets');
   if (!hasPpvSetsTable) {
-    console.warn("ppv_sets table missing; skipping recurring PPV processing");
+    console.warn('ppv_sets table missing; skipping recurring PPV processing');
   }
   if (hasScheduledMessagesTable || hasPpvSetsTable) {
     setInterval(processAllSchedules, 60000);

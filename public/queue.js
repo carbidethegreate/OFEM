@@ -30,8 +30,13 @@ window.Queue = {
     tbody.innerHTML = '';
     for (const m of messages) {
       const tr = document.createElement('tr');
-      const msgText = [m.greeting || '', m.body || ''].filter(Boolean).join(' ').trim();
-      const time = m.scheduled_at ? new Date(m.scheduled_at).toLocaleString() : '';
+      const msgText = [m.greeting || '', m.body || '']
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      const time = m.scheduled_at
+        ? new Date(m.scheduled_at).toLocaleString()
+        : '';
       tr.innerHTML = `<td>${m.id}</td><td>${msgText}</td><td>${time}</td>`;
       const actionsTd = document.createElement('td');
       const editBtn = document.createElement('button');
@@ -50,7 +55,9 @@ window.Queue = {
   },
   async cancel(id) {
     try {
-      const res = await fetch(`/api/scheduledMessages/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/scheduledMessages/${id}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) throw new Error('Failed to cancel message');
       this.fetch();
     } catch (err) {
@@ -61,7 +68,8 @@ window.Queue = {
   edit(m) {
     this.currentMessage = m;
     if (this.editBody) this.editBody.value = m.body || '';
-    if (this.editTime) this.editTime.value = m.scheduled_at ? m.scheduled_at.slice(0,16) : '';
+    if (this.editTime)
+      this.editTime.value = m.scheduled_at ? m.scheduled_at.slice(0, 16) : '';
     if (this.editGreeting) this.editGreeting.value = m.greeting || '';
     if (this.editPrice) this.editPrice.value = m.price != null ? m.price : '';
     if (this.editLocked) this.editLocked.checked = !!m.locked_text;
@@ -107,11 +115,14 @@ window.Queue = {
     }
     payload.lockedText = locked;
     try {
-      const res = await fetch(`/api/scheduledMessages/${this.currentMessage.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const res = await fetch(
+        `/api/scheduledMessages/${this.currentMessage.id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+      );
       if (!res.ok) throw new Error('Failed to edit message');
       this.hideEdit();
       this.fetch();
@@ -119,7 +130,7 @@ window.Queue = {
       console.error('Error editing message:', err);
       alert('Error editing message');
     }
-  }
+  },
 };
 
 document.addEventListener('DOMContentLoaded', () => {

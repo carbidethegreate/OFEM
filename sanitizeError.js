@@ -10,7 +10,11 @@ function sanitizeError(err) {
     if (err.config.headers) {
       const headers = { ...err.config.headers };
       for (const key of Object.keys(headers)) {
-        if (/authorization/i.test(key) || /cookie/i.test(key) || /api-key/i.test(key)) {
+        if (
+          /authorization/i.test(key) ||
+          /cookie/i.test(key) ||
+          /api-key/i.test(key)
+        ) {
           headers[key] = '[REDACTED]';
         }
       }

@@ -131,15 +131,34 @@ input {
 }
 
 /* Utilities */
-.mt-15 { margin-top: 15px; }
-.mt-10 { margin-top: 10px; }
-.mt-5 { margin-top: 5px; }
-.mb-8 { margin-bottom: 8px; }
-.w-80 { width: 80px; }
-.w-200 { width: 200px; }
-.scrollable { overflow: auto; }
-.font-bold { font-weight: bold; }
-.status-msg { font-weight: bold; margin: 10px 0; }
+.mt-15 {
+  margin-top: 15px;
+}
+.mt-10 {
+  margin-top: 10px;
+}
+.mt-5 {
+  margin-top: 5px;
+}
+.mb-8 {
+  margin-bottom: 8px;
+}
+.w-80 {
+  width: 80px;
+}
+.w-200 {
+  width: 200px;
+}
+.scrollable {
+  overflow: auto;
+}
+.font-bold {
+  font-weight: bold;
+}
+.status-msg {
+  font-weight: bold;
+  margin: 10px 0;
+}
 
 /* Dot indicators */
 .dot {
@@ -150,17 +169,25 @@ input {
   margin-right: 4px;
 }
 
-.dot.green { background-color: var(--success-color); }
-.dot.red { background-color: var(--danger-color); }
+.dot.green {
+  background-color: var(--success-color);
+}
+.dot.red {
+  background-color: var(--danger-color);
+}
 
 /* Message editor */
-.message-section { margin: 15px 0; }
+.message-section {
+  margin: 15px 0;
+}
 .message-editor {
   border: 1px solid var(--border-color);
   padding: 4px;
   min-height: 60px;
 }
-.vault-section { margin-top: 10px; }
+.vault-section {
+  margin-top: 10px;
+}
 .vault-media-list {
   display: flex;
   flex-wrap: wrap;
@@ -231,18 +258,41 @@ input {
 }
 
 /* History page */
-ul { list-style: none; padding-left: 0; }
-li { margin-bottom: 4px; }
+ul {
+  list-style: none;
+  padding-left: 0;
+}
+li {
+  margin-bottom: 4px;
+}
 
 /* Status page */
-.ok { color: var(--success-color); }
-.fail { color: var(--danger-color); }
+.ok {
+  color: var(--success-color);
+}
+.fail {
+  color: var(--danger-color);
+}
 
 /* Responsive layout */
 @media (max-width: 600px) {
-  body { margin: 10px; }
-  table { font-size: 0.9em; }
-  button { width: 100%; margin: 4px 0; }
-  .nav-bar a { display: block; margin: 5px 0; }
-  #toolbar { display: flex; flex-wrap: wrap; gap: 4px; }
+  body {
+    margin: 10px;
+  }
+  table {
+    font-size: 0.9em;
+  }
+  button {
+    width: 100%;
+    margin: 4px 0;
+  }
+  .nav-bar a {
+    display: block;
+    margin: 5px 0;
+  }
+  #toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
 }

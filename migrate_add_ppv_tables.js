@@ -49,19 +49,19 @@ ALTER TABLE ppv_media
 `;
 
 (async () => {
-    try {
-        await pool.query(createPpvSetsTable);
-        await pool.query(createPpvMediaTable);
-        await pool.query(alterPpvSetsTable);
-        await pool.query(alterPpvMediaTable);
-        console.log("✅ 'ppv_sets' and 'ppv_media' tables created.");
-    } catch (err) {
-        console.error('Error running PPV tables migration:', err.message);
-        process.exitCode = 1;
-    } finally {
-        await pool.end();
-        if (process.exitCode) process.exit(process.exitCode);
-    }
+  try {
+    await pool.query(createPpvSetsTable);
+    await pool.query(createPpvMediaTable);
+    await pool.query(alterPpvSetsTable);
+    await pool.query(alterPpvMediaTable);
+    console.log("✅ 'ppv_sets' and 'ppv_media' tables created.");
+  } catch (err) {
+    console.error('Error running PPV tables migration:', err.message);
+    process.exitCode = 1;
+  } finally {
+    await pool.end();
+    if (process.exitCode) process.exit(process.exitCode);
+  }
 })();
 
 /* End of File – Last modified 2025-??-?? */
