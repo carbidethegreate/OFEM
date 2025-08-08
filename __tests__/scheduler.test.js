@@ -86,7 +86,7 @@ test('recurring PPVs send once per fan per month across cycles', async () => {
 
   jest.useFakeTimers();
   const sendSpy = jest.fn().mockResolvedValue();
-  app._setSendPersonalizedMessage(sendSpy);
+  app._setSendMessageToFan(sendSpy);
   mockAxios.get.mockResolvedValue({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValue({ data: {} });
 

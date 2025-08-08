@@ -6,7 +6,7 @@ module.exports = function ({
   ofApi,
   pool,
   sanitizeError,
-  sendPersonalizedMessage,
+  sendMessageToFan,
   getMissingEnvVars,
 }) {
   const router = express.Router();
@@ -78,7 +78,7 @@ module.exports = function ({
       let price = parseFloat(req.body.price);
       if (isNaN(price) || (mediaFiles.length === 0 && !lockedText)) price = 0;
 
-      await sendPersonalizedMessage(
+      await sendMessageToFan(
         fanId,
         greeting,
         body,
