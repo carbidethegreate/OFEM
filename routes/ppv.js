@@ -12,7 +12,7 @@ module.exports = function ({
   router.get('/ppv', async (req, res) => {
     try {
       const dbRes = await pool.query(
-        'SELECT id, ppv_number, description, price, vault_list_id, schedule_day, schedule_time, last_sent_at, created_at FROM ppv_sets ORDER BY ppv_number',
+        'SELECT id, ppv_number, description, message, price, vault_list_id, schedule_day, schedule_time, last_sent_at, created_at FROM ppv_sets ORDER BY ppv_number',
       );
       const ppvs = dbRes.rows.map(
         ({ schedule_day, schedule_time, ...rest }) => ({
@@ -32,6 +32,7 @@ module.exports = function ({
     const {
       ppvNumber,
       description,
+      message,
       price,
       mediaFiles,
       previews,
@@ -72,8 +73,8 @@ module.exports = function ({
 
     if (
       !Number.isInteger(ppvNumber) ||
-      typeof description !== 'string' ||
-      description.trim() === '' ||
+      typeof message !== 'string' ||
+      message.trim() === '' ||
       !Number.isFinite(price) ||
       !Array.isArray(mediaFiles) ||
       mediaFiles.length === 0 ||
@@ -102,10 +103,11 @@ module.exports = function ({
       try {
         await client.query('BEGIN');
         const setRes = await client.query(
-          'INSERT INTO ppv_sets (ppv_number, description, price, vault_list_id, schedule_day, schedule_time) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+          'INSERT INTO ppv_sets (ppv_number, description, message, price, vault_list_id, schedule_day, schedule_time) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
           [
             ppvNumber,
-            description,
+            description ?? null,
+            message,
             price,
             vaultListId,
             scheduleDay,
@@ -183,7 +185,8 @@ module.exports = function ({
   router.put('/ppv/:id', async (req, res) => {
     try {
       const id = req.params.id;
-      const { description, price, scheduleDay, scheduleTime } = req.body || {};
+      const { description, message, price, scheduleDay, scheduleTime } =
+        req.body || {};
 
       const existingRes = await pool.query(
         'SELECT schedule_day, schedule_time FROM ppv_sets WHERE id=$1',
@@ -225,12 +228,25 @@ module.exports = function ({
         }
       }
 
+      if (
+        message !== undefined &&
+        (typeof message !== 'string' || message.trim() === '')
+      ) {
+        return res
+          .status(400)
+          .json({ error: 'message must be a non-empty string' });
+      }
+
       const fields = [];
       const values = [];
       let idx = 1;
       if (description !== undefined) {
         fields.push(`description=$${idx++}`);
         values.push(description);
+      }
+      if (message !== undefined) {
+        fields.push(`message=$${idx++}`);
+        values.push(message);
       }
       if (price !== undefined) {
         fields.push(`price=$${idx++}`);

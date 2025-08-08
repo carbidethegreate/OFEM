@@ -24,6 +24,7 @@ beforeAll(async () => {
       id BIGSERIAL PRIMARY KEY,
       ppv_number INTEGER UNIQUE,
       description TEXT,
+      message TEXT,
       price NUMERIC NOT NULL,
       vault_list_id BIGINT,
       schedule_day INTEGER,
@@ -60,7 +61,7 @@ test('accepts valid schedule inputs', async () => {
     .post('/api/ppv')
     .send({
       ppvNumber: 1,
-      description: 'desc',
+      message: 'msg',
       price: 5,
       mediaFiles: [1],
       previews: [],
@@ -71,6 +72,7 @@ test('accepts valid schedule inputs', async () => {
   expect(res.status).toBe(201);
   expect(res.body.ppv.scheduleDay).toBe(15);
   expect(res.body.ppv.scheduleTime).toBe('13:30');
+  expect(res.body.ppv.message).toBe('msg');
 });
 
 test('rejects invalid scheduleDay', async () => {
@@ -78,7 +80,7 @@ test('rejects invalid scheduleDay', async () => {
     .post('/api/ppv')
     .send({
       ppvNumber: 1,
-      description: 'desc',
+      message: 'msg',
       price: 5,
       mediaFiles: [1],
       previews: [],
@@ -94,7 +96,7 @@ test('rejects invalid scheduleTime', async () => {
     .post('/api/ppv')
     .send({
       ppvNumber: 1,
-      description: 'desc',
+      message: 'msg',
       price: 5,
       mediaFiles: [1],
       previews: [],
@@ -105,9 +107,32 @@ test('rejects invalid scheduleTime', async () => {
   expect(res.body).toEqual({ error: expect.stringContaining('scheduleTime') });
 });
 
+test('saves and retrieves message field', async () => {
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  mockAxios.post
+    .mockResolvedValueOnce({ data: { id: 1 } })
+    .mockResolvedValueOnce({});
+
+  await request(app)
+    .post('/api/ppv')
+    .send({
+      ppvNumber: 2,
+      message: 'hello',
+      price: 5,
+      mediaFiles: [1],
+      previews: [],
+    });
+
+  const listRes = await request(app).get('/api/ppv');
+  expect(listRes.status).toBe(200);
+  const ppv = listRes.body.ppvs.find((p) => p.ppv_number === 2);
+  expect(ppv).toBeDefined();
+  expect(ppv.message).toBe('hello');
+});
+
 test('resets last_sent_at when schedule changes', async () => {
   const insertRes = await mockPool.query(
-    "INSERT INTO ppv_sets (ppv_number, description, price, schedule_day, schedule_time, last_sent_at) VALUES (1,'desc',5,10,'10:00','2024-01-01T00:00:00Z') RETURNING id",
+    "INSERT INTO ppv_sets (ppv_number, description, message, price, schedule_day, schedule_time, last_sent_at) VALUES (1,'desc','msg',5,10,'10:00','2024-01-01T00:00:00Z') RETURNING id",
   );
   const id = insertRes.rows[0].id;
 
@@ -127,20 +152,20 @@ test('resets last_sent_at when schedule changes', async () => {
 
 test('does not reset last_sent_at when schedule unchanged', async () => {
   const insertRes = await mockPool.query(
-    "INSERT INTO ppv_sets (ppv_number, description, price, schedule_day, schedule_time, last_sent_at) VALUES (1,'desc',5,10,'10:00','2024-01-01T00:00:00Z') RETURNING id",
+    "INSERT INTO ppv_sets (ppv_number, description, message, price, schedule_day, schedule_time, last_sent_at) VALUES (1,'desc','msg',5,10,'10:00','2024-01-01T00:00:00Z') RETURNING id",
   );
   const id = insertRes.rows[0].id;
 
   const res = await request(app)
     .put(`/api/ppv/${id}`)
-    .send({ description: 'new desc' });
+    .send({ message: 'new msg' });
 
   expect(res.status).toBe(200);
   const dbRes = await mockPool.query(
-    'SELECT description, last_sent_at FROM ppv_sets WHERE id=$1',
+    'SELECT message, last_sent_at FROM ppv_sets WHERE id=$1',
     [id],
   );
-  expect(dbRes.rows[0].description).toBe('new desc');
+  expect(dbRes.rows[0].message).toBe('new msg');
   expect(dbRes.rows[0].last_sent_at).not.toBeNull();
 });
 

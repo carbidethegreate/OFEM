@@ -32,6 +32,7 @@ beforeAll(async () => {
       id BIGSERIAL PRIMARY KEY,
       ppv_number INTEGER UNIQUE,
       description TEXT,
+      message TEXT,
       price NUMERIC NOT NULL,
       vault_list_id BIGINT,
       schedule_day INTEGER,
@@ -78,7 +79,7 @@ test('recurring PPVs send once per fan per month across cycles', async () => {
     `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE), (2, TRUE, TRUE);`,
   );
   await mockPool.query(
-    `INSERT INTO ppv_sets (id, description, price, schedule_day, schedule_time) VALUES (1, 'desc', 5, 15, '10:00');`,
+    `INSERT INTO ppv_sets (id, description, message, price, schedule_day, schedule_time) VALUES (1, 'desc', 'msg', 5, 15, '10:00');`,
   );
   await mockPool.query(
     `INSERT INTO ppv_media (ppv_id, media_id, is_preview) VALUES (1, 100, FALSE);`,

@@ -508,7 +508,7 @@ async function processRecurringPPVs() {
   }
   try {
     const ppvRes = await pool.query(
-      'SELECT id, description, price, schedule_day, schedule_time, last_sent_at FROM ppv_sets WHERE schedule_day IS NOT NULL AND schedule_time IS NOT NULL',
+      'SELECT id, message, price, schedule_day, schedule_time, last_sent_at FROM ppv_sets WHERE schedule_day IS NOT NULL AND schedule_time IS NOT NULL',
     );
     if (ppvRes.rows.length === 0) return;
     const fansRes = await pool.query(
@@ -517,7 +517,7 @@ async function processRecurringPPVs() {
     const fanIds = fansRes.rows.map((r) => r.id);
     for (const ppv of ppvRes.rows) {
       if (!shouldSendNow(ppv)) continue;
-      const { id, description, price } = ppv;
+      const { id, message, price } = ppv;
       const mediaRes = await pool.query(
         'SELECT media_id, is_preview FROM ppv_media WHERE ppv_id=$1',
         [id],
@@ -531,7 +531,7 @@ async function processRecurringPPVs() {
           await sendMessageToFan(
             fanId,
             '',
-            description || '',
+            message || '',
             price,
             false,
             mediaFiles,
