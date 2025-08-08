@@ -131,19 +131,22 @@ module.exports = function ({
       if (err.code === 'FAN_NOT_ELIGIBLE') {
         return res.status(400).json({ error: err.message });
       }
+      const ofError = err.onlyfans_response?.body?.error;
       console.error(
         'Error sending message to fan:',
         err.response
           ? err.response.data || err.response.statusText
           : err.message,
+        ofError || '',
       );
       const status = err.status || err.response?.status;
-      const message =
+      let message =
         status === 429
           ? 'OnlyFans API rate limit exceeded. Please try again later.'
           : err.response
             ? err.response.statusText || err.response.data
             : err.message;
+      if (ofError) message += ` (OnlyFans error: ${ofError})`;
       res.status(status || 500).json({ error: message });
     }
   });
