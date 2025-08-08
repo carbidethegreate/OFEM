@@ -305,7 +305,7 @@
       });
 
       let polls = 0;
-      const maxPolls = 30;
+      const maxPolls = 60;
 
       const poll = async () => {
         if (pendingIds.length === 0) {
@@ -321,9 +321,13 @@
           return;
         }
         try {
-          const res = await fetch('/api/fans');
-          if (res.ok) {
-            const data = await res.json();
+          const [fansRes, statusRes] = await Promise.all([
+            fetch('/api/fans'),
+            fetch('/api/updateParkerNames/status')
+          ]);
+
+          if (fansRes.ok) {
+            const data = await fansRes.json();
             fansData = data.fans || [];
             for (const id of pendingIds.slice()) {
               const fan = fansData.find(f => f.id === id);
@@ -335,6 +339,24 @@
                 pendingIds.splice(pendingIds.indexOf(id), 1);
               }
             }
+          }
+
+          let inProgress = true;
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            inProgress = statusData.inProgress;
+          }
+          if (!inProgress) {
+            if (pendingIds.length === 0) {
+              finish(true);
+            } else {
+              pendingIds.forEach(id => {
+                const statusEl = document.getElementById('status-' + id);
+                if (statusEl) statusEl.textContent = '❌';
+              });
+              finish(false);
+            }
+            return;
           }
         } catch (err) {
           console.error('Polling error:', err);

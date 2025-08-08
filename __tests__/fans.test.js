@@ -336,3 +336,31 @@ test('POST /api/fans/followAll streams progress and updates DB', async () => {
     { id: 2, issubscribed: true }
   ]);
 });
+
+test('updateParkerNames status endpoint reflects progress', async () => {
+  await pool.query("INSERT INTO fans (id, username) VALUES (1, 'user1')");
+
+  mockAxios.post.mockImplementation(() =>
+    new Promise(resolve =>
+      setTimeout(
+        () => resolve({ data: { choices: [{ message: { content: 'Alice' } }] } }),
+        50
+      )
+    )
+  );
+
+  const startRes = await request(app).post('/api/updateParkerNames').expect(200);
+  expect(startRes.body.started).toBe(true);
+
+  const statusDuring = await request(app)
+    .get('/api/updateParkerNames/status')
+    .expect(200);
+  expect(statusDuring.body.inProgress).toBe(true);
+
+  await new Promise(r => setTimeout(r, 60));
+
+  const statusAfter = await request(app)
+    .get('/api/updateParkerNames/status')
+    .expect(200);
+  expect(statusAfter.body.inProgress).toBe(false);
+});
