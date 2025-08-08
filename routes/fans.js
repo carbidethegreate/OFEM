@@ -380,6 +380,7 @@ $40,$41,$42,$43
     res.json({ inProgress: parkerUpdateInProgress });
   });
 
+  // Populate Parker names—friendly nicknames used in messages—for fans missing one
   router.post('/updateParkerNames', async (req, res) => {
     const missing = [];
     if (!process.env.OPENAI_API_KEY) missing.push('OPENAI_API_KEY');

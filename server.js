@@ -68,15 +68,22 @@ async function tableExists(tableName) {
 function getMissingEnvVars(list = REQUIRED_ENV_VARS) {
   return list.filter((v) => !process.env[v]);
 }
-const MAX_OF_BACKOFF = 32000;
-let ofBackoffDelay = 1000;
-// Wrapper to handle OnlyFans API rate limiting with retries
+const MAX_OF_BACKOFF_MS = 32000;
+let ofBackoffDelayMs = 1000;
+/**
+ * Perform an OnlyFans API request with exponential backoff for rate limiting.
+ * Retries on HTTP 429 responses up to maxRetries attempts.
+ * @param {Function} requestFn async function that performs the request
+ * @param {number} [maxRetries=5] number of retries after the initial attempt
+ * @returns {Promise<import('axios').AxiosResponse>} Resolves with the API response
+ * @throws {Error} when the request fails or rate limit is exceeded
+ */
 async function ofApiRequest(requestFn, maxRetries = 5) {
   maxRetries++; // include initial attempt
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const res = await requestFn();
-      ofBackoffDelay = 1000; // reset after success
+      ofBackoffDelayMs = 1000; // reset after success
       return res;
     } catch (err) {
       if (err.code === 'ECONNABORTED') {
@@ -92,17 +99,26 @@ async function ofApiRequest(requestFn, maxRetries = 5) {
         rateErr.status = 429;
         throw rateErr;
       }
-      const wait = ofBackoffDelay;
+      const wait = ofBackoffDelayMs;
       console.warn(
         `OnlyFans API rate limit. Retry ${attempt + 1} in ${wait / 1000}s`,
       );
       await new Promise((r) => setTimeout(r, wait));
-      ofBackoffDelay = Math.min(ofBackoffDelay * 2, MAX_OF_BACKOFF);
+      ofBackoffDelayMs = Math.min(
+        ofBackoffDelayMs * 2,
+        MAX_OF_BACKOFF_MS,
+      );
     }
   }
 }
 
-// Wrapper to handle OpenAI rate limiting with retries
+/**
+ * Perform an OpenAI API request with retries on rate limits or server errors.
+ * @param {Function} requestFn async function that performs the request
+ * @param {number} [maxRetries=5] number of retries after the initial attempt
+ * @returns {Promise<import('axios').AxiosResponse>} Resolves with the API response
+ * @throws {Error} when the request ultimately fails
+ */
 async function openaiRequest(requestFn, maxRetries = 5) {
   maxRetries++; // include initial attempt
   let delay = 1000; // start with 1s
@@ -160,7 +176,8 @@ function isSystemGenerated(username = '', profileName = '') {
   return usernameSystem && profileSystem;
 }
 
-// Validate parkerName output and provide deterministic fallbacks
+// Validate Parker name output and provide deterministic fallbacks.
+// A Parker name is a friendly nickname Parker uses to address a fan.
 function isValidParkerName(name = '') {
   return (
     typeof name === 'string' &&
@@ -178,7 +195,13 @@ function cleanCandidate(name = '') {
   return name.replace(/[^A-Za-z\s'-]/g, ' ').trim();
 }
 
-function deterministicFallback(username = '', profileName = '') {
+/**
+ * Compute a deterministic fallback Parker name when none is provided or valid.
+ * 1. Prefer the first word of the profile name if it resembles a real name.
+ * 2. Else derive a name from the username by splitting symbols or camelCase.
+ * 3. If all else fails, fall back to "Cuddles".
+ */
+function getParkerFallbackName(username = '', profileName = '') {
   const profileCandidate = capitalize(
     cleanCandidate(profileName).split(/\s+/)[0] || '',
   );
@@ -202,10 +225,18 @@ function deterministicFallback(username = '', profileName = '') {
   return 'Cuddles';
 }
 
+/**
+ * Ensure a Parker name meets validation rules; otherwise compute a fallback.
+ * Parker names are the nicknames used in personalized messages.
+ * @param {string} name proposed Parker name
+ * @param {string} username fan's OnlyFans username
+ * @param {string} profileName fan's profile display name
+ * @returns {string} sanitized Parker name guaranteed to be valid
+ */
 function ensureValidParkerName(name, username, profileName) {
   if (isValidParkerName(name)) return name;
   console.log(`Invalid Parker name "${name}" detected. Using fallback.`);
-  return deterministicFallback(username, profileName);
+  return getParkerFallbackName(username, profileName);
 }
 
 // Remove emoji characters from a string
@@ -213,7 +244,11 @@ function removeEmojis(str = '') {
   return str.replace(/\p{Extended_Pictographic}/gu, '');
 }
 
-let sendPersonalizedMessage = async function (
+/**
+ * Send a formatted message to a specific fan with optional media and pricing.
+ * Replaces template placeholders such as `{parker_name}` and `{username}`.
+ */
+let sendMessageToFan = async function (
   fanId,
   greeting = '',
   body = '',
@@ -293,7 +328,7 @@ const messagesRoutes = require('./routes/messages')({
   ofApi,
   pool,
   sanitizeError,
-  sendPersonalizedMessage,
+  sendMessageToFan,
   getMissingEnvVars,
 });
 app.use('/api', fansRoutes);
@@ -369,7 +404,7 @@ async function processScheduledMessages() {
       let allSent = true;
       for (const fanId of recipients) {
         try {
-          await sendPersonalizedMessage(
+          await sendMessageToFan(
             fanId,
             row.greeting || '',
             row.body || '',
@@ -397,6 +432,12 @@ async function processScheduledMessages() {
   }
 }
 
+/**
+ * Determine whether a PPV set should be sent at the current time.
+ * @param {Object} ppv PPV record with scheduling fields
+ * @param {Date} [now=new Date()] current time for evaluation
+ * @returns {boolean} true if the PPV should be sent now
+ */
 function shouldSendNow(ppv, now = new Date()) {
   const {
     schedule_day: scheduleDay,
@@ -421,6 +462,9 @@ function shouldSendNow(ppv, now = new Date()) {
   return true;
 }
 
+/**
+ * Send recurring PPV messages to all subscribed fans when their schedule is due.
+ */
 async function processRecurringPPVs() {
   if (!hasPpvSetsTable) return;
   const missing = getMissingEnvVars();
@@ -450,7 +494,7 @@ async function processRecurringPPVs() {
         .map((r) => r.media_id);
       for (const fanId of fanIds) {
         try {
-          await sendPersonalizedMessage(
+          await sendMessageToFan(
             fanId,
             '',
             description || '',
@@ -485,6 +529,10 @@ async function processAllSchedules() {
 
 // Start the server only if this file is executed directly (not required by tests)
 const port = process.env.PORT || 3000;
+/**
+ * Initialize background scheduling for pending messages and recurring PPVs.
+ * Runs immediately and then every minute if the relevant tables exist.
+ */
 async function initScheduling() {
   hasScheduledMessagesTable = await tableExists('scheduled_messages');
   if (!hasScheduledMessagesTable) {
@@ -513,10 +561,9 @@ if (require.main === module) {
 module.exports = app;
 module.exports.shouldSendNow = shouldSendNow;
 module.exports.processRecurringPPVs = processRecurringPPVs;
-module.exports.sendPersonalizedMessage = (...args) =>
-  sendPersonalizedMessage(...args);
-module.exports._setSendPersonalizedMessage = (fn) => {
-  sendPersonalizedMessage = fn;
+module.exports.sendMessageToFan = (...args) => sendMessageToFan(...args);
+module.exports._setSendMessageToFan = (fn) => {
+  sendMessageToFan = fn;
 };
 
 /* End of File – Last modified 2025-08-02 */
