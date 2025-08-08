@@ -23,7 +23,9 @@ beforeAll(async () => {
       id BIGINT PRIMARY KEY,
       parker_name TEXT,
       username TEXT,
-      location TEXT
+      location TEXT,
+      isSubscribed BOOLEAN,
+      canReceiveChatMessage BOOLEAN
     );
   `);
   await mockPool.query(`
@@ -60,7 +62,7 @@ test('returns 400 when required env vars are missing', async () => {
 
 test('replaces {parker_name} placeholder', async () => {
   await mockPool.query(
-    "INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')",
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1, 'Alice', 'user1', 'Wonderland', TRUE, TRUE)",
   );
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValueOnce({});
@@ -79,7 +81,7 @@ test('replaces {parker_name} placeholder', async () => {
 
 test('replaces {username} placeholder', async () => {
   await mockPool.query(
-    "INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')",
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1, 'Alice', 'user1', 'Wonderland', TRUE, TRUE)",
   );
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValueOnce({});
@@ -102,7 +104,7 @@ test('replaces {username} placeholder', async () => {
 
 test('replaces {location} placeholder', async () => {
   await mockPool.query(
-    "INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')",
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1, 'Alice', 'user1', 'Wonderland', TRUE, TRUE)",
   );
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValueOnce({});
@@ -121,7 +123,7 @@ test('replaces {location} placeholder', async () => {
 
 test('inserts <br> for newline characters', async () => {
   await mockPool.query(
-    "INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')",
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1, 'Alice', 'user1', 'Wonderland', TRUE, TRUE)",
   );
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValueOnce({});
@@ -140,7 +142,7 @@ test('inserts <br> for newline characters', async () => {
 
 test('keeps <strong> tag for bold formatting', async () => {
   await mockPool.query(
-    "INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')",
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1, 'Alice', 'user1', 'Wonderland', TRUE, TRUE)",
   );
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValueOnce({});
@@ -163,7 +165,7 @@ test('keeps <strong> tag for bold formatting', async () => {
 
 test('retains font size class on span', async () => {
   await mockPool.query(
-    "INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')",
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1, 'Alice', 'user1', 'Wonderland', TRUE, TRUE)",
   );
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValueOnce({});
@@ -186,7 +188,7 @@ test('retains font size class on span', async () => {
 
 test('retains font color class on span', async () => {
   await mockPool.query(
-    "INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')",
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1, 'Alice', 'user1', 'Wonderland', TRUE, TRUE)",
   );
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValueOnce({});
@@ -209,7 +211,7 @@ test('retains font color class on span', async () => {
 
 test('forwards media and price fields', async () => {
   await mockPool.query(
-    "INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')",
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1, 'Alice', 'user1', 'Wonderland', TRUE, TRUE)",
   );
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValueOnce({});
@@ -236,7 +238,7 @@ test('forwards media and price fields', async () => {
 
 test('allows price when lockedText true without media', async () => {
   await mockPool.query(
-    "INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')",
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1, 'Alice', 'user1', 'Wonderland', TRUE, TRUE)",
   );
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValueOnce({});
@@ -261,7 +263,7 @@ test('allows price when lockedText true without media', async () => {
 
 test('writes message record after successful send', async () => {
   await mockPool.query(
-    "INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')",
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1, 'Alice', 'user1', 'Wonderland', TRUE, TRUE)",
   );
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValueOnce({});
@@ -275,4 +277,16 @@ test('writes message record after successful send', async () => {
   expect(messages.rows).toEqual([
     { fan_id: 1, direction: 'outgoing', body: '<p>Hello</p>', price: 0 },
   ]);
+});
+
+test('returns 400 for fans that cannot receive messages', async () => {
+  await mockPool.query(
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1, 'Alice', 'user1', 'Wonderland', FALSE, TRUE)",
+  );
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  await request(app)
+    .post('/api/sendMessage')
+    .send({ userId: 1, greeting: '', body: 'Hello' })
+    .expect(400);
+  expect(mockAxios.post).not.toHaveBeenCalled();
 });
