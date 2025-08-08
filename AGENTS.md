@@ -2,7 +2,7 @@
 
 ## Required Tools
 
-- Node.js 22 LTS
+- Node.js 22 LTS (>=22.0.0)
 - PostgreSQL
 - OnlyFans API key
 - OpenAI API key
