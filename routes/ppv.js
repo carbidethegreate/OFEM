@@ -6,6 +6,7 @@ module.exports = function ({
   ofApi,
   pool,
   sanitizeError,
+  sendMessageToFan,
 }) {
   const router = express.Router();
   // PPV management endpoints
@@ -293,6 +294,71 @@ module.exports = function ({
     } catch (err) {
       console.error('Error updating PPV:', sanitizeError(err));
       res.status(500).json({ error: 'Failed to update PPV' });
+    }
+  });
+
+  router.post('/ppv/:id/send', async (req, res) => {
+    const id = req.params.id;
+    const { fanId } = req.body || {};
+    if (!Number.isInteger(fanId)) {
+      return res.status(400).json({ error: 'fanId required' });
+    }
+    try {
+      const ppvRes = await pool.query(
+        'SELECT message, price FROM ppv_sets WHERE id=$1',
+        [id],
+      );
+      if (ppvRes.rowCount === 0) {
+        return res.status(404).json({ error: 'PPV not found' });
+      }
+      const mediaRes = await pool.query(
+        'SELECT media_id, is_preview FROM ppv_media WHERE ppv_id=$1',
+        [id],
+      );
+      const mediaFiles = mediaRes.rows.map((r) => r.media_id);
+      const previews = mediaRes.rows
+        .filter((r) => r.is_preview)
+        .map((r) => r.media_id);
+      const { message = '', price = 0 } = ppvRes.rows[0];
+      await sendMessageToFan(
+        fanId,
+        '',
+        message,
+        price,
+        false,
+        mediaFiles,
+        previews,
+      );
+      try {
+        await pool.query(
+          'INSERT INTO ppv_sends (ppv_id, fan_id) VALUES ($1,$2)',
+          [id, fanId],
+        );
+      } catch (logErr) {
+        console.error('Error logging PPV send:', sanitizeError(logErr));
+      }
+      res.json({ success: true });
+    } catch (err) {
+      if (err.code === 'FAN_NOT_ELIGIBLE') {
+        return res.status(400).json({ error: err.message });
+      }
+      const ofError = err.onlyfans_response?.body?.error;
+      console.error(
+        'Error sending PPV:',
+        err.response
+          ? err.response.data || err.response.statusText
+          : err.message,
+        ofError || '',
+      );
+      const status = err.status || err.response?.status;
+      let message =
+        status === 429
+          ? 'OnlyFans API rate limit exceeded. Please try again later.'
+          : err.response
+            ? err.response.statusText || err.response.data
+            : err.message;
+      if (ofError) message += ` (OnlyFans error: ${ofError})`;
+      res.status(status || 500).json({ error: message });
     }
   });
 

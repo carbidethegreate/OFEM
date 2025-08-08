@@ -40,6 +40,34 @@ beforeAll(async () => {
       is_preview BOOLEAN
     );
   `);
+  await mockPool.query(`
+    CREATE TABLE fans (
+      id BIGINT PRIMARY KEY,
+      parker_name TEXT,
+      username TEXT,
+      location TEXT,
+      isSubscribed BOOLEAN,
+      canReceiveChatMessage BOOLEAN
+    );
+  `);
+  await mockPool.query(`
+    CREATE TABLE messages (
+      id SERIAL PRIMARY KEY,
+      fan_id BIGINT REFERENCES fans(id),
+      direction TEXT,
+      body TEXT,
+      price NUMERIC,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+  await mockPool.query(`
+    CREATE TABLE ppv_sends (
+      id BIGSERIAL PRIMARY KEY,
+      ppv_id BIGINT,
+      fan_id BIGINT,
+      sent_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
   app = require('../server');
   ({ shouldSendNow } = app);
 });
@@ -47,6 +75,9 @@ beforeAll(async () => {
 beforeEach(async () => {
   await mockPool.query('DELETE FROM ppv_media');
   await mockPool.query('DELETE FROM ppv_sets');
+  await mockPool.query('DELETE FROM ppv_sends');
+  await mockPool.query('DELETE FROM messages');
+  await mockPool.query('DELETE FROM fans');
   mockAxios.get.mockReset();
   mockAxios.post.mockReset();
 });
@@ -167,6 +198,37 @@ test('does not reset last_sent_at when schedule unchanged', async () => {
   );
   expect(dbRes.rows[0].message).toBe('new msg');
   expect(dbRes.rows[0].last_sent_at).not.toBeNull();
+});
+
+test('sends PPV to fan and logs the send', async () => {
+  await mockPool.query(
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1,'Alice','user1','Wonderland',TRUE,TRUE)",
+  );
+  const ppvRes = await mockPool.query(
+    "INSERT INTO ppv_sets (ppv_number, message, price) VALUES (1,'hello',5) RETURNING id",
+  );
+  const ppvId = ppvRes.rows[0].id;
+  await mockPool.query(
+    'INSERT INTO ppv_media (ppv_id, media_id, is_preview) VALUES ($1,$2,$3)',
+    [ppvId, 11, true],
+  );
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValueOnce({});
+  const res = await request(app)
+    .post(`/api/ppv/${ppvId}/send`)
+    .send({ fanId: 1 });
+  expect(res.status).toBe(200);
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
+    text: '<p>hello</p>',
+    mediaFiles: [11],
+    previews: [11],
+    price: 5,
+    lockedText: false,
+  });
+  const log = await mockPool.query(
+    'SELECT ppv_id, fan_id FROM ppv_sends',
+  );
+  expect(log.rows).toEqual([{ ppv_id: ppvId, fan_id: 1 }]);
 });
 
 describe('shouldSendNow', () => {

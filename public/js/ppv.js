@@ -27,7 +27,7 @@
       const day = p.scheduleDay != null ? p.scheduleDay : 'None';
       const time = p.scheduleTime ? formatTime(p.scheduleTime) : 'None';
       const tr = global.document.createElement('tr');
-      tr.innerHTML = `<td>${p.ppv_number}</td><td>${p.message || ''}</td><td>${p.price}</td><td>${day}</td><td>${time}</td><td><button class="btn btn-secondary" onclick="App.PPV.deletePpv(${p.id})">Delete</button></td>`;
+      tr.innerHTML = `<td>${p.ppv_number}</td><td>${p.message || ''}</td><td>${p.price}</td><td>${day}</td><td>${time}</td><td><button class="btn btn-primary" onclick="App.PPV.sendPpvPrompt(${p.id})">Send</button> <button class="btn btn-secondary" onclick="App.PPV.deletePpv(${p.id})">Delete</button></td>`;
       tbody.appendChild(tr);
     }
   }
@@ -204,6 +204,35 @@
     }
   }
 
+  async function sendPpv(id, fanId) {
+    try {
+      const res = await global.fetch(`/api/ppv/${id}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fanId }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (res.ok) {
+        global.alert('PPV sent successfully');
+      } else {
+        global.alert(result.error || 'Failed to send PPV');
+      }
+    } catch (err) {
+      global.console.error('Error sending PPV:', err);
+    }
+  }
+
+  function sendPpvPrompt(id) {
+    const fanStr = global.prompt('Enter fan ID');
+    if (!fanStr) return;
+    const fanId = parseInt(fanStr, 10);
+    if (!Number.isInteger(fanId)) {
+      global.alert('Invalid fan ID');
+      return;
+    }
+    sendPpv(id, fanId);
+  }
+
   function init() {
     const loadBtn = global.document.getElementById('loadVaultBtn');
     if (loadBtn) loadBtn.addEventListener('click', loadVaultMedia);
@@ -223,6 +252,8 @@
     uploadMedia,
     savePpv,
     deletePpv,
+    sendPpv,
+    sendPpvPrompt,
     init,
   };
 
