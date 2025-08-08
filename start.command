@@ -14,6 +14,6 @@ if ! node -e "require('pg')" >/dev/null 2>&1; then
   npm install
 fi
 
-node migrate.js
+node migrate_all.js
 npm start
 
