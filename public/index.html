@@ -69,12 +69,13 @@
         </select>
       </div>
       <div
-        id="message"
+        id="messageInput"
         contenteditable="true"
         class="m-editor-fs__default message-editor"
+        placeholder="Type your message..."
       ></div>
       <div id="vaultSection" class="vault-section">
-        <button id="loadVaultBtn" type="button" class="btn btn-primary">
+        <button id="btnLoadVaultMedia" type="button" class="btn btn-primary">
           Load Vault Media
         </button>
         <div id="vaultMediaList" class="vault-media-list"></div>
@@ -83,7 +84,7 @@
             >Price:
             <input
               type="number"
-              id="price"
+              id="priceInput"
               min="0"
               step="0.01"
               class="form-input w-80"
@@ -98,23 +99,27 @@
       </div>
       <div class="schedule-section">
         <label
+          >Schedule Date:
+          <input type="date" id="scheduleDateInput" class="form-input"
+        /></label>
+        <label
           >Schedule Time:
-          <input type="datetime-local" id="scheduledTime" class="form-input"
+          <input type="time" id="scheduleTimeInput" class="form-input"
         /></label>
       </div>
-      <button id="sendBtn" class="btn btn-primary">
+      <button id="btnSendAll" class="btn btn-primary">
         Send Personalized DM to All Fans
       </button>
-      <button id="scheduleBtn" type="button" class="btn btn-primary">
+      <button id="btnSchedule" type="button" class="btn btn-primary">
         Schedule Message
       </button>
-      <button id="abortBtn" class="btn btn-secondary" disabled>
+      <button id="btnAbort" class="btn btn-secondary" disabled>
         Abort Sending
       </button>
-      <button id="clearStatusBtn" type="button" class="btn btn-secondary">
+      <button id="btnClearStatus" type="button" class="btn btn-secondary">
         Clear Status
       </button>
-      <button id="downloadBtn" type="button" class="btn btn-secondary">
+      <button id="btnDownloadResults" type="button" class="btn btn-secondary">
         Download Results
       </button>
     </div>
@@ -270,7 +275,8 @@
           const tdSave = document.createElement('td');
           const btn = document.createElement('button');
           btn.textContent = 'Save';
-          btn.className = 'btn btn-secondary';
+          btn.className = 'btn btn-secondary saveParkerBtn';
+          btn.setAttribute('data-user-id', id);
           btn.addEventListener('click', () => updateName(String(id)));
           tdSave.appendChild(btn);
           tr.appendChild(tdSave);
@@ -278,7 +284,7 @@
           tbody.appendChild(tr);
         }
         // Enable the Send button only if there are fans listed
-        document.getElementById('sendBtn').disabled = fansData.length === 0;
+        document.getElementById('btnSendAll').disabled = fansData.length === 0;
       }
 
       function setStatusDot(fanId, colorClass) {
@@ -328,7 +334,7 @@
       async function refreshFansList() {
         const refreshBtn = document.getElementById('refreshBtn');
         const updateBtn = document.getElementById('updateBtn');
-        const sendBtn = document.getElementById('sendBtn');
+        const sendBtn = document.getElementById('btnSendAll');
         refreshBtn.disabled = true;
         updateBtn.disabled = true;
         sendBtn.disabled = true;
@@ -364,7 +370,7 @@
       async function updateParkerNames() {
         const refreshBtn = document.getElementById('refreshBtn');
         const updateBtn = document.getElementById('updateBtn');
-        const sendBtn = document.getElementById('sendBtn');
+        const sendBtn = document.getElementById('btnSendAll');
         refreshBtn.disabled = true;
         updateBtn.disabled = true;
         sendBtn.disabled = true;
@@ -472,12 +478,12 @@
           return;
         }
         const greeting = document.getElementById('greeting').value;
-        const body = document.getElementById('message').innerHTML.trim();
+        const body = document.getElementById('messageInput').innerHTML.trim();
         if (!body) {
           alert('Please enter a message.');
           return;
         }
-        const priceVal = document.getElementById('price').value;
+        const priceVal = document.getElementById('priceInput').value;
         const price = priceVal ? parseFloat(priceVal) : undefined;
         const lockedText = document.getElementById('lockedText').value;
         const mediaFiles = Array.from(
@@ -491,8 +497,8 @@
         abortFlag = false;
         document.getElementById('refreshBtn').disabled = true;
         document.getElementById('updateBtn').disabled = true;
-        document.getElementById('sendBtn').disabled = true;
-        document.getElementById('abortBtn').disabled = false;
+        document.getElementById('btnSendAll').disabled = true;
+        document.getElementById('btnAbort').disabled = false;
         document.getElementById('statusMsg').innerText = 'Sending messages...';
         let successCount = 0;
         let failCount = 0;
@@ -575,10 +581,10 @@
 
         // Finished sending loop
         sendingInProgress = false;
-        document.getElementById('abortBtn').disabled = true;
+        document.getElementById('btnAbort').disabled = true;
         document.getElementById('refreshBtn').disabled = false;
         document.getElementById('updateBtn').disabled = false;
-        document.getElementById('sendBtn').disabled = false;
+        document.getElementById('btnSendAll').disabled = false;
         if (abortFlag) {
           document.getElementById('statusMsg').innerText =
             'Sending aborted. Sent ' +
@@ -602,17 +608,19 @@
           return;
         }
         const greeting = document.getElementById('greeting').value;
-        const body = document.getElementById('message').innerHTML.trim();
+        const body = document.getElementById('messageInput').innerHTML.trim();
         if (!body) {
           alert('Please enter a message.');
           return;
         }
-        const scheduledTime = document.getElementById('scheduledTime').value;
+        const dateVal = document.getElementById('scheduleDateInput').value;
+        const timeVal = document.getElementById('scheduleTimeInput').value;
+        const scheduledTime = dateVal && timeVal ? `${dateVal}T${timeVal}` : '';
         if (!scheduledTime) {
           alert('Please choose a schedule time.');
           return;
         }
-        const priceVal = document.getElementById('price').value;
+        const priceVal = document.getElementById('priceInput').value;
         const price = priceVal ? parseFloat(priceVal) : undefined;
         const lockedText = document.getElementById('lockedText').value;
         const mediaFiles = Array.from(
@@ -656,16 +664,16 @@
         .getElementById('updateBtn')
         .addEventListener('click', updateParkerNames);
       document
-        .getElementById('sendBtn')
+        .getElementById('btnSendAll')
         .addEventListener('click', sendMessagesToAll);
       document
-        .getElementById('scheduleBtn')
+        .getElementById('btnSchedule')
         .addEventListener('click', scheduleMessages);
       document
-        .getElementById('loadVaultBtn')
+        .getElementById('btnLoadVaultMedia')
         .addEventListener('click', loadVaultMedia);
       document
-        .getElementById('abortBtn')
+        .getElementById('btnAbort')
         .addEventListener('click', function () {
           if (sendingInProgress) {
             abortFlag = true;
@@ -674,10 +682,10 @@
           }
         });
       document
-        .getElementById('clearStatusBtn')
+        .getElementById('btnClearStatus')
         .addEventListener('click', App.Results.clearStatusDots);
       document
-        .getElementById('downloadBtn')
+        .getElementById('btnDownloadResults')
         .addEventListener('click', App.Results.downloadResults);
 
       document
