@@ -39,6 +39,7 @@ module.exports = function ({
       previews,
       scheduleDay,
       scheduleTime,
+      vaultListId: providedVaultListId,
     } = req.body || {};
 
     if ((scheduleDay == null) !== (scheduleTime == null)) {
@@ -83,18 +84,22 @@ module.exports = function ({
     ) {
       return res.status(400).json({ error: 'Invalid PPV data.' });
     }
-    let vaultListId;
     let accountId;
+    let vaultListIdToUse = providedVaultListId;
+    let createdVaultList = false;
     try {
       accountId = await getOFAccountId();
-      const listResp = await ofApiRequest(() =>
-        ofApi.post(`/${accountId}/media/vault/lists`, {
-          name: `PPV ${ppvNumber}`,
-        }),
-      );
-      vaultListId = listResp.data?.id || listResp.data?.list?.id;
+      if (!vaultListIdToUse) {
+        const listResp = await ofApiRequest(() =>
+          ofApi.post(`/${accountId}/media/vault/lists`, {
+            name: `PPV ${ppvNumber}`,
+          }),
+        );
+        vaultListIdToUse = listResp.data?.id || listResp.data?.list?.id;
+        createdVaultList = true;
+      }
       await ofApiRequest(() =>
-        ofApi.post(`/${accountId}/media/vault/lists/${vaultListId}/media`, {
+        ofApi.post(`/${accountId}/media/vault/lists/${vaultListIdToUse}/media`, {
           media_ids: mediaFiles,
         }),
       );
@@ -110,7 +115,7 @@ module.exports = function ({
             description ?? null,
             message,
             price,
-            vaultListId,
+            vaultListIdToUse,
             scheduleDay,
             scheduleTime,
           ],
@@ -126,18 +131,20 @@ module.exports = function ({
         await client.query('COMMIT');
       } catch (dbErr) {
         await client.query('ROLLBACK');
-        try {
-          await ofApiRequest(() =>
-            ofApi.delete(`/${accountId}/media/vault/lists/${vaultListId}`),
-          );
-          vaultListId = null;
-        } catch (cleanupErr) {
-          console.error(
-            'Error cleaning up vault list:',
-            cleanupErr.response
-              ? cleanupErr.response.data || cleanupErr.response.statusText
-              : cleanupErr.message,
-          );
+        if (createdVaultList) {
+          try {
+            await ofApiRequest(() =>
+              ofApi.delete(`/${accountId}/media/vault/lists/${vaultListIdToUse}`),
+            );
+            vaultListIdToUse = null;
+          } catch (cleanupErr) {
+            console.error(
+              'Error cleaning up vault list:',
+              cleanupErr.response
+                ? cleanupErr.response.data || cleanupErr.response.statusText
+                : cleanupErr.message,
+            );
+          }
         }
         throw dbErr;
       } finally {
@@ -156,10 +163,10 @@ module.exports = function ({
       delete ppv.schedule_time;
       res.status(201).json({ ppv });
     } catch (err) {
-      if (vaultListId && accountId) {
+      if (createdVaultList && vaultListIdToUse && accountId) {
         try {
           await ofApiRequest(() =>
-            ofApi.delete(`/${accountId}/media/vault/lists/${vaultListId}`),
+            ofApi.delete(`/${accountId}/media/vault/lists/${vaultListIdToUse}`),
           );
         } catch (cleanupErr) {
           console.error(
