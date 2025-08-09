@@ -85,3 +85,20 @@ test('fetches and upserts message history', async () => {
   rows = await mockPool.query('SELECT id, fan_id, body, price FROM messages');
   expect(rows.rows).toEqual([{ id: 10, fan_id: 1, body: 'updated', price: 1 }]);
 });
+
+test('caps limit at 100', async () => {
+  await mockPool.query(
+    "INSERT INTO fans (id, parker_name, username, location) VALUES (1, 'Alice', 'user1', 'Wonderland')",
+  );
+  mockAxios.get
+    .mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } })
+    .mockResolvedValueOnce({ data: { messages: [] } });
+
+  await request(app)
+    .get('/api/messages/history?fanId=1&limit=500')
+    .expect(200);
+
+  const lastCall = mockAxios.get.mock.calls[mockAxios.get.mock.calls.length - 1];
+  expect(lastCall[0]).toBe('/acc1/chats/1/messages');
+  expect(lastCall[1]).toEqual({ params: { limit: 100 } });
+});

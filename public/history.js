@@ -59,7 +59,13 @@
 
   async function handleFetch() {
     const fanId = global.document.getElementById('fanSelect').value;
-    const limit = global.document.getElementById('limitInput').value || 20;
+    const rawLimit = parseInt(
+      global.document.getElementById('limitInput').value,
+      10,
+    );
+    const limit = !Number.isFinite(rawLimit) || rawLimit <= 0
+      ? 20
+      : Math.min(rawLimit, 100);
     try {
       const msgs = await fetchMessageHistory(fanId, limit);
       renderMessageHistory(msgs);

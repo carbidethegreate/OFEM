@@ -329,6 +329,7 @@ module.exports = function ({
         return res.status(400).json({ error: 'fanId required' });
       }
       if (!Number.isFinite(limit) || limit <= 0) limit = 20;
+      if (limit > 100) limit = 100;
       let accountId;
       try {
         accountId = await getOFAccountId();
