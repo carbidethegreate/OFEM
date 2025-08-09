@@ -23,7 +23,7 @@ app.use((req, res, next) => {
   res.setHeader('Server', 'OFEM');
   next();
 });
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 // OnlyFans API client (bearer auth)
 const ofApi = axios.create({
