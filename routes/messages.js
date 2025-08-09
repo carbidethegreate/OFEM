@@ -77,6 +77,28 @@ module.exports = function ({
       });
     }
   });
+
+  router.delete('/vault-media/:id', async (req, res) => {
+    try {
+      const mediaId = parseInt(req.params.id, 10);
+      if (!Number.isFinite(mediaId)) {
+        return res.status(400).json({ error: 'Invalid media id' });
+      }
+      const accountId = await getOFAccountId();
+      await ofApiRequest(() =>
+        ofApi.delete(`/${accountId}/media/vault/${mediaId}`),
+      );
+      await pool.query('DELETE FROM vault_media WHERE id=$1', [mediaId]);
+      await pool.query('DELETE FROM vault_list_media WHERE media_id=$1', [mediaId]);
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Error deleting vault media:', sanitizeError(err));
+      const status = err.message.includes('OnlyFans account') ? 400 : 500;
+      res.status(status).json({
+        error: status === 400 ? err.message : 'Failed to delete vault media',
+      });
+    }
+  });
   /* Story 2: Send Personalized DM to All Fans */
   router.post('/sendMessage', async (req, res) => {
     const missing = getMissingEnvVars();
