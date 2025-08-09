@@ -387,6 +387,60 @@
     }
   }
 
+  async function renameVaultList() {
+    const select = global.document.getElementById('vaultListSelect');
+    const id = select && select.value;
+    if (!id) {
+      global.alert('Select a list first');
+      return;
+    }
+    const name = global.prompt('Enter new list name');
+    if (!name) return;
+    try {
+      const res = await global.fetch(`/api/vault-lists/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        global.alert(result.error || 'Failed to rename list');
+        return;
+      }
+      selectedVaultListId = Number(id);
+      await fetchVaultLists();
+      if (select) select.value = String(id);
+    } catch (err) {
+      global.console.error('Error renaming vault list:', err);
+    }
+  }
+
+  async function deleteVaultList() {
+    const select = global.document.getElementById('vaultListSelect');
+    const id = select && select.value;
+    if (!id) {
+      global.alert('Select a list first');
+      return;
+    }
+    if (!global.confirm('Delete this list?')) return;
+    try {
+      const res = await global.fetch(`/api/vault-lists/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const result = await res.json().catch(() => ({}));
+        global.alert(result.error || 'Failed to delete list');
+        return;
+      }
+      if (selectedVaultListId === Number(id)) {
+        selectedVaultListId = null;
+      }
+      await fetchVaultLists();
+    } catch (err) {
+      global.console.error('Error deleting vault list:', err);
+    }
+  }
+
   async function deletePpv(id) {
     if (!global.confirm('Delete this PPV?')) return;
     try {
@@ -489,6 +543,10 @@
     }
     const createListBtn = global.document.getElementById('createVaultListBtn');
     if (createListBtn) createListBtn.addEventListener('click', createVaultList);
+    const renameListBtn = global.document.getElementById('renameVaultListBtn');
+    if (renameListBtn) renameListBtn.addEventListener('click', renameVaultList);
+    const deleteListBtn = global.document.getElementById('deleteVaultListBtn');
+    if (deleteListBtn) deleteListBtn.addEventListener('click', deleteVaultList);
     fetchVaultLists();
     fetchPpvs();
   }
@@ -507,6 +565,8 @@
     sendPpvPrompt,
     editPpv,
     createVaultList,
+    renameVaultList,
+    deleteVaultList,
     fetchVaultLists,
     init,
   };
