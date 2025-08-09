@@ -527,7 +527,7 @@
   }
 
   function init() {
-    const loadBtn = global.document.getElementById('loadVaultBtn');
+    const loadBtn = global.document.getElementById('btnLoadVaultMedia');
     if (loadBtn) loadBtn.addEventListener('click', loadVaultMedia);
     const uploadBtn = global.document.getElementById('uploadMediaBtn');
     if (uploadBtn) uploadBtn.addEventListener('click', uploadMedia);
@@ -582,42 +582,44 @@
 })(typeof window !== 'undefined' ? window : global);
 
 // Fetch the vault media list when the "Load Vault Media" button is clicked
-document.getElementById('loadVaultBtn').addEventListener('click', async () => {
-  try {
-    const res = await fetch('/api/vault-media');
-    if (!res.ok) {
-      const err = await res.json();
-      alert(err.error || err.message || 'Failed to load vault media');
-      return;
-    }
-    const mediaItems = await res.json();
-    const container = document.getElementById('vaultMediaList');
-    container.innerHTML = '';
-    if (mediaItems.length === 0) {
-      container.textContent = 'No media found in vault.';
-    } else {
-      let tableHtml =
-        '<table><thead><tr><th>ID</th><th>Media</th><th>Include</th><th>Preview</th><th>Likes</th><th>Tips</th></tr></thead><tbody>';
-      for (const m of mediaItems) {
-        const thumbUrl = m.preview_url || m.thumb_url || '';
-        tableHtml += '<tr>';
-        tableHtml += `<td>${m.id}</td>`;
-        tableHtml +=
-          '<td>' +
-          (thumbUrl
-            ? `<img src="${thumbUrl}" alt="media" style="max-width:80px;">`
-            : '') +
-          '</td>';
-        tableHtml += `<td><input type="checkbox" class="mediaCheckbox" value="${m.id}"></td>`;
-        tableHtml += `<td><input type="checkbox" class="previewCheckbox" value="${m.id}"></td>`;
-        tableHtml += `<td>${m.likes || 0}</td>`;
-        tableHtml += `<td>${m.tips || 0}</td>`;
-        tableHtml += '</tr>';
+document
+  .getElementById('btnLoadVaultMedia')
+  .addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/vault-media');
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || err.message || 'Failed to load vault media');
+        return;
       }
-      tableHtml += '</tbody></table>';
-      container.innerHTML = tableHtml;
+      const mediaItems = await res.json();
+      const container = document.getElementById('vaultMediaList');
+      container.innerHTML = '';
+      if (mediaItems.length === 0) {
+        container.textContent = 'No media found in vault.';
+      } else {
+        let tableHtml =
+          '<table><thead><tr><th>ID</th><th>Media</th><th>Include</th><th>Preview</th><th>Likes</th><th>Tips</th></tr></thead><tbody>';
+        for (const m of mediaItems) {
+          const thumbUrl = m.preview_url || m.thumb_url || '';
+          tableHtml += '<tr>';
+          tableHtml += `<td>${m.id}</td>`;
+          tableHtml +=
+            '<td>' +
+            (thumbUrl
+              ? `<img src="${thumbUrl}" alt="media" style="max-width:80px;">`
+              : '') +
+            '</td>';
+          tableHtml += `<td><input type="checkbox" class="mediaCheckbox" value="${m.id}"></td>`;
+          tableHtml += `<td><input type="checkbox" class="previewCheckbox" value="${m.id}"></td>`;
+          tableHtml += `<td>${m.likes || 0}</td>`;
+          tableHtml += `<td>${m.tips || 0}</td>`;
+          tableHtml += '</tr>';
+        }
+        tableHtml += '</tbody></table>';
+        container.innerHTML = tableHtml;
+      }
+    } catch (error) {
+      console.error('Error fetching vault media:', error);
     }
-  } catch (error) {
-    console.error('Error fetching vault media:', error);
-  }
-});
+  });
