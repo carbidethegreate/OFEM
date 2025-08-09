@@ -15,6 +15,7 @@ mockAxios.create.mockReturnValue(mockAxios);
 const createTableQuery = `
 CREATE TABLE fans (
     id BIGINT PRIMARY KEY,
+    of_user_id BIGINT,
     username TEXT,
     name TEXT,
     avatar TEXT,
@@ -369,6 +370,26 @@ test('retries OpenAI 500 errors and continues processing other fans', async () =
   expect(fan1.parker_name).toBeNull();
   expect(fan2.parker_name).toBe('Bob');
   expect(counts.user1).toBeGreaterThan(1);
+});
+
+test('PUT /api/fans/:id/parker-name updates Parker Name', async () => {
+  await pool.query(
+    `INSERT INTO fans (id, of_user_id, parker_name) VALUES (1, 10, 'Old')`,
+  );
+
+  await request(app)
+    .put('/api/fans/1/parker-name')
+    .send({ parkerName: 'New' })
+    .expect(200);
+  let dbRes = await pool.query('SELECT parker_name FROM fans WHERE id=1');
+  expect(dbRes.rows[0].parker_name).toBe('New');
+
+  await request(app)
+    .put('/api/fans/10/parker-name')
+    .send({})
+    .expect(200);
+  dbRes = await pool.query('SELECT parker_name FROM fans WHERE id=1');
+  expect(dbRes.rows[0].parker_name).toBeNull();
 });
 
 test('POST /api/fans/followAll streams progress and updates DB', async () => {

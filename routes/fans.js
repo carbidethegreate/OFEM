@@ -537,6 +537,21 @@ Respond with only the chosen name.`;
     }
   });
 
+  router.put('/fans/:id/parker-name', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { parkerName } = req.body || {};
+      await pool.query(
+        'UPDATE fans SET parker_name = $1 WHERE id = $2 OR of_user_id = $2',
+        [parkerName ?? null, id],
+      );
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'failed to update Parker Name' });
+    }
+  });
+
   router.get('/fans', async (req, res) => {
     try {
       const dbRes = await pool.query(`
