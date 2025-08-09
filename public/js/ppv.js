@@ -1,5 +1,7 @@
 (function (global) {
   let selectedVaultListId = null;
+  let editingPpvId = null;
+  let currentPpvs = [];
   async function fetchPpvs() {
     try {
       const res = await global.fetch('/api/ppv');
@@ -21,6 +23,7 @@
   }
 
   function renderPpvTable(ppvs) {
+    currentPpvs = ppvs;
     const tbody = global.document.getElementById('ppvTableBody');
     if (!tbody) return;
     tbody.innerHTML = '';
@@ -28,7 +31,7 @@
       const day = p.scheduleDay != null ? p.scheduleDay : 'None';
       const time = p.scheduleTime ? formatTime(p.scheduleTime) : 'None';
       const tr = global.document.createElement('tr');
-      tr.innerHTML = `<td>${p.ppv_number}</td><td>${p.message || ''}</td><td>${p.price}</td><td>${day}</td><td>${time}</td><td><button class="btn btn-primary" onclick="App.PPV.sendPpvPrompt(${p.id})">Send</button> <button class="btn btn-secondary" onclick="App.PPV.deletePpv(${p.id})">Delete</button></td>`;
+      tr.innerHTML = `<td>${p.ppv_number}</td><td>${p.message || ''}</td><td>${p.description || ''}</td><td>${p.price}</td><td>${day}</td><td>${time}</td><td><button class="btn btn-primary" onclick="App.PPV.sendPpvPrompt(${p.id})">Send</button> <button class="btn btn-secondary" onclick="App.PPV.editPpv(${p.id})">Edit</button> <button class="btn btn-secondary" onclick="App.PPV.deletePpv(${p.id})">Delete</button></td>`;
       tbody.appendChild(tr);
     }
   }
@@ -211,19 +214,103 @@
     }
   }
 
+  function resetForm() {
+    const numInput = global.document.getElementById('ppvNumber');
+    if (numInput) {
+      numInput.value = '';
+      numInput.disabled = false;
+    }
+    const msgInput = global.document.getElementById('message');
+    if (msgInput) msgInput.value = '';
+    const descInput = global.document.getElementById('description');
+    if (descInput) descInput.value = '';
+    const priceInput = global.document.getElementById('price');
+    if (priceInput) priceInput.value = '';
+    const dayInput = global.document.getElementById('scheduleDay');
+    if (dayInput) dayInput.value = '';
+    const timeInput = global.document.getElementById('scheduleTime');
+    if (timeInput) timeInput.value = '';
+    const mediaList = global.document.getElementById('vaultMediaList');
+    if (mediaList) mediaList.innerHTML = '';
+    const listSelect = global.document.getElementById('vaultListSelect');
+    if (listSelect) listSelect.value = '';
+    selectedVaultListId = null;
+    editingPpvId = null;
+    const saveBtn = global.document.getElementById('saveBtn');
+    if (saveBtn) saveBtn.textContent = 'Save PPV';
+  }
+
   async function savePpv() {
-    const ppvNumber = parseInt(global.document.getElementById('ppvNumber').value, 10);
+    const description = global.document.getElementById('description').value.trim();
     const message = global.document.getElementById('message').value.trim();
-    const price = parseFloat(global.document.getElementById('price').value);
+    const priceStr = global.document.getElementById('price').value;
+    const price = parseFloat(priceStr);
+    const scheduleDayVal = global.document.getElementById('scheduleDay').value;
+    const scheduleTime = global.document.getElementById('scheduleTime').value;
+    const scheduleDay = scheduleDayVal ? parseInt(scheduleDayVal, 10) : null;
+
+    if (editingPpvId) {
+      const payload = {};
+      if (description) payload.description = description;
+      if (message) payload.message = message;
+      if (!Number.isNaN(price)) payload.price = price;
+
+      if ((scheduleDayVal && scheduleTime) || (!scheduleDayVal && !scheduleTime)) {
+        if (scheduleDayVal) {
+          if (
+            !Number.isInteger(scheduleDay) ||
+            scheduleDay < 1 ||
+            scheduleDay > 31
+          ) {
+            global.alert('scheduleDay must be an integer between 1 and 31');
+            return;
+          }
+          if (
+            typeof scheduleTime !== 'string' ||
+            !/^\d{2}:\d{2}$/.test(scheduleTime)
+          ) {
+            global.alert('scheduleTime must be in HH:MM format');
+            return;
+          }
+          const [h, m] = scheduleTime.split(':').map(Number);
+          if (h < 0 || h > 23 || m < 0 || m > 59) {
+            global.alert('scheduleTime must be in 24-hour HH:MM format');
+            return;
+          }
+          payload.scheduleDay = scheduleDay;
+          payload.scheduleTime = scheduleTime;
+        }
+      } else {
+        global.alert('Both schedule day and time must be provided');
+        return;
+      }
+
+      try {
+        const res = await global.fetch(`/api/ppv/${editingPpvId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await res.json().catch(() => ({}));
+        if (res.ok) {
+          resetForm();
+          fetchPpvs();
+        } else {
+          global.alert(result.error || 'Failed to save PPV');
+        }
+      } catch (err) {
+        global.console.error('Error saving PPV:', err);
+      }
+      return;
+    }
+
+    const ppvNumber = parseInt(global.document.getElementById('ppvNumber').value, 10);
     const mediaFiles = Array.from(
       global.document.querySelectorAll('.mediaCheckbox:checked'),
     ).map((cb) => Number(cb.value));
     const previews = Array.from(
       global.document.querySelectorAll('.previewCheckbox:checked'),
     ).map((cb) => Number(cb.value));
-    const scheduleDayVal = global.document.getElementById('scheduleDay').value;
-    const scheduleTime = global.document.getElementById('scheduleTime').value;
-    const scheduleDay = scheduleDayVal ? parseInt(scheduleDayVal, 10) : null;
 
     if ((scheduleDay == null) !== !scheduleTime) {
       global.alert('Both schedule day and time must be provided');
@@ -255,6 +342,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ppvNumber,
+          description,
           message,
           price,
           mediaFiles,
@@ -266,15 +354,7 @@
       });
       const result = await res.json();
       if (res.ok) {
-        global.document.getElementById('ppvNumber').value = '';
-        global.document.getElementById('message').value = '';
-        global.document.getElementById('price').value = '';
-        global.document.getElementById('scheduleDay').value = '';
-        global.document.getElementById('scheduleTime').value = '';
-        global.document.getElementById('vaultMediaList').innerHTML = '';
-        const listSelect = global.document.getElementById('vaultListSelect');
-        if (listSelect) listSelect.value = '';
-        selectedVaultListId = null;
+        resetForm();
         fetchPpvs();
       } else {
         global.alert(result.error || 'Failed to save PPV');
@@ -350,6 +430,29 @@
     sendPpv(id, fanId);
   }
 
+  function editPpv(id) {
+    const ppv = currentPpvs.find((p) => p.id === id);
+    if (!ppv) return;
+    editingPpvId = id;
+    const numInput = global.document.getElementById('ppvNumber');
+    if (numInput) {
+      numInput.value = ppv.ppv_number;
+      numInput.disabled = true;
+    }
+    const msgInput = global.document.getElementById('message');
+    if (msgInput) msgInput.value = ppv.message || '';
+    const descInput = global.document.getElementById('description');
+    if (descInput) descInput.value = ppv.description || '';
+    const priceInput = global.document.getElementById('price');
+    if (priceInput) priceInput.value = ppv.price != null ? ppv.price : '';
+    const dayInput = global.document.getElementById('scheduleDay');
+    if (dayInput) dayInput.value = ppv.scheduleDay != null ? ppv.scheduleDay : '';
+    const timeInput = global.document.getElementById('scheduleTime');
+    if (timeInput) timeInput.value = ppv.scheduleTime || '';
+    const saveBtn = global.document.getElementById('saveBtn');
+    if (saveBtn) saveBtn.textContent = 'Update PPV';
+  }
+
   function init() {
     const loadBtn = global.document.getElementById('loadVaultBtn');
     if (loadBtn) loadBtn.addEventListener('click', loadVaultMedia);
@@ -383,6 +486,7 @@
     deletePpv,
     sendPpv,
     sendPpvPrompt,
+    editPpv,
     createVaultList,
     fetchVaultLists,
     init,
