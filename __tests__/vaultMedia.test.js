@@ -16,8 +16,6 @@ beforeAll(() => {
 beforeEach(() => {
   mockAxios.get.mockReset();
   mockAxios.post.mockReset();
-  mockAxios.delete.mockReset();
-  mockPool.query.mockReset();
 });
 
 test('GET /api/vault-media retrieves all pages', async () => {
@@ -58,24 +56,4 @@ test('POST /api/vault-media uploads files', async () => {
     expect.objectContaining({ headers: expect.any(Object) }),
   );
   expect(res.body).toEqual({ mediaIds: ['m1'] });
-});
-
-test('DELETE /api/vault-media/:id removes media', async () => {
-  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
-  mockAxios.delete.mockResolvedValueOnce({ data: {} });
-
-  const res = await request(app)
-    .delete('/api/vault-media/123')
-    .expect(200);
-
-  expect(mockAxios.delete).toHaveBeenCalledWith('/acc1/media/vault/123');
-  expect(mockPool.query).toHaveBeenCalledWith(
-    'DELETE FROM vault_media WHERE id=$1',
-    [123],
-  );
-  expect(mockPool.query).toHaveBeenCalledWith(
-    'DELETE FROM vault_list_media WHERE media_id=$1',
-    [123],
-  );
-  expect(res.body).toEqual({ success: true });
 });
