@@ -79,10 +79,22 @@
     try {
       await fetchVaultLists();
       const res = await global.fetch('/api/vault-media');
-      if (!res.ok) return;
+      const container = global.document.getElementById('vaultMediaList');
+      if (!res.ok) {
+        let err;
+        try {
+          err = await res.json();
+        } catch {}
+        const message =
+          (err && (err.error || err.message)) ||
+          'Failed to load vault media';
+        if (global.alert) global.alert(message);
+        global.console.error('Error loading vault media:', message);
+        if (container) container.innerHTML = '';
+        return;
+      }
       const data = await res.json();
       const items = Array.isArray(data) ? data : [];
-      const container = global.document.getElementById('vaultMediaList');
       if (!container) return;
       container.innerHTML = '';
       for (const m of items) {
