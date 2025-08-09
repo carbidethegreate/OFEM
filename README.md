@@ -23,7 +23,10 @@ nicknames.
 
 - Node.js 22 LTS (>=22.0.0)
 - PostgreSQL database accessible via `DATABASE_URL`
-- OnlyFans API key (required)
+- OnlyFans Pro API key – includes everything in Basic plus 75,000 free monthly credits,
+  1,000 requests per minute, the ability to connect up to five OnlyFans accounts for free
+  (then $29/month per additional account), real-time webhooks, priority support, and
+  advanced API features.
 - OpenAI API key
 
 > We recommend using a Node version manager like [nvm](https://github.com/nvm-sh/nvm) to install and switch between Node.js versions.
@@ -51,7 +54,12 @@ nicknames.
 
 The server reads the following variables from your environment or `.env` file:
 
-- `ONLYFANS_API_KEY` – authenticates requests to the OnlyFans API. The server verifies this key at startup and exits if it is missing or invalid.
+- `ONLYFANS_API_KEY` – authenticates requests to the OnlyFans API. A Pro account
+  includes everything in Basic plus 75,000 free monthly credits, 1,000 requests per
+  minute, the ability to connect up to five OnlyFans accounts for free (then $29/month
+  per additional account), real-time webhooks, priority support, and advanced API
+  features. The server verifies this key at startup and exits if it is missing or
+  invalid.
 - `OPENAI_API_KEY` – enables OpenAI GPT models for generating Parker names (required only
   for `/api/updateParkerNames`).
 - `OPENAI_MODEL` – OpenAI model to use for Parker name generation (default `gpt-4o-mini`).
