@@ -11,6 +11,7 @@ const path = require('path');
 const dotenv = require('dotenv');
 const getEditorHtml = require('./getEditorHtml');
 const { sanitizeError } = require('./sanitizeError');
+const sanitizeMediaIds = require('./sanitizeMediaIds');
 dotenv.config();
 
 // Database connection pool
@@ -302,12 +303,10 @@ let sendMessageToFan = async function (
     throw err;
   }
   const formatted = getEditorHtml(template);
-  const mediaIds = Array.isArray(mediaFiles)
-    ? mediaFiles.map(Number).filter(Number.isFinite)
-    : [];
-  const previewIds = Array.isArray(previews)
-    ? previews.map(Number).filter((id) => mediaIds.includes(id))
-    : [];
+  const mediaIds = sanitizeMediaIds(mediaFiles);
+  const previewIds = sanitizeMediaIds(previews).filter((id) =>
+    mediaIds.includes(id),
+  );
   const payload = {
     text: formatted,
     mediaFiles: mediaIds,

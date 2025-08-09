@@ -229,10 +229,34 @@ test('forwards media and price fields', async () => {
     .expect(200);
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
     text: '<p>Hello</p>',
-    mediaFiles: [1],
+    mediaFiles: ['1'],
     previews: [],
     price: 5,
     lockedText: true,
+  });
+});
+
+test('allows ofapi_media string IDs', async () => {
+  await mockPool.query(
+    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1,'Alice','user1','Wonderland',TRUE,TRUE)",
+  );
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValueOnce({});
+  await request(app)
+    .post('/api/sendMessage')
+    .send({
+      userId: 1,
+      greeting: '',
+      body: 'Hello',
+      mediaFiles: ['ofapi_media_123'],
+    })
+    .expect(200);
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
+    text: '<p>Hello</p>',
+    mediaFiles: ['ofapi_media_123'],
+    previews: [],
+    price: 0,
+    lockedText: false,
   });
 });
 

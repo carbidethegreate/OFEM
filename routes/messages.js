@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const FormData = require('form-data');
+const sanitizeMediaIds = require('../sanitizeMediaIds');
 
 module.exports = function ({
   getOFAccountId,
@@ -123,15 +124,9 @@ module.exports = function ({
       const greeting = req.body.greeting || '';
       const body = req.body.body || '';
 
-      // Normalize and sanitize media and preview arrays
-      let mediaFiles = Array.isArray(req.body.mediaFiles)
-        ? req.body.mediaFiles.map(Number).filter(Number.isFinite)
-        : [];
-      let previews = Array.isArray(req.body.previews)
-        ? req.body.previews.map(Number).filter(Number.isFinite)
-        : [];
-
-      // Deduplicate and remove overlaps
+      // Normalize IDs and remove duplicates/overlaps
+      let mediaFiles = sanitizeMediaIds(req.body.mediaFiles);
+      let previews = sanitizeMediaIds(req.body.previews);
       const mediaSet = new Set(mediaFiles);
       const previewSet = new Set(previews);
       for (const id of [...previewSet]) {
@@ -194,12 +189,8 @@ module.exports = function ({
       const scheduledTime = req.body.scheduledTime;
       const price = req.body.price;
       const lockedText = req.body.lockedText;
-      const mediaFiles = Array.isArray(req.body.mediaFiles)
-        ? req.body.mediaFiles
-        : [];
-      const previews = Array.isArray(req.body.previews)
-        ? req.body.previews
-        : [];
+      const mediaFiles = sanitizeMediaIds(req.body.mediaFiles);
+      const previews = sanitizeMediaIds(req.body.previews);
       if (recipients.length === 0 || (!greeting && !body) || !scheduledTime) {
         return res
           .status(400)
