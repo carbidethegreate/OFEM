@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Getting Started with OFEM</title>
+</head>
+<body>
+<h1>Getting Started with OFEM</h1>
+<p>Follow these simple steps on a Mac to run OFEM. No programming knowledge required.</p>
+
+<h2>Download and Unzip</h2>
+<ol>
+<li>Download the project ZIP file.</li>
+<li>Open your Downloads folder and double‑click the ZIP to create the OFEM folder.</li>
+</ol>
+
+<h2>Allow Scripts to Run</h2>
+<p>Click the button below to remove the quarantine flag from all .command files (install, setup-env, setup-db, start, etc.).</p>
+<p><a href="remove-quarantine.command">Allow command files</a></p>
+<p>If the browser shows the script code instead of running it, open the OFEM folder in Finder and double-click <code>remove-quarantine.command</code> manually.</p>
+
+<h2>Install Requirements</h2>
+<p>Click the button below to install Node.js (LTS) in this folder and download all required npm packages.</p>
+<p><a href="install-node.command">Install Node at Folder</a></p>
+<p>If the browser shows the script code instead of running it, open the OFEM folder in Finder and double-click <code>install-node.command</code> manually.</p>
+<p>You may be asked for your macOS password to complete the installation.</p>
+
+<p>Click the button below to install Docker Desktop using Homebrew.</p>
+<p><a href="install-docker.command">Install Docker</a></p>
+<p>This opens Terminal in the OFEM folder and runs <code>brew install --cask docker</code>. If the browser shows the script code instead of running it, open the OFEM folder in Finder and double-click <code>install-docker.command</code> manually.</p>
+<p>If you already have a local PostgreSQL server running you can skip Docker, but the setup wizard uses Docker by default.</p>
+
+<p>Once Node and Docker are installed, run the project installer below to install all Node dependencies.</p>
+<p><a href="install.command">Run installer</a></p>
+<p>If the browser shows the script code instead of running it, open the OFEM folder in Finder and double-click <code>install.command</code> manually.</p>
+
+<h2>Configure API Keys and Database (optional)</h2>
+<p>Click the button below to enter your OnlyFans and OpenAI API keys. The script also accepts credentials for an existing PostgreSQL database; leave these fields blank to create a new database later.</p>
+<p><a href="setup-env.command">Configure API keys and DB</a></p>
+<p>If the browser shows the script code instead of running it, open the OFEM folder in Finder and double-click <code>setup-env.command</code> manually.</p>
+
+<h2>Create the Database</h2>
+<p>If you supplied database credentials above, you can skip this step. Otherwise, click the button below to create a new database. A wizard opens in Terminal, creates a database with a random name, user, and password, then updates your <code>.env</code> file automatically.</p>
+<p><a href="setup-db.command">Set up new database</a></p>
+<p>If the browser shows the script code instead of running it, open the OFEM folder in Finder and double‑click <code>setup-db.command</code> manually.</p>
+<p>Leave the Terminal window open until it shows “Database setup complete!”. If it reports an error, install Docker Desktop or start PostgreSQL manually and then retry. To capture detailed logs, run <code>bash setup-db.command 2>&1 | tee setup-db.log</code> and send the resulting setup-db.log file for support.</p>
+<p>After running <code>setup-env.command</code> and <code>setup-db.command</code>, the initial database setup is complete.</p>
+
+<h2>Upgrade Existing Database (optional)</h2>
+<p>Existing installs must run <code>addtodatabase.command</code> whenever new migrations are introduced to keep the schema up to date. Fresh installations can skip this until a migration is added.</p>
+<p><a href="addtodatabase.command">Run migrations</a></p>
+<p>If the browser shows the script code instead of running it, open the OFEM folder in Finder and double-click <code>addtodatabase.command</code> manually.</p>
+<p>This command is required each time new migrations are added to the project.</p>
+
+<h2>Run the App</h2>
+<p>Double‑click <code>start.command</code> to launch the server.</p>
+
+<h2>Open the Dashboard</h2>
+<p>When Terminal shows “OFEM server listening on http://localhost:3000” (or another port), open a web browser. If port 3000 is in use, edit your <code>.env</code> file and change the PORT value, then restart <code>start.command</code>.</p>
+<p>Visit <a href="http://localhost:3000">http://localhost:3000</a> (replace 3000 with your chosen port).</p>
+<p>The app is now ready. Use the dashboard buttons to update fan names and send messages.</p>
+</body>
+</html>

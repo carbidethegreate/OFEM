@@ -7,6 +7,8 @@ personalised message to everyone in one pass. It uses the official OnlyFans API 
 fetch the fan list and send direct messages and an OpenAI GPT model (default `gpt-4o-mini`) to generate friendly
 nicknames.
 
+> **macOS users:** This repo includes several `.command` files (e.g., `install.command`, `setup-env.command`, `setup-db.command`, `start.command`) so non-technical Mac users can set up and run OFEM by double-clicking. **Never remove these `.command` files without the project owner's explicit approval.** For a guided walkthrough, open `predeploy.html` and follow the on-screen buttons.
+
 ## Features
 
 - **Update Fan List** – Fetches all subscribers and followings and stores them in the
