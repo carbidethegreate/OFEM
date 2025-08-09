@@ -15,68 +15,6 @@ module.exports = function ({
   const router = express.Router();
   const upload = multer();
 
-  router.get('/vault-media', async (req, res) => {
-    try {
-      const accountId = await getOFAccountId();
-      const media = [];
-      const limit = 100;
-      let offset = 0;
-      while (true) {
-        const resp = await ofApiRequest(() =>
-          ofApi.get(`/${accountId}/media/vault`, {
-            params: { limit, offset },
-          }),
-        );
-        const items =
-          resp.data?.media || resp.data?.list || resp.data?.data || resp.data;
-        if (!Array.isArray(items) || items.length === 0) break;
-        media.push(...items);
-        offset += limit;
-      }
-
-      for (const m of media) {
-        const id = m.id;
-        const likes = m.likes ?? m.likesCount ?? null;
-        const tips = m.tips ?? null;
-        const thumb =
-          m.thumb_url ||
-          m.thumbUrl ||
-          m.thumb?.url ||
-          m.thumb?.src ||
-          null;
-        const preview =
-        m.preview_url ||
-        m.previewUrl ||
-        m.preview?.url ||
-        m.preview?.src ||
-        null;
-        const createdRaw =
-          m.created_at || m.createdAt || m.time || m.postedAt || null;
-        let created = null;
-        if (createdRaw != null) {
-          created = new Date(
-            typeof createdRaw === 'number' ? createdRaw * 1000 : createdRaw,
-          );
-        }
-        await pool.query(
-          'INSERT INTO vault_media (id, likes, tips, thumb_url, preview_url, created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET likes=EXCLUDED.likes, tips=EXCLUDED.tips, thumb_url=EXCLUDED.thumb_url, preview_url=EXCLUDED.preview_url, created_at=EXCLUDED.created_at',
-          [id, likes, tips, thumb, preview, created],
-        );
-      }
-
-      const dbRes = await pool.query(
-        'SELECT id, likes, tips, thumb_url, preview_url, created_at FROM vault_media ORDER BY id',
-      );
-      res.json(dbRes.rows);
-    } catch (err) {
-      console.error('Error fetching vault media:', sanitizeError(err));
-      const status = err.message.includes('OnlyFans account') ? 400 : 500;
-      res.status(status).json({
-        error: status === 400 ? err.message : 'Failed to fetch vault media',
-      });
-    }
-  });
-
   router.post('/vault-media', upload.array('media'), async (req, res) => {
     try {
       if (!req.files || req.files.length === 0) {

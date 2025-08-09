@@ -356,6 +356,7 @@ const vaultListsRoutes = require('./routes/vaultLists')({
   ofApi,
   pool,
   sanitizeError,
+  OF_FETCH_LIMIT,
 });
 const messagesRoutes = require('./routes/messages')({
   getOFAccountId,
