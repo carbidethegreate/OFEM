@@ -79,7 +79,7 @@ test('recurring PPVs send once per fan per month across cycles', async () => {
     `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE), (2, TRUE, TRUE);`,
   );
   await mockPool.query(
-    `INSERT INTO ppv_sets (id, description, message, price, schedule_day, schedule_time) VALUES (1, 'desc', 'msg', 5, 15, '10:00');`,
+    `INSERT INTO ppv_sets (id, description, message, price, schedule_day, schedule_time) VALUES (1, 'desc', 'msg', 5, 15, '10:05');`,
   );
   await mockPool.query(
     `INSERT INTO ppv_media (ppv_id, media_id, is_preview) VALUES (1, 100, FALSE);`,
@@ -114,4 +114,79 @@ test('recurring PPVs send once per fan per month across cycles', async () => {
   jest.setSystemTime(new Date('2024-03-15T10:05:00Z'));
   await runScheduler();
   expect(sendSpy).toHaveBeenCalledTimes(6);
+});
+
+test('sends PPV media from associated vault list', async () => {
+  await mockPool.query(
+    `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE);`,
+  );
+  await mockPool.query(
+    `INSERT INTO ppv_sets (id, message, price, vault_list_id, schedule_day, schedule_time) VALUES (1, 'hello', 10, 123, 15, '10:05');`,
+  );
+  await mockPool.query(
+    `INSERT INTO ppv_media (ppv_id, media_id, is_preview) VALUES (1, 111, FALSE), (1, 222, FALSE);`,
+  );
+
+  jest.useFakeTimers();
+  const sendSpy = jest.fn().mockResolvedValue();
+  app._setSendMessageToFan(sendSpy);
+
+  async function runScheduler() {
+    const promise = processRecurringPPVs();
+    await jest.runAllTimersAsync();
+    return promise;
+  }
+
+  jest.setSystemTime(new Date('2024-01-15T10:05:00Z'));
+  await runScheduler();
+
+  expect(sendSpy).toHaveBeenCalledWith(
+    1,
+    '',
+    'hello',
+    10,
+    false,
+    [111, 222],
+    [],
+  );
+  jest.useRealTimers();
+  const res = await mockPool.query(
+    'SELECT last_sent_at FROM ppv_sets WHERE id=1',
+  );
+  expect(res.rows[0].last_sent_at).not.toBeNull();
+});
+
+test('includes preview media when sending paywalled PPVs', async () => {
+  await mockPool.query(
+    `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE);`,
+  );
+  await mockPool.query(
+    `INSERT INTO ppv_sets (id, message, price, schedule_day, schedule_time) VALUES (1, 'hi', 7, 15, '10:05');`,
+  );
+  await mockPool.query(
+    `INSERT INTO ppv_media (ppv_id, media_id, is_preview) VALUES (1, 10, FALSE), (1, 20, TRUE);`,
+  );
+
+  jest.useFakeTimers();
+  const sendSpy = jest.fn().mockResolvedValue();
+  app._setSendMessageToFan(sendSpy);
+
+  async function runScheduler() {
+    const promise = processRecurringPPVs();
+    await jest.runAllTimersAsync();
+    return promise;
+  }
+
+  jest.setSystemTime(new Date('2024-01-15T10:05:00Z'));
+  await runScheduler();
+
+  expect(sendSpy).toHaveBeenCalledWith(
+    1,
+    '',
+    'hi',
+    7,
+    false,
+    [10, 20],
+    [20],
+  );
 });

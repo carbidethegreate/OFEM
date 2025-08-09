@@ -515,9 +515,18 @@ async function processRecurringPPVs() {
     console.error(`Missing environment variable(s): ${missing.join(', ')}`);
     return;
   }
+  const now = new Date();
+  const day = now.getDate();
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(
+    now.getMinutes(),
+  ).padStart(2, '0')}`;
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   try {
     const ppvRes = await pool.query(
-      'SELECT id, message, price, schedule_day, schedule_time, last_sent_at FROM ppv_sets WHERE schedule_day IS NOT NULL AND schedule_time IS NOT NULL',
+      `SELECT id, message, price, vault_list_id FROM ppv_sets
+       WHERE schedule_day = $1 AND schedule_time = $2
+       AND (last_sent_at IS NULL OR last_sent_at < $3)`,
+      [day, timeStr, monthStart],
     );
     if (ppvRes.rows.length === 0) return;
     const fansRes = await pool.query(
@@ -525,7 +534,6 @@ async function processRecurringPPVs() {
     );
     const fanIds = fansRes.rows.map((r) => r.id);
     for (const ppv of ppvRes.rows) {
-      if (!shouldSendNow(ppv)) continue;
       const { id, message, price } = ppv;
       const mediaRes = await pool.query(
         'SELECT media_id, is_preview FROM ppv_media WHERE ppv_id=$1',
@@ -535,6 +543,7 @@ async function processRecurringPPVs() {
       const previews = mediaRes.rows
         .filter((r) => r.is_preview)
         .map((r) => r.media_id);
+      let allSucceeded = true;
       for (const fanId of fanIds) {
         try {
           await sendMessageToFan(
@@ -547,21 +556,19 @@ async function processRecurringPPVs() {
             previews,
           );
         } catch (err) {
-          if (err.code === 'FAN_NOT_ELIGIBLE') {
-            console.log(
-              `Skipping fan ${fanId} for PPV ${id}: ${err.message}`,
-            );
-            continue;
-          }
+          allSucceeded = false;
           console.error(
             `Error sending PPV ${id} to fan ${fanId}:`,
             err.message,
           );
         }
       }
-      await pool.query('UPDATE ppv_sets SET last_sent_at = NOW() WHERE id=$1', [
-        id,
-      ]);
+      if (allSucceeded) {
+        await pool.query('UPDATE ppv_sets SET last_sent_at = $1 WHERE id=$2', [
+          now,
+          id,
+        ]);
+      }
     }
   } catch (err) {
     console.error('Error processing recurring PPVs:', sanitizeError(err));
