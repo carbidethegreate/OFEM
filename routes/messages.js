@@ -169,8 +169,9 @@ module.exports = function ({
       mediaFiles = Array.from(mediaSet);
       previews = Array.from(previewSet);
 
-      // Determine whether text should be locked
-      const lockedText = req.body.lockedText === true;
+      // Locked text string (paywalled message)
+      const lockedText =
+        typeof req.body.lockedText === 'string' ? req.body.lockedText : '';
 
       // Parse price; default to 0 if NaN or neither media nor locked text
       let price = parseFloat(req.body.price);

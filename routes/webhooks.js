@@ -211,7 +211,7 @@ module.exports = function ({ pool, sanitizeError, sendMessageToFan, openaiAxios,
         const templateIndex = Math.floor(Math.random() * THANK_YOU_TEMPLATES.length);
         const thankYouTemplate = THANK_YOU_TEMPLATES[templateIndex];
         try {
-          await sendMessageToFan(fanId, '', thankYouTemplate, 0, false, [], []); // no media, no price, just text
+          await sendMessageToFan(fanId, '', thankYouTemplate, 0, '', [], []); // no media, no price, just text
           // sendMessageToFan already inserts the outgoing message into DB
         } catch (err) {
           if (err.code === 'FAN_NOT_ELIGIBLE') {

@@ -75,7 +75,6 @@ test('replaces {parker_name} placeholder', async () => {
     mediaFiles: [],
     previews: [],
     price: 0,
-    lockedText: false,
   });
 });
 
@@ -98,7 +97,6 @@ test('replaces {username} placeholder', async () => {
     mediaFiles: [],
     previews: [],
     price: 0,
-    lockedText: false,
   });
 });
 
@@ -117,7 +115,6 @@ test('replaces {location} placeholder', async () => {
     mediaFiles: [],
     previews: [],
     price: 0,
-    lockedText: false,
   });
 });
 
@@ -136,7 +133,6 @@ test('inserts <br> for newline characters', async () => {
     mediaFiles: [],
     previews: [],
     price: 0,
-    lockedText: false,
   });
 });
 
@@ -159,7 +155,6 @@ test('keeps <strong> tag for bold formatting', async () => {
     mediaFiles: [],
     previews: [],
     price: 0,
-    lockedText: false,
   });
 });
 
@@ -182,7 +177,6 @@ test('retains font size class on span', async () => {
     mediaFiles: [],
     previews: [],
     price: 0,
-    lockedText: false,
   });
 });
 
@@ -205,7 +199,6 @@ test('retains font color class on span', async () => {
     mediaFiles: [],
     previews: [],
     price: 0,
-    lockedText: false,
   });
 });
 
@@ -222,7 +215,7 @@ test('forwards media and price fields', async () => {
       greeting: '',
       body: 'Hello',
       price: 5,
-      lockedText: true,
+      lockedText: 'locked',
       mediaFiles: [1, 'x', 1, 2],
       previews: [2, 'y', 2],
     })
@@ -232,7 +225,7 @@ test('forwards media and price fields', async () => {
     mediaFiles: ['1'],
     previews: [],
     price: 5,
-    lockedText: true,
+    lockedText: 'locked',
   });
 });
 
@@ -256,7 +249,6 @@ test('allows ofapi_media string IDs', async () => {
     mediaFiles: ['ofapi_media_123'],
     previews: [],
     price: 0,
-    lockedText: false,
   });
 });
 
@@ -273,7 +265,7 @@ test('allows price when lockedText true without media', async () => {
       greeting: '',
       body: 'Hello',
       price: 5,
-      lockedText: true,
+      lockedText: 'secret',
     })
     .expect(200);
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
@@ -281,7 +273,7 @@ test('allows price when lockedText true without media', async () => {
     mediaFiles: [],
     previews: [],
     price: 5,
-    lockedText: true,
+    lockedText: 'secret',
   });
 });
 

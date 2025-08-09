@@ -268,11 +268,11 @@ let sendMessageToFan = async function (
   greeting = '',
   body = '',
   price = 0,
-  lockedText = false,
+  lockedText = '',
   mediaFiles = [],
   previews = [],
 ) {
-  if (!fanId || (!greeting && !body)) {
+  if (!fanId || (!greeting && !body && !lockedText && mediaFiles.length === 0)) {
     throw new Error('Missing userId or message.');
   }
   let template = [greeting, body].filter(Boolean).join(' ').trim();
@@ -295,7 +295,7 @@ let sendMessageToFan = async function (
   template = template.replace(/\{name\}|\[name\]|\{parker_name\}/g, parkerName);
   template = template.replace(/\{username\}/g, userName);
   template = template.replace(/\{location\}/g, userLocation);
-  if (template.trim().length === 0) {
+  if (template.trim().length === 0 && !lockedText) {
     const err = new Error(
       'Message template empty after placeholder substitution; provide fallback text.',
     );
@@ -312,8 +312,8 @@ let sendMessageToFan = async function (
     mediaFiles: mediaIds,
     previews: previewIds,
     price: typeof price === 'number' ? price : 0,
-    lockedText: lockedText === true,
   };
+  if (lockedText) payload.lockedText = lockedText;
   await ofApiRequest(() =>
     ofApi.post(`/${accountId}/chats/${fanId}/messages`, payload),
   );
@@ -558,7 +558,7 @@ async function processRecurringPPVs() {
             '',
             message || '',
             price,
-            false,
+            '',
             mediaFiles,
             previews,
           );
