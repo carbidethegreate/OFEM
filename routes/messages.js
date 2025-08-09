@@ -15,6 +15,13 @@ module.exports = function ({
   const router = express.Router();
   const upload = multer();
 
+  async function getActiveFans() {
+    const { rows } = await pool.query(
+      'SELECT id FROM fans WHERE isSubscribed = TRUE AND canReceiveChatMessage = TRUE ORDER BY id ASC',
+    );
+    return rows;
+  }
+
   router.post('/vault-media', upload.array('media'), async (req, res) => {
     try {
       if (!req.files || req.files.length === 0) {
@@ -256,6 +263,104 @@ module.exports = function ({
     } catch (err) {
       console.error('Error canceling scheduled message:', sanitizeError(err));
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/send', async (req, res) => {
+    const missing = getMissingEnvVars();
+    if (missing.length) {
+      return res.status(400).json({
+        error: `Missing environment variable(s): ${missing.join(', ')}`,
+      });
+    }
+    try {
+      const { text, price, mediaIds, scope, recipients } = req.body || {};
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({ error: 'text is required' });
+      }
+
+      let targets = Array.isArray(recipients) && recipients.length ? recipients : [];
+      if (scope === 'allActiveFans' || targets.length === 0) {
+        const fans = await getActiveFans();
+        targets = fans.map((f) => f.id).filter(Boolean);
+      }
+      if (!targets.length) {
+        return res.status(400).json({ error: 'no recipients resolved' });
+      }
+
+      const limit = Number(process.env.SEND_CONCURRENCY || 3);
+      const queue = [...targets];
+      let sent = 0;
+      const errors = [];
+
+      async function worker() {
+        while (queue.length) {
+          const fanId = queue.shift();
+          try {
+            await sendMessageToFan(
+              fanId,
+              '',
+              text,
+              typeof price === 'number' ? price : parseFloat(price) || 0,
+              '',
+              Array.isArray(mediaIds) ? mediaIds : [],
+              [],
+            );
+            sent++;
+          } catch (e) {
+            errors.push({
+              recipientId: fanId,
+              message: sanitizeError(e).message || 'send failed',
+            });
+          }
+        }
+      }
+
+      await Promise.all(Array.from({ length: limit }, worker));
+
+      res.json({ queued: targets.length, sent, failed: errors.length, errors });
+    } catch (err) {
+      console.error('Error sending messages:', sanitizeError(err));
+      res.status(500).json({ error: 'failed to send messages' });
+    }
+  });
+
+  router.post('/schedule', async (req, res) => {
+    try {
+      const { text, price, mediaIds, scheduleAt, scope, recipients } = req.body || {};
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({ error: 'text is required' });
+      }
+      if (!scheduleAt) {
+        return res.status(400).json({ error: 'scheduleAt is required' });
+      }
+      let targets = Array.isArray(recipients) && recipients.length ? recipients : [];
+      if (scope === 'allActiveFans' || targets.length === 0) {
+        const fans = await getActiveFans();
+        targets = fans.map((f) => f.id).filter(Boolean);
+      }
+      if (!targets.length) {
+        return res.status(400).json({ error: 'no recipients resolved' });
+      }
+      const { rows } = await pool.query(
+        `INSERT INTO scheduled_messages (greeting, body, recipients, media_files, previews, price, locked_text, scheduled_at, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+        [
+          '',
+          text,
+          targets,
+          Array.isArray(mediaIds) ? mediaIds : [],
+          [],
+          price ?? null,
+          null,
+          new Date(scheduleAt),
+          'pending',
+        ],
+      );
+      res.json({ scheduled: true, id: rows[0].id, recipients: targets.length });
+    } catch (err) {
+      console.error('Error scheduling messages:', sanitizeError(err));
+      res.status(500).json({ error: 'failed to schedule messages' });
     }
   });
 

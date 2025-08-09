@@ -609,7 +609,9 @@ async function initScheduling() {
     console.warn('ppv_sets table missing; skipping recurring PPV processing');
   }
   if (hasScheduledMessagesTable || hasPpvSetsTable) {
-    setInterval(processAllSchedules, 60000);
+    if (process.env.NODE_ENV !== 'test') {
+      setInterval(processAllSchedules, 60000);
+    }
     await processAllSchedules();
   }
 }
