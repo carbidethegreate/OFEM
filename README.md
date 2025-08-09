@@ -1,4 +1,4 @@
-<!-- Modified 2025-02-14 – v1.0 -->
+<!-- Modified 2025-02-15 – v1.1 -->
 
 # OnlyFans Express Messenger (OFEM)
 
@@ -18,6 +18,12 @@ nicknames.
 - **Send Personalised DM** – Sends a message to every fan, greeting each with their
   Parker name. Shows a green dot for success and red for failure. Sending can be
   aborted and auto‑stops after ten consecutive errors.
+- **Schedule Messages & Review History** – Queue messages for later and browse past
+  sends from a built-in history view.
+- **Pay-Per-View (PPV) Templates** – Create, manage, and send paid messages with
+  optional scheduling and per-message pricing.
+- **Vault Media & Lists** – Upload media, scrape external URLs, and organise items
+  into reusable lists for composing messages.
 
 ## Prerequisites
 
@@ -290,6 +296,40 @@ database. Each fan includes:
 JSONB columns such as `avatarThumbs`, `headerSize`, `headerThumbs`, `listsStates`,
 `subscribedByData`, `subscribedOnData`, and `promoOffers` are returned as objects.
 
+### Message Endpoints
+
+- `POST /api/sendMessage` – Send a message to a fan. Supports HTML sanitisation,
+  optional media IDs, and an optional `price` for pay‑per‑view style sends.
+- `POST /api/scheduleMessage` – Queue a message to be delivered later.
+- `GET /api/scheduledMessages` – List all pending scheduled messages.
+- `PUT /api/scheduledMessages/:id` – Update a scheduled message.
+- `DELETE /api/scheduledMessages/:id` – Cancel a scheduled message.
+- `GET /api/messages/history` – Retrieve previously sent messages.
+
+### Vault Media
+
+- `GET /api/vault-media` – List stored vault media records.
+- `POST /api/vault-media` – Upload files to the OnlyFans vault.
+- `POST /api/vault-media/scrape` – Extract media IDs from a public URL.
+
+### Vault Lists
+
+- `GET /api/vault-lists` – List existing vault lists.
+- `POST /api/vault-lists` – Create a new list.
+- `GET /api/vault-lists/:id` – Fetch a list with its media IDs.
+- `PUT /api/vault-lists/:id` – Rename a list.
+- `DELETE /api/vault-lists/:id` – Remove a list.
+- `POST /api/vault-lists/:id/media` – Add media IDs to a list.
+- `DELETE /api/vault-lists/:id/media` – Remove media IDs from a list.
+
+### Pay‑Per‑View (PPV)
+
+- `GET /api/ppv` – List PPV message templates.
+- `POST /api/ppv` – Create a new PPV entry.
+- `PUT /api/ppv/:id` – Update a PPV entry.
+- `POST /api/ppv/:id/send` – Send a PPV message to selected fans.
+- `DELETE /api/ppv/:id` – Delete a PPV template.
+
 ### Migration from single-endpoint workflow
 
 Earlier versions used `/api/refreshFans` to also generate Parker names. Now call
@@ -312,7 +352,7 @@ Jest is the configured test runner and includes suites such as
   browser.
 - Message sending is rate‑limited (500 ms delay between fans) to reduce the chance of
   hitting OnlyFans rate limits.
-- The project currently supports only the two features described above but is structured
-  to allow further expansion.
+- Message scheduling, vault management, and PPV features are still evolving and may
+  change as the project develops.
 
-<!-- End of File – Last modified 2025-02-14 -->
+<!-- End of File – Last modified 2025-02-15 -->
