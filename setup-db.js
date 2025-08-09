@@ -127,6 +127,41 @@ async function ensurePostgres(adminConfig) {
 async function main() {
   try {
     console.log('🧙 Starting database setup wizard...');
+
+    // If DB credentials already exist, use them directly
+    const existing = {
+      name: process.env.DB_NAME,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT,
+    };
+    const hasExisting = Object.values(existing).every(Boolean);
+    if (hasExisting) {
+      console.log('Using existing database credentials from .env');
+      const client = new Client({
+        user: existing.user,
+        password: existing.password,
+        host: existing.host,
+        port: existing.port,
+        database: existing.name,
+      });
+      try {
+        await client.connect();
+      } catch (e) {
+        console.error(
+          'Could not connect to database with provided credentials:',
+          e.message,
+        );
+        process.exit(1);
+      }
+      await client.query(createTableQuery);
+      await client.end();
+      console.log('Database connection successful. Migrations will run next.');
+      return;
+    }
+
+    // No credentials provided: generate a fresh database
     const dbName = 'ofem_' + crypto.randomBytes(4).toString('hex');
     const dbUser = 'user_' + crypto.randomBytes(4).toString('hex');
     const dbPassword = crypto.randomBytes(10).toString('hex');
@@ -171,21 +206,7 @@ async function main() {
     await newClient.end();
     console.log('Fans table created.');
 
-    // Step 3: run migrations to ensure latest schema
-    console.log('Running migrations...');
-    await execAsync('node migrate_all.js', {
-      env: {
-        ...process.env,
-        DB_NAME: dbName,
-        DB_USER: dbUser,
-        DB_PASSWORD: dbPassword,
-        DB_HOST: adminConfig.host,
-        DB_PORT: adminConfig.port,
-      },
-    });
-    console.log('Migrations complete.');
-
-    // Step 4: update .env with new credentials, preserving other values
+    // Step 3: update .env with new credentials, preserving other values
     const envPath = path.join(__dirname, '.env');
     const exampleEnvPath = path.join(__dirname, '.env.example');
     if (!fs.existsSync(envPath) && fs.existsSync(exampleEnvPath)) {
@@ -193,8 +214,8 @@ async function main() {
     }
     let lines = [];
     if (fs.existsSync(envPath)) {
-      const existing = fs.readFileSync(envPath, 'utf8');
-      lines = existing
+      const existingLines = fs
+        .readFileSync(envPath, 'utf8')
         .split(/\r?\n/)
         .filter(
           (line) =>
@@ -204,6 +225,7 @@ async function main() {
             !line.startsWith('DB_HOST=') &&
             !line.startsWith('DB_PORT='),
         );
+      lines = existingLines;
     }
     lines.push(`DB_NAME=${dbName}`);
     lines.push(`DB_USER=${dbUser}`);

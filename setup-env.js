@@ -51,36 +51,36 @@ async function main() {
       console.log('OPENAI_API_KEY is required for OpenAI functionality.');
   }
 
-  let dbName = '';
-  while (!dbName) {
-    dbName = await prompt('Enter your Database Name (required): ');
-    if (!dbName) console.log('Database name is required.');
-  }
+  const dbName = await prompt(
+    'Enter your Database Name (optional, leave blank to skip): ',
+  );
   let dbUser = '';
-  while (!dbUser) {
-    dbUser = await prompt('Enter your Database User (required): ');
-    if (!dbUser) console.log('Database user is required.');
-  }
   let dbPassword = '';
-  while (!dbPassword) {
-    dbPassword = await prompt('Enter your Database Password (required): ');
-    if (!dbPassword) console.log('Database password is required.');
-  }
   let dbHost = '';
-  while (!dbHost) {
-    dbHost = await prompt('Enter your Database Host (required): ');
-    if (!dbHost) console.log('Database host is required.');
-  }
   let dbPort = '';
-  while (true) {
-    dbPort = await prompt('Enter your Database Port (required): ');
-    if (!dbPort) {
-      console.log('Database port is required.');
-    } else if (Number.isNaN(Number(dbPort))) {
-      console.log('Database port must be a number.');
-      dbPort = '';
-    } else {
-      break;
+  if (dbName) {
+    while (!dbUser) {
+      dbUser = await prompt('Enter your Database User (required): ');
+      if (!dbUser) console.log('Database user is required.');
+    }
+    while (!dbPassword) {
+      dbPassword = await prompt('Enter your Database Password (required): ');
+      if (!dbPassword) console.log('Database password is required.');
+    }
+    while (!dbHost) {
+      dbHost = await prompt('Enter your Database Host (required): ');
+      if (!dbHost) console.log('Database host is required.');
+    }
+    while (true) {
+      dbPort = await prompt('Enter your Database Port (required): ');
+      if (!dbPort) {
+        console.log('Database port is required.');
+      } else if (Number.isNaN(Number(dbPort))) {
+        console.log('Database port must be a number.');
+        dbPort = '';
+      } else {
+        break;
+      }
     }
   }
   const dbAdminUser = await prompt(
@@ -99,11 +99,6 @@ async function main() {
   const requiredVars = {
     ONLYFANS_API_KEY: onlyfansKey,
     OPENAI_API_KEY: openaiKey,
-    DB_NAME: dbName,
-    DB_USER: dbUser,
-    DB_PASSWORD: dbPassword,
-    DB_HOST: dbHost,
-    DB_PORT: dbPort,
   };
   for (const [key, value] of Object.entries(requiredVars)) {
     if (!value) {
@@ -124,11 +119,26 @@ async function main() {
 
   setEnv('ONLYFANS_API_KEY', onlyfansKey);
   setEnv('OPENAI_API_KEY', openaiKey);
-  setEnv('DB_NAME', dbName);
-  setEnv('DB_USER', dbUser);
-  setEnv('DB_PASSWORD', dbPassword);
-  setEnv('DB_HOST', dbHost);
-  setEnv('DB_PORT', dbPort);
+  if (dbName) {
+    setEnv('DB_NAME', dbName);
+    setEnv('DB_USER', dbUser);
+    setEnv('DB_PASSWORD', dbPassword);
+    setEnv('DB_HOST', dbHost);
+    setEnv('DB_PORT', dbPort);
+  } else {
+    // Remove any existing DB_* entries to allow fresh setup
+    envContent = envContent
+      .split(/\r?\n/)
+      .filter(
+        (line) =>
+          !line.startsWith('DB_NAME=') &&
+          !line.startsWith('DB_USER=') &&
+          !line.startsWith('DB_PASSWORD=') &&
+          !line.startsWith('DB_HOST=') &&
+          !line.startsWith('DB_PORT='),
+      )
+      .join('\n');
+  }
   setEnv('DB_ADMIN_USER', dbAdminUser);
   setEnv('DB_ADMIN_PASSWORD', dbAdminPassword);
   setEnv('PORT', port || '3000');
@@ -136,10 +146,14 @@ async function main() {
   if (!envContent.endsWith('\n')) envContent += '\n';
   fs.writeFileSync(envPath, envContent);
   console.log('.env file created/updated.');
-  console.log(
-    'API keys saved. Database credentials and server port saved (default 3000).',
-  );
-  console.log('Next run `npm run setup-db` to create the database.');
+  if (dbName) {
+    console.log(
+      'API keys and database credentials saved. Server port set (default 3000).',
+    );
+  } else {
+    console.log('API keys saved. No database credentials provided.');
+  }
+  console.log('Next run `npm run setup-db` to set up the database.');
 }
 
 main();
