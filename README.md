@@ -330,6 +330,44 @@ JSONB columns such as `avatarThumbs`, `headerSize`, `headerThumbs`, `listsStates
 - `POST /api/ppv/:id/send` – Send a PPV message to selected fans.
 - `DELETE /api/ppv/:id` – Delete a PPV template.
 
+## Webhooks
+
+Listen to events from your OnlyFans accounts on your webhook endpoint so your integration can automatically process data.
+
+> **Important** Webhooks are only available for Pro and Enterprise plans.
+
+You can easily subscribe to webhooks using our console:
+
+1. Go to the OnlyFansAPI Console -> Webhooks.
+2. Click on the + Add Webhook button.
+3. Fill in the Endpoint URL field with your webhook endpoint.
+4. Optionally, add a Signing Secret to verify the webhook payloads (recommended).
+5. Select the events you want to subscribe to.
+
+### Available webhook events
+
+A list of all available webhook events that you can subscribe to.
+
+- **Accounts**
+  - `accounts.connected` – A new OnlyFans account was connected.
+  - `accounts.reconnected` – An OnlyFans account was reconnected.
+  - `accounts.session_expired` – Connection expired but was automatically reconnected.
+  - `accounts.authentication_failed` – Connection expired and couldn't be auto-reconnected.
+  - `accounts.otp_code_required` – Two-factor authentication code required.
+  - `accounts.face_otp_required` – Face verification required.
+- **Messages**
+  - `messages.received` – New message received from a fan.
+  - `messages.sent` – Message sent from one of your accounts.
+  - `messages.ppv.unlocked` – A PPV message you sent has been purchased.
+- **Subscriptions**
+  - `subscriptions.new` – A new fan has subscribed.
+- **Posts**
+  - `posts.liked` – A fan has liked one of your posts.
+- **Users**
+  - `users.typing` – A fan is typing a message.
+
+See [Available webhook events](/webhooks/available-events) for example payloads and details on each event.
+
 ### Migration from single-endpoint workflow
 
 Earlier versions used `/api/refreshFans` to also generate Parker names. Now call
