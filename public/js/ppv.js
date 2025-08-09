@@ -1,4 +1,5 @@
 (function (global) {
+  let selectedVaultListId = null;
   async function fetchPpvs() {
     try {
       const res = await global.fetch('/api/ppv');
@@ -32,19 +33,51 @@
     }
   }
 
-  function linkPreviewInclude(includeCb, previewCb) {
+  async function fetchVaultLists() {
+    try {
+      const res = await global.fetch('/api/vault-lists');
+      if (!res.ok) return;
+      const lists = await res.json();
+      const select = global.document.getElementById('vaultListSelect');
+      if (!select) return;
+      select.innerHTML = '<option value="">--</option>';
+      for (const l of lists) {
+        const opt = global.document.createElement('option');
+        opt.value = l.id;
+        opt.textContent = l.name || `List ${l.id}`;
+        select.appendChild(opt);
+      }
+      if (selectedVaultListId) select.value = selectedVaultListId;
+    } catch (err) {
+      global.console.error('Error fetching vault lists:', err);
+    }
+  }
+
+  function linkPreviewInclude(includeCb, previewCb, label) {
     // Previewing a media item without including it would break the PPV message,
     // so keep the "Include" and "Preview" checkboxes in sync.
+    function updateLabel() {
+      if (label) {
+        label.textContent = previewCb.checked ? 'Preview' : 'Paywalled';
+      }
+    }
     includeCb.addEventListener('change', () => {
       if (!includeCb.checked) previewCb.checked = false;
+      updateLabel();
     });
     previewCb.addEventListener('change', () => {
-      if (previewCb.checked) includeCb.checked = true;
+      if (previewCb.checked) {
+        includeCb.checked = true;
+        includeCb.dispatchEvent(new global.Event('change'));
+      }
+      updateLabel();
     });
+    updateLabel();
   }
 
   async function loadVaultMedia() {
     try {
+      await fetchVaultLists();
       const res = await global.fetch('/api/vault-media');
       if (!res.ok) return;
       const data = await res.json();
@@ -55,6 +88,12 @@
       for (const m of items) {
         const div = global.document.createElement('div');
         div.className = 'media-item';
+
+        const icon = global.document.createElement('span');
+        icon.className = 'icon';
+        icon.textContent =
+          m.type === 'video' ? '🎬' : m.type === 'audio' ? '🎵' : '🖼️';
+        div.appendChild(icon);
 
         const thumb =
           (m.preview && (m.preview.url || m.preview.src)) ||
@@ -69,6 +108,10 @@
         idSpan.className = 'media-id';
         idSpan.textContent = 'ID: ' + m.id;
         div.appendChild(idSpan);
+
+        const accessSpan = global.document.createElement('span');
+        accessSpan.className = 'access-label';
+        div.appendChild(accessSpan);
 
         const includeLabel = global.document.createElement('label');
         const mediaCb = global.document.createElement('input');
@@ -88,7 +131,19 @@
         previewLabel.append(' Preview');
         div.appendChild(previewLabel);
 
-        linkPreviewInclude(mediaCb, previewCb);
+        const likes = m.likes || m.likes_count || m.likesCount || 0;
+        const tips = m.tips || m.tips_amount || m.tipsAmount || 0;
+        const statsSpan = global.document.createElement('span');
+        statsSpan.className = 'media-stats';
+        statsSpan.textContent = ` Likes: ${likes} Tips: ${tips}`;
+        statsSpan.style.display = 'none';
+        div.appendChild(statsSpan);
+
+        mediaCb.addEventListener('change', () => {
+          statsSpan.style.display = mediaCb.checked ? 'inline' : 'none';
+        });
+
+        linkPreviewInclude(mediaCb, previewCb, accessSpan);
 
         container.appendChild(div);
       }
@@ -171,6 +226,7 @@
           previews,
           scheduleDay,
           scheduleTime,
+          vaultListId: selectedVaultListId,
         }),
       });
       const result = await res.json();
@@ -181,12 +237,38 @@
         global.document.getElementById('scheduleDay').value = '';
         global.document.getElementById('scheduleTime').value = '';
         global.document.getElementById('vaultMediaList').innerHTML = '';
+        const listSelect = global.document.getElementById('vaultListSelect');
+        if (listSelect) listSelect.value = '';
+        selectedVaultListId = null;
         fetchPpvs();
       } else {
         global.alert(result.error || 'Failed to save PPV');
       }
     } catch (err) {
       global.console.error('Error saving PPV:', err);
+    }
+  }
+
+  async function createVaultList() {
+    const name = global.prompt('Enter list name');
+    if (!name) return;
+    try {
+      const res = await global.fetch('/api/vault-lists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        global.alert(result.error || 'Failed to create list');
+        return;
+      }
+      selectedVaultListId = result.id;
+      await fetchVaultLists();
+      const select = global.document.getElementById('vaultListSelect');
+      if (select) select.value = String(selectedVaultListId);
+    } catch (err) {
+      global.console.error('Error creating vault list:', err);
     }
   }
 
@@ -240,6 +322,15 @@
     if (uploadBtn) uploadBtn.addEventListener('click', uploadMedia);
     const saveBtn = global.document.getElementById('saveBtn');
     if (saveBtn) saveBtn.addEventListener('click', savePpv);
+    const listSelect = global.document.getElementById('vaultListSelect');
+    if (listSelect) {
+      listSelect.addEventListener('change', (e) => {
+        selectedVaultListId = e.target.value ? Number(e.target.value) : null;
+      });
+    }
+    const createListBtn = global.document.getElementById('createVaultListBtn');
+    if (createListBtn) createListBtn.addEventListener('click', createVaultList);
+    fetchVaultLists();
     fetchPpvs();
   }
 
@@ -254,6 +345,8 @@
     deletePpv,
     sendPpv,
     sendPpvPrompt,
+    createVaultList,
+    fetchVaultLists,
     init,
   };
 
