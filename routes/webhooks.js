@@ -7,6 +7,7 @@ module.exports = function ({ pool, sanitizeError, sendMessageToFan, openaiAxios,
   const recentEvents = [];
 
   // Predefined templates for thank-you messages (50 variations)
+  /* eslint-disable quotes */
   const THANK_YOU_TEMPLATES = [
     "Thank you so much [name]! Your support means a lot \uD83D\uDC95.",
     "Thanks for unlocking, [name]! Hope you enjoy it!",
@@ -58,6 +59,7 @@ module.exports = function ({ pool, sanitizeError, sendMessageToFan, openaiAxios,
     "Thank you [name]! You just made my day brighter \uD83D\uDC95",
     "Thanks [name]! Your support doesn’t go unnoticed \uD83D\uDE18",
   ];
+  /* eslint-enable quotes */
 
   // Helper to safely escape HTML in text (to prevent injection in our UI)
   function escapeHtml(str) {
@@ -149,7 +151,7 @@ module.exports = function ({ pool, sanitizeError, sendMessageToFan, openaiAxios,
                   {
                     role: 'system',
                     content:
-                      "You are an OnlyFans assistant helping a creator reply to fans in a friendly, engaging, and personalized tone.",
+                      'You are an OnlyFans assistant helping a creator reply to fans in a friendly, engaging, and personalized tone.',
                   },
                   {
                     role: 'user',
