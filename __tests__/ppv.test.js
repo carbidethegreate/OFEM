@@ -220,8 +220,8 @@ test('sends PPV to fan and logs the send', async () => {
   expect(res.status).toBe(200);
   expect(mockAxios.post).toHaveBeenCalledWith('/acc1/chats/1/messages', {
     text: '<p>hello</p>',
-    mediaFiles: [11],
-    previews: [11],
+    mediaFiles: ['11'],
+    previews: ['11'],
     price: 5,
     lockedText: false,
   });
