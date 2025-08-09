@@ -107,3 +107,18 @@ test('POST /api/vault-media uploads files', async () => {
   );
   expect(res.body).toEqual({ mediaIds: ['m1'] });
 });
+
+test('POST /api/vault-media/scrape uploads by URL', async () => {
+  mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
+  mockAxios.post.mockResolvedValueOnce({ data: { id: 'm2' } });
+
+  const res = await request(app)
+    .post('/api/vault-media/scrape')
+    .send({ url: 'https://cdn1.onlyfans.com/file' })
+    .expect(200);
+
+  expect(mockAxios.post).toHaveBeenCalledWith('/acc1/media/scrape', {
+    url: 'https://cdn1.onlyfans.com/file',
+  });
+  expect(res.body).toEqual({ mediaId: 'm2' });
+});

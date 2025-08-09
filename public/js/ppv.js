@@ -188,6 +188,29 @@
     }
   }
 
+  async function scrapeMedia() {
+    const input = global.document.getElementById('cdnUrl');
+    if (!input) return;
+    const url = input.value.trim();
+    if (!url) return;
+    try {
+      const res = await global.fetch('/api/vault-media/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        global.alert(result.error || 'Failed to scrape media');
+        return;
+      }
+      input.value = '';
+      await loadVaultMedia();
+    } catch (err) {
+      global.console.error('Error scraping media:', err);
+    }
+  }
+
   async function savePpv() {
     const ppvNumber = parseInt(global.document.getElementById('ppvNumber').value, 10);
     const message = global.document.getElementById('message').value.trim();
@@ -332,6 +355,8 @@
     if (loadBtn) loadBtn.addEventListener('click', loadVaultMedia);
     const uploadBtn = global.document.getElementById('uploadMediaBtn');
     if (uploadBtn) uploadBtn.addEventListener('click', uploadMedia);
+    const scrapeBtn = global.document.getElementById('scrapeMediaBtn');
+    if (scrapeBtn) scrapeBtn.addEventListener('click', scrapeMedia);
     const saveBtn = global.document.getElementById('saveBtn');
     if (saveBtn) saveBtn.addEventListener('click', savePpv);
     const listSelect = global.document.getElementById('vaultListSelect');
@@ -353,6 +378,7 @@
     linkPreviewInclude,
     loadVaultMedia,
     uploadMedia,
+    scrapeMedia,
     savePpv,
     deletePpv,
     sendPpv,
