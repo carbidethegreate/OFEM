@@ -15,13 +15,29 @@ module.exports = function ({
       const dbRes = await pool.query(
         'SELECT id, ppv_number, description, message, price, vault_list_id, schedule_day, schedule_time, last_sent_at, created_at FROM ppv_sets ORDER BY ppv_number',
       );
-      const ppvs = dbRes.rows.map(
-        ({ schedule_day, schedule_time, ...rest }) => ({
-          ...rest,
-          scheduleDay: schedule_day,
-          scheduleTime: schedule_time,
-        }),
-      );
+      const rows = dbRes.rows;
+      const ids = rows.map((r) => r.id);
+      const mediaMap = {};
+      if (ids.length) {
+        const mediaRes = await pool.query(
+          'SELECT ppv_id, media_id, is_preview FROM ppv_media WHERE ppv_id = ANY($1::bigint[])',
+          [ids],
+        );
+        for (const r of mediaRes.rows) {
+          if (!mediaMap[r.ppv_id]) {
+            mediaMap[r.ppv_id] = { mediaFiles: [], previews: [] };
+          }
+          mediaMap[r.ppv_id].mediaFiles.push(r.media_id);
+          if (r.is_preview) mediaMap[r.ppv_id].previews.push(r.media_id);
+        }
+      }
+      const ppvs = rows.map(({ schedule_day, schedule_time, ...rest }) => ({
+        ...rest,
+        scheduleDay: schedule_day,
+        scheduleTime: schedule_time,
+        mediaFiles: mediaMap[rest.id]?.mediaFiles || [],
+        previews: mediaMap[rest.id]?.previews || [],
+      }));
       res.json({ ppvs });
     } catch (err) {
       console.error('Error fetching PPVs:', sanitizeError(err));
