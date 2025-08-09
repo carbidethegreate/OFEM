@@ -80,6 +80,14 @@ module.exports = function ({
       });
     }
   });
+
+  router.post('/messages/send', async (req, res) => {
+    const text = req.body?.text;
+    if (typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({ error: 'text required' });
+    }
+    res.json({ success: true });
+  });
   /* Story 2: Send Personalized DM to All Fans */
   router.post('/sendMessage', async (req, res) => {
     const missing = getMissingEnvVars();
