@@ -49,7 +49,7 @@
     if (statusMsg) {
       statusMsg.textContent =
         unfollowed.length === 0
-          ? 'No fans to follow. Please run /api/refreshFans to sync.'
+          ? "No fans to follow. Click 'Refresh Fans' to sync."
           : '';
     }
   }
@@ -104,9 +104,26 @@
     };
   }
 
+  async function refreshFans() {
+    const btn = global.document.getElementById('refreshBtn');
+    if (btn) btn.disabled = true;
+    try {
+      const res = await global.fetch('/api/refreshFans', { method: 'POST' });
+      if (!res.ok) throw new Error('Failed to refresh fans');
+      await loadUnfollowed();
+    } catch (err) {
+      global.console.error('Error refreshing fans:', err);
+      global.alert('Failed to refresh fans');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   function init() {
     const btn = global.document.getElementById('followBtn');
     if (btn) btn.addEventListener('click', followAll);
+    const refreshBtn = global.document.getElementById('refreshBtn');
+    if (refreshBtn) refreshBtn.addEventListener('click', refreshFans);
     loadUnfollowed();
   }
 
@@ -115,6 +132,7 @@
     renderTable,
     setStatusDot,
     followAll,
+    refreshFans,
     init,
   };
 
