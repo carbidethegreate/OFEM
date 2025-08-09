@@ -366,10 +366,18 @@ const messagesRoutes = require('./routes/messages')({
   sendMessageToFan,
   getMissingEnvVars,
 });
+const webhookRoutes = require('./routes/webhooks')({
+  pool,
+  sanitizeError,
+  sendMessageToFan,
+  openaiAxios,
+  openaiRequest,
+});
 app.use('/api', fansRoutes);
 app.use('/api', ppvRoutes);
 app.use('/api', vaultListsRoutes);
 app.use('/api', messagesRoutes);
+app.use('/api', webhookRoutes);
 
 // System status endpoint
 app.get('/api/status', async (req, res) => {
