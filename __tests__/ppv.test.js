@@ -161,6 +161,22 @@ test('saves and retrieves message field', async () => {
   expect(ppv.message).toBe('hello');
 });
 
+test('includes media arrays in GET /api/ppv', async () => {
+  const insertRes = await mockPool.query(
+    "INSERT INTO ppv_sets (ppv_number, message, price) VALUES (1,'msg',5) RETURNING id",
+  );
+  const id = insertRes.rows[0].id;
+  await mockPool.query(
+    'INSERT INTO ppv_media (ppv_id, media_id, is_preview) VALUES ($1,$2,$3)',
+    [id, 100, true],
+  );
+  const listRes = await request(app).get('/api/ppv');
+  expect(listRes.status).toBe(200);
+  const ppv = listRes.body.ppvs.find((p) => p.id === id);
+  expect(ppv.mediaFiles).toEqual([100]);
+  expect(ppv.previews).toEqual([100]);
+});
+
 test('resets last_sent_at when schedule changes', async () => {
   const insertRes = await mockPool.query(
     "INSERT INTO ppv_sets (ppv_number, description, message, price, schedule_day, schedule_time, last_sent_at) VALUES (1,'desc','msg',5,10,'10:00','2024-01-01T00:00:00Z') RETURNING id",

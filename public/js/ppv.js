@@ -430,7 +430,7 @@
     sendPpv(id, fanId);
   }
 
-  function editPpv(id) {
+  async function editPpv(id) {
     const ppv = currentPpvs.find((p) => p.id === id);
     if (!ppv) return;
     editingPpvId = id;
@@ -449,6 +449,25 @@
     if (dayInput) dayInput.value = ppv.scheduleDay != null ? ppv.scheduleDay : '';
     const timeInput = global.document.getElementById('scheduleTime');
     if (timeInput) timeInput.value = ppv.scheduleTime || '';
+    selectedVaultListId = ppv.vault_list_id || ppv.vaultListId || null;
+    await loadVaultMedia();
+    const mediaIds = ppv.mediaFiles || [];
+    const previewIds = ppv.previews || [];
+    for (const cb of global.document.querySelectorAll('.mediaCheckbox')) {
+      if (mediaIds.includes(Number(cb.value))) {
+        cb.checked = true;
+        cb.dispatchEvent(new global.Event('change'));
+      }
+    }
+    for (const cb of global.document.querySelectorAll('.previewCheckbox')) {
+      if (previewIds.includes(Number(cb.value))) {
+        cb.checked = true;
+        cb.dispatchEvent(new global.Event('change'));
+      }
+    }
+    const listSelect = global.document.getElementById('vaultListSelect');
+    if (listSelect)
+      listSelect.value = selectedVaultListId ? String(selectedVaultListId) : '';
     const saveBtn = global.document.getElementById('saveBtn');
     if (saveBtn) saveBtn.textContent = 'Update PPV';
   }
