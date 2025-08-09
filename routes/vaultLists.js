@@ -6,8 +6,58 @@ module.exports = function ({
   ofApi,
   pool,
   sanitizeError,
+  OF_FETCH_LIMIT,
 }) {
   const router = express.Router();
+
+  router.get('/vault-media', async (req, res) => {
+    try {
+      const accountId = await getOFAccountId();
+      const limit = 100;
+      let offset = 0;
+      const media = [];
+      while (true) {
+        const resp = await ofApiRequest(() =>
+          ofApi.get(`/${accountId}/media/vault`, {
+            params: { limit, offset },
+          }),
+        );
+        const items =
+          resp.data?.media ||
+          resp.data?.list ||
+          resp.data?.data ||
+          resp.data;
+        if (!Array.isArray(items) || items.length === 0) break;
+        media.push(...items);
+        offset += limit;
+        if (offset >= OF_FETCH_LIMIT) break;
+      }
+
+      for (const m of media) {
+        const id = m.id;
+        const likes = m.likes ?? m.likesCount ?? null;
+        const tips = m.tips ?? null;
+        const thumb = m.thumb_url ?? m.thumb?.url ?? null;
+        const preview = m.preview_url ?? m.preview?.url ?? null;
+        const created = m.created_at ? new Date(m.created_at) : null;
+        await pool.query(
+          'INSERT INTO vault_media (id, likes, tips, thumb_url, preview_url, created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET likes=EXCLUDED.likes, tips=EXCLUDED.tips, thumb_url=EXCLUDED.thumb_url, preview_url=EXCLUDED.preview_url, created_at=EXCLUDED.created_at',
+          [id, likes, tips, thumb, preview, created],
+        );
+      }
+
+      const dbRes = await pool.query(
+        'SELECT id, likes, tips, thumb_url, preview_url, created_at FROM vault_media ORDER BY id',
+      );
+      res.json(dbRes.rows);
+    } catch (err) {
+      console.error('Error fetching vault media:', sanitizeError(err));
+      const status = err.message.includes('OnlyFans account') ? 400 : 500;
+      res.status(status).json({
+        error: status === 400 ? err.message : 'Failed to fetch vault media',
+      });
+    }
+  });
 
   router.get('/vault-lists', async (req, res) => {
     try {
