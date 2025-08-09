@@ -10,7 +10,7 @@ module.exports = function ({
 }) {
   const router = express.Router();
 
-  router.get('/vault-media', async (req, res) => {
+  async function listVaultMedia(req, res) {
     try {
       const accountId = await getOFAccountId();
       const limit = 100;
@@ -57,7 +57,10 @@ module.exports = function ({
         error: status === 400 ? err.message : 'Failed to fetch vault media',
       });
     }
-  });
+  }
+
+  router.get('/vault-media', listVaultMedia);
+  router.get('/', listVaultMedia);
 
   router.get('/vault-lists', async (req, res) => {
     try {
