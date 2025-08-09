@@ -145,33 +145,10 @@
 
         linkPreviewInclude(mediaCb, previewCb, accessSpan);
 
-        const delBtn = global.document.createElement('button');
-        delBtn.className = 'btn btn-sm btn-danger delete-media-btn';
-        delBtn.textContent = 'Delete';
-        delBtn.addEventListener('click', () => deleteVaultMedia(m.id));
-        div.appendChild(delBtn);
-
         container.appendChild(div);
       }
     } catch (err) {
       global.console.error('Error loading vault media:', err);
-    }
-  }
-
-  async function deleteVaultMedia(id) {
-    if (!global.confirm('Delete this media item?')) return;
-    try {
-      const res = await global.fetch(`/api/vault-media/${id}`, {
-        method: 'DELETE',
-      });
-      const result = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        global.alert(result.error || 'Failed to delete media');
-        return;
-      }
-      await loadVaultMedia();
-    } catch (err) {
-      global.console.error('Error deleting vault media:', err);
     }
   }
 
@@ -363,7 +340,6 @@
     renderPpvTable,
     linkPreviewInclude,
     loadVaultMedia,
-    deleteVaultMedia,
     uploadMedia,
     savePpv,
     deletePpv,
