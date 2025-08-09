@@ -22,4 +22,4 @@ if (needsInstall()) {
   run('npm', ['install']);
 }
 
-run('node', ['migrate_all.js']);
+run('npm', ['run', 'migrate']);

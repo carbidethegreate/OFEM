@@ -44,25 +44,45 @@ async function main() {
         'ONLYFANS_API_KEY is required to make OnlyFans API requests.',
       );
   }
-  const openaiKey = await prompt(
-    'Enter your OpenAI API Key (leave blank to skip): ',
-  );
+  let openaiKey = '';
+  while (!openaiKey) {
+    openaiKey = await prompt('Enter your OpenAI API Key (required): ');
+    if (!openaiKey)
+      console.log('OPENAI_API_KEY is required for OpenAI functionality.');
+  }
 
-  const dbName = await prompt(
-    'Enter your Database Name (leave blank to skip): ',
-  );
-  const dbUser = await prompt(
-    'Enter your Database User (leave blank to skip): ',
-  );
-  const dbPassword = await prompt(
-    'Enter your Database Password (leave blank to skip): ',
-  );
-  const dbHost = await prompt(
-    'Enter your Database Host (leave blank to skip): ',
-  );
-  const dbPort = await prompt(
-    'Enter your Database Port (leave blank to skip): ',
-  );
+  let dbName = '';
+  while (!dbName) {
+    dbName = await prompt('Enter your Database Name (required): ');
+    if (!dbName) console.log('Database name is required.');
+  }
+  let dbUser = '';
+  while (!dbUser) {
+    dbUser = await prompt('Enter your Database User (required): ');
+    if (!dbUser) console.log('Database user is required.');
+  }
+  let dbPassword = '';
+  while (!dbPassword) {
+    dbPassword = await prompt('Enter your Database Password (required): ');
+    if (!dbPassword) console.log('Database password is required.');
+  }
+  let dbHost = '';
+  while (!dbHost) {
+    dbHost = await prompt('Enter your Database Host (required): ');
+    if (!dbHost) console.log('Database host is required.');
+  }
+  let dbPort = '';
+  while (true) {
+    dbPort = await prompt('Enter your Database Port (required): ');
+    if (!dbPort) {
+      console.log('Database port is required.');
+    } else if (Number.isNaN(Number(dbPort))) {
+      console.log('Database port must be a number.');
+      dbPort = '';
+    } else {
+      break;
+    }
+  }
   const dbAdminUser = await prompt(
     'Enter your Database Admin User (optional, leave blank to skip): ',
   );
@@ -75,6 +95,22 @@ async function main() {
   const fetchLimit = await prompt(
     'Max OnlyFans records to fetch (leave blank for 1000): ',
   );
+
+  const requiredVars = {
+    ONLYFANS_API_KEY: onlyfansKey,
+    OPENAI_API_KEY: openaiKey,
+    DB_NAME: dbName,
+    DB_USER: dbUser,
+    DB_PASSWORD: dbPassword,
+    DB_HOST: dbHost,
+    DB_PORT: dbPort,
+  };
+  for (const [key, value] of Object.entries(requiredVars)) {
+    if (!value) {
+      console.error(`${key} is required. Aborting setup.`);
+      process.exit(1);
+    }
+  }
 
   const setEnv = (key, value) => {
     if (!value) return;
