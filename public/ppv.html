@@ -107,13 +107,28 @@
         >
       </fieldset>
       <div class="mb-8">
-        <button id="loadVaultBtn" type="button" class="btn btn-primary">
-          Load Vault Media
-        </button>
-        <input type="file" id="mediaUploadInput" multiple />
-        <button id="uploadMediaBtn" type="button" class="btn btn-secondary">
-          Upload Media
-        </button>
+        <div class="mb-4">
+          <label
+            >CDN URL:
+            <input
+              type="text"
+              id="cdnUrl"
+              class="form-input"
+              placeholder="https://cdn.onlyfans.com/..."
+          /></label>
+          <button id="scrapeMediaBtn" type="button" class="btn btn-secondary">
+            Scrape URL
+          </button>
+        </div>
+        <div class="mb-4">
+          <button id="loadVaultBtn" type="button" class="btn btn-primary">
+            Load Vault Media
+          </button>
+          <input type="file" id="mediaUploadInput" multiple />
+          <button id="uploadMediaBtn" type="button" class="btn btn-secondary">
+            Upload Media
+          </button>
+        </div>
         <div id="vaultMediaList" class="vault-media-list"></div>
       </div>
       <button id="saveBtn" type="button" class="btn btn-primary">

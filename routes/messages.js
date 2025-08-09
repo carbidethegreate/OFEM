@@ -111,6 +111,37 @@ module.exports = function ({
       });
     }
   });
+
+  router.post('/vault-media/scrape', async (req, res) => {
+    try {
+      const url = req.body?.url;
+      if (typeof url !== 'string' || !url.trim()) {
+        return res.status(400).json({ error: 'url required' });
+      }
+      const accountId = await getOFAccountId();
+      const resp = await ofApiRequest(() =>
+        ofApi.post(`/${accountId}/media/scrape`, { url }),
+      );
+      const id =
+        resp.data?.media?.id ||
+        resp.data?.id ||
+        resp.data?.mediaId ||
+        resp.data?.media_id;
+      if (id != null) {
+        await pool.query(
+          'INSERT INTO vault_media (id) VALUES ($1) ON CONFLICT DO NOTHING',
+          [id],
+        );
+      }
+      res.json({ mediaId: id });
+    } catch (err) {
+      console.error('Error scraping vault media:', sanitizeError(err));
+      const status = err.message.includes('OnlyFans account') ? 400 : 500;
+      res.status(status).json({
+        error: status === 400 ? err.message : 'Failed to scrape vault media',
+      });
+    }
+  });
   /* Story 2: Send Personalized DM to All Fans */
   router.post('/sendMessage', async (req, res) => {
     const missing = getMissingEnvVars();
