@@ -145,7 +145,7 @@ test('sends PPV media from associated vault list', async () => {
     '',
     'hello',
     10,
-    false,
+    '',
     [111, 222],
     [],
   );
@@ -185,7 +185,7 @@ test('includes preview media when sending paywalled PPVs', async () => {
     '',
     'hi',
     7,
-    false,
+    '',
     [10, 20],
     [20],
   );

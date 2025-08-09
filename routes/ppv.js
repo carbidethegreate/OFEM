@@ -325,7 +325,7 @@ module.exports = function ({
         '',
         message,
         price,
-        false,
+        '',
         mediaFiles,
         previews,
       );

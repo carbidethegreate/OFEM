@@ -223,7 +223,6 @@ test('sends PPV to fan and logs the send', async () => {
     mediaFiles: ['11'],
     previews: ['11'],
     price: 5,
-    lockedText: false,
   });
   const log = await mockPool.query(
     'SELECT ppv_id, fan_id FROM ppv_sends',

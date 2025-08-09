@@ -115,7 +115,9 @@
       } else {
         payload.price = null;
       }
-      payload.lockedText = locked;
+      payload.lockedText = locked
+        ? this.currentMessage.locked_text || ''
+        : null;
       try {
         const res = await global.fetch(
           `/api/scheduledMessages/${this.currentMessage.id}`,
