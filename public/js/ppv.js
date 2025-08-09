@@ -580,3 +580,19 @@
 
   global.document.addEventListener('DOMContentLoaded', init);
 })(typeof window !== 'undefined' ? window : global);
+
+// Fetch the vault media list when the "Load Vault Media" button is clicked
+document.getElementById('loadVaultBtn').addEventListener('click', async () => {
+  try {
+    const res = await fetch('/api/vault-media');
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || err.message || 'Failed to load vault media');
+      return;
+    }
+    const mediaItems = await res.json();
+    // TODO: display mediaItems in a table (see step 3)
+  } catch (error) {
+    console.error('Error fetching vault media:', error);
+  }
+});
