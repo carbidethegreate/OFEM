@@ -16,6 +16,7 @@ const scripts = [
   // PPV-related migrations
   'migrate_add_ppv_message_field.js',
   'migrate_add_ppv_sends.js',
+  'migrate_add_vault_media.js',
 ];
 
 for (const script of scripts) {
