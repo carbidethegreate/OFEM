@@ -351,6 +351,13 @@ const ppvRoutes = require('./routes/ppv')({
   sanitizeError,
   sendMessageToFan,
 });
+const vaultListsRoutes = require('./routes/vaultLists')({
+  getOFAccountId,
+  ofApiRequest,
+  ofApi,
+  pool,
+  sanitizeError,
+});
 const messagesRoutes = require('./routes/messages')({
   getOFAccountId,
   ofApiRequest,
@@ -362,6 +369,7 @@ const messagesRoutes = require('./routes/messages')({
 });
 app.use('/api', fansRoutes);
 app.use('/api', ppvRoutes);
+app.use('/api', vaultListsRoutes);
 app.use('/api', messagesRoutes);
 
 // System status endpoint
