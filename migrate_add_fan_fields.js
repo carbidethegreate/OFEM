@@ -62,6 +62,25 @@ const columns = [
       const sql = `ALTER TABLE fans ADD COLUMN IF NOT EXISTS ${name} ${type};`;
       await pool.query(sql);
     }
+    // Ensure a stable identifier exists for sending
+    await pool.query(`
+      ALTER TABLE fans
+      ADD COLUMN IF NOT EXISTS of_user_id TEXT;
+    `);
+    await pool.query(`
+      UPDATE fans
+      SET of_user_id = COALESCE(of_user_id, ofuserid::text, user_id::text, userid::text, id::text)
+      WHERE of_user_id IS NULL;
+    `);
+    // Track active fans (optional heuristic based on subscription)
+    await pool.query(`
+      ALTER TABLE fans
+      ADD COLUMN IF NOT EXISTS active BOOLEAN;
+    `);
+    await pool.query(`
+      UPDATE fans SET active = TRUE
+      WHERE active IS NULL AND (COALESCE(subscribed, is_subscribed, TRUE) = TRUE);
+    `);
     console.log('✅ Fan fields migration complete.');
   } catch (err) {
     console.error('Error running fan fields migration:', err.message);
