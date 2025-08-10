@@ -9,7 +9,7 @@ const pool = new pg.Pool();
 beforeAll(async () => {
   await pool.query(`
     CREATE TABLE fans (
-      id BIGINT PRIMARY KEY,
+      id BIGINT,
       of_user_id BIGINT,
       ofuserid BIGINT,
       user_id BIGINT,
@@ -75,5 +75,19 @@ describe('POST /api/messages/send', () => {
       .send({ text: 'hi', price: 5, lockedText: 'secret' })
       .expect(200);
     expect(sendSpy).toHaveBeenCalledWith(1, '', 'hi', 5, 'secret', [], []);
+  });
+
+  it('returns diagnostics when no recipients resolved', async () => {
+    const app = createApp(jest.fn());
+    await pool.query('INSERT INTO fans (username) VALUES (NULL)');
+    const res = await request(app)
+      .post('/api/messages/send')
+      .send({ text: 'hi' })
+      .set('Content-Type', 'application/json');
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      error: 'no recipients resolved',
+      diagnostics: { fans_in_db: 1 },
+    });
   });
 });

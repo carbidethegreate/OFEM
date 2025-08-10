@@ -318,7 +318,11 @@ module.exports = function ({
         }
       }
       if (!targets.length) {
-        return res.status(400).json({ error: 'no recipients resolved' });
+        const dbg = await pool.query('SELECT COUNT(*)::int AS n FROM fans');
+        return res.status(400).json({
+          error: 'no recipients resolved',
+          diagnostics: { fans_in_db: dbg.rows[0].n },
+        });
       }
 
       targets = targets
@@ -379,7 +383,11 @@ module.exports = function ({
         }
       }
       if (!targets.length) {
-        return res.status(400).json({ error: 'no recipients resolved' });
+        const dbg = await pool.query('SELECT COUNT(*)::int AS n FROM fans');
+        return res.status(400).json({
+          error: 'no recipients resolved',
+          diagnostics: { fans_in_db: dbg.rows[0].n },
+        });
       }
       targets = targets
         .map((t) => (typeof t === 'string' ? parseInt(t, 10) : t))
