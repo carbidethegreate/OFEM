@@ -22,12 +22,7 @@ module.exports = function ({
     const activeIds = [];
     let hasActiveCol = false;
     for (const r of rows) {
-      const id =
-        r.of_user_id ??
-        r.ofuserid ??
-        r.user_id ??
-        r.userid ??
-        r.id;
+      const id = r.of_user_id ?? r.ofuserid ?? r.user_id ?? r.userid ?? r.id;
       if (id == null || id === 'null' || id === 0) continue;
       const idText = String(id);
       allIds.push(idText);
@@ -365,7 +360,8 @@ module.exports = function ({
 
   router.post('/schedule', async (req, res) => {
     try {
-      const { text, price, mediaIds, scheduleAt, scope, recipients } = req.body || {};
+      const { text, price, mediaIds, scheduleAt, scope, recipients } =
+        req.body || {};
       if (!text || typeof text !== 'string') {
         return res.status(400).json({ error: 'text is required' });
       }
@@ -380,7 +376,11 @@ module.exports = function ({
         }
       }
       if (!targets.length) {
-        return res.status(400).json({ error: 'no recipients resolved' });
+        const dbg = await pool.query('SELECT COUNT(*)::int AS n FROM fans');
+        return res.status(400).json({
+          error: 'no recipients resolved',
+          diagnostics: { fans_in_db: dbg.rows[0].n },
+        });
       }
       targets = targets
         .map((t) => (typeof t === 'string' ? parseInt(t, 10) : t))
