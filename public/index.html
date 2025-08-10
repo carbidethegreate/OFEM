@@ -124,6 +124,7 @@
     <table id="fansTable" class="form-table">
       <thead>
         <tr>
+          <th>Select</th>
           <th>Username</th>
           <th>Profile Name</th>
           <th>Parker Name</th>
@@ -234,18 +235,30 @@
         tbody.innerHTML = '';
         for (const fan of fansData) {
           const id = fan.id;
+          const recipientId = fan.of_user_id || fan.id;
           const username = fan.username || '';
           const profileName = fan.name || '';
           const parkerName = fan.parker_name || '';
 
           const tr = document.createElement('tr');
           tr.id = `fan-${id}`;
+          tr.className = 'fanRow';
+
+          const tdSelect = document.createElement('td');
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.className = 'fanSelect';
+          cb.dataset.recipientId = recipientId;
+          tdSelect.appendChild(cb);
+          tr.appendChild(tdSelect);
 
           const tdUser = document.createElement('td');
+          tdUser.className = 'username';
           tdUser.textContent = username;
           tr.appendChild(tdUser);
 
           const tdProfile = document.createElement('td');
+          tdProfile.className = 'profilename';
           tdProfile.textContent = profileName;
           tr.appendChild(tdProfile);
 
@@ -257,11 +270,13 @@
           if (!parkerName) {
             input.placeholder = 'Pending';
           }
-          input.className = 'form-input';
+          input.className = 'form-input parkerInput';
+          input.dataset.parkerInput = recipientId;
           tdParker.appendChild(input);
           tr.appendChild(tdParker);
 
           const tdStatus = document.createElement('td');
+          tdStatus.className = 'statusDot';
           const statusSpan = document.createElement('span');
           statusSpan.id = `status-${id}`;
           tdStatus.appendChild(statusSpan);
@@ -271,7 +286,7 @@
           const btn = document.createElement('button');
           btn.textContent = 'Save';
           btn.className = 'btn btn-secondary saveParkerBtn';
-          btn.setAttribute('data-user-id', id);
+          btn.setAttribute('data-user-id', recipientId);
           btn.addEventListener('click', () => updateName(String(id)));
           tdSave.appendChild(btn);
           tr.appendChild(tdSave);
