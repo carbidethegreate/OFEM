@@ -187,6 +187,7 @@ if (typeof document !== 'undefined') {
       const messageEl = document.querySelector('#messageInput');
       const text = (messageEl?.innerHTML || '').trim();
       const price = ($('#priceInput')?.value || '').trim();
+      const lockedText = ($('#lockedText')?.value || '').trim();
       const mediaIds = getSelectedMediaIds();
       const date = $('#scheduleDateInput')?.value || '';
       const time = $('#scheduleTimeInput')?.value || '';
@@ -196,13 +197,15 @@ if (typeof document !== 'undefined') {
         const local = new Date(`${date}T${time}`);
         scheduleAt = isNaN(local.getTime()) ? null : local.toISOString();
       }
-      return {
+      const payload = {
         text,
         price: price ? Number(price) : null,
         mediaIds,
         scheduleAt,
         scope: 'allActiveFans',
       };
+      if (lockedText) payload.lockedText = lockedText;
+      return payload;
     }
 
     async function sendMessages({ schedule }) {
