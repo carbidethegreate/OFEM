@@ -185,7 +185,9 @@ if (typeof document !== 'undefined') {
 
     function buildPayload(scheduleFlag) {
       const messageEl = document.querySelector('#messageInput');
-      const text = (messageEl?.innerHTML || '').trim();
+      const text = messageEl
+        ? (messageEl.innerHTML || messageEl.textContent || '').trim()
+        : '';
       const price = ($('#priceInput')?.value || '').trim();
       const lockedText = ($('#lockedText')?.value || '').trim();
       const mediaIds = getSelectedMediaIds();
@@ -197,13 +199,24 @@ if (typeof document !== 'undefined') {
         const local = new Date(`${date}T${time}`);
         scheduleAt = isNaN(local.getTime()) ? null : local.toISOString();
       }
+      // Collect selected recipients if there are selectable rows
+      const selectedRows = Array.from(
+        document.querySelectorAll('.fanRow .fanSelect:checked'),
+      )
+        .map((cb) => cb.dataset.recipientId)
+        .filter(Boolean);
       const payload = {
         text,
         price: price ? Number(price) : null,
         mediaIds,
         scheduleAt,
-        scope: 'allActiveFans',
       };
+      if (selectedRows.length > 0) {
+        payload.recipients = selectedRows;
+        payload.scope = 'selected';
+      } else {
+        payload.scope = 'allActiveFans';
+      }
       if (lockedText) payload.lockedText = lockedText;
       return payload;
     }
