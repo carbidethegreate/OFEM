@@ -15,11 +15,40 @@ module.exports = function ({
   const router = express.Router();
   const upload = multer();
 
-  async function getActiveFans() {
-    const { rows } = await pool.query(
-      'SELECT id FROM fans WHERE isSubscribed = TRUE AND canReceiveChatMessage = TRUE ORDER BY id ASC',
-    );
-    return rows;
+  async function getActiveFans({ allowAllIfEmpty = true } = {}) {
+    // Fetch all columns so we can coalesce IDs and active flags regardless of schema
+    const { rows } = await pool.query('SELECT * FROM fans');
+    const allIds = [];
+    const activeIds = [];
+    let hasActiveCol = false;
+    for (const r of rows) {
+      const id =
+        r.of_user_id ??
+        r.ofuserid ??
+        r.user_id ??
+        r.userid ??
+        r.id;
+      if (id == null || id === 'null' || id === 0) continue;
+      const idText = String(id);
+      allIds.push(idText);
+      const activeFlag =
+        r.active ??
+        r.is_active ??
+        r.subscribed ??
+        r.is_subscribed ??
+        (r.issubscribed !== undefined || r.canreceivechatmessage !== undefined
+          ? r.issubscribed && r.canreceivechatmessage
+          : undefined);
+      if (activeFlag !== undefined && activeFlag !== null) {
+        hasActiveCol = true;
+        if (activeFlag) activeIds.push(idText);
+      }
+    }
+    let list = hasActiveCol ? activeIds : allIds;
+    if ((!list || list.length === 0) && allowAllIfEmpty) {
+      list = allIds;
+    }
+    return list;
   }
 
   router.post('/vault-media', upload.array('media'), async (req, res) => {
@@ -281,14 +310,21 @@ module.exports = function ({
         return res.status(400).json({ error: 'text is required' });
       }
 
-      let targets = Array.isArray(recipients) && recipients.length ? recipients : [];
-      if (scope === 'allActiveFans' || targets.length === 0) {
-        const fans = await getActiveFans();
-        targets = fans.map((f) => f.id).filter(Boolean);
+      let targets = Array.isArray(recipients) ? recipients.filter(Boolean) : [];
+      if (targets.length === 0) {
+        // Respect scope, default to all when not provided
+        const wantAll = scope === 'allActiveFans' || !scope;
+        if (wantAll) {
+          targets = await getActiveFans({ allowAllIfEmpty: true });
+        }
       }
       if (!targets.length) {
         return res.status(400).json({ error: 'no recipients resolved' });
       }
+
+      targets = targets
+        .map((t) => (typeof t === 'string' ? parseInt(t, 10) : t))
+        .filter((v) => Number.isFinite(v));
 
       const limit = Number(process.env.SEND_CONCURRENCY || 3);
       const queue = [...targets];
@@ -336,14 +372,19 @@ module.exports = function ({
       if (!scheduleAt) {
         return res.status(400).json({ error: 'scheduleAt is required' });
       }
-      let targets = Array.isArray(recipients) && recipients.length ? recipients : [];
-      if (scope === 'allActiveFans' || targets.length === 0) {
-        const fans = await getActiveFans();
-        targets = fans.map((f) => f.id).filter(Boolean);
+      let targets = Array.isArray(recipients) ? recipients.filter(Boolean) : [];
+      if (targets.length === 0) {
+        const wantAll = scope === 'allActiveFans' || !scope;
+        if (wantAll) {
+          targets = await getActiveFans();
+        }
       }
       if (!targets.length) {
         return res.status(400).json({ error: 'no recipients resolved' });
       }
+      targets = targets
+        .map((t) => (typeof t === 'string' ? parseInt(t, 10) : t))
+        .filter((v) => Number.isFinite(v));
       const { rows } = await pool.query(
         `INSERT INTO scheduled_messages (greeting, body, recipients, media_files, previews, price, locked_text, scheduled_at, status)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
