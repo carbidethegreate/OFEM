@@ -259,19 +259,46 @@ if (typeof document !== 'undefined') {
     }
 
     function updateStatusUI(result) {
-      // Expecting result to include totals and maybe per user statuses
-      // Example: { queued, sent, failed, errors: [{userId, message}] }
-      if (result?.errors?.length) {
-        console.table(result.errors);
+      const errors = Array.isArray(result?.errors) ? result.errors : [];
+      const failedIds = new Set(errors.map((e) => String(e.recipientId)));
+
+      errors.forEach((err) => {
+        if (typeof setStatusDot === 'function') {
+          setStatusDot(err.recipientId, 'red');
+        }
+        const fan = (globalThis.fansData || []).find(
+          (f) => String(f.id) === String(err.recipientId),
+        );
+        globalThis.App?.Results?.addResult({
+          fanId: err.recipientId,
+          username: fan?.username,
+          parkerName: fan?.parker_name,
+          success: false,
+          error: err.message,
+        });
+      });
+
+      (globalThis.fansData || []).forEach((fan) => {
+        if (failedIds.has(String(fan.id))) return;
+        if (typeof setStatusDot === 'function') {
+          setStatusDot(fan.id, 'green');
+        }
+        globalThis.App?.Results?.addResult({
+          fanId: fan.id,
+          username: fan.username,
+          parkerName: fan.parker_name,
+          success: true,
+        });
+      });
+
+      if (errors.length) {
+        console.table(errors);
       }
       toast('Submitted');
     }
 
     function clearStatusUI() {
-      // Clear any status indicators in the table
-      document
-        .querySelectorAll('.statusDot')
-        .forEach((el) => el.classList.remove('ok', 'fail'));
+      globalThis.App?.Results?.clearStatusDots();
     }
 
     function setBusy(sel, busy) {
