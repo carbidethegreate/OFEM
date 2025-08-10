@@ -10,6 +10,15 @@ beforeAll(async () => {
   await pool.query(`
     CREATE TABLE fans (
       id BIGINT PRIMARY KEY,
+      of_user_id BIGINT,
+      ofuserid BIGINT,
+      user_id BIGINT,
+      userid BIGINT,
+      username TEXT,
+      active BOOLEAN,
+      is_active BOOLEAN,
+      subscribed BOOLEAN,
+      is_subscribed BOOLEAN,
       isSubscribed BOOLEAN,
       canReceiveChatMessage BOOLEAN
     );
@@ -45,7 +54,7 @@ describe('POST /api/messages/send', () => {
 
   it('passes lockedText to sendMessageToFan', async () => {
     await pool.query(
-      `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE);`
+      `INSERT INTO fans (id, active) VALUES (1, TRUE);`
     );
     const sendSpy = jest.fn().mockResolvedValue();
     const app = createApp(sendSpy);
