@@ -446,3 +446,12 @@ test('updateParkerNames status endpoint reflects progress', async () => {
     .expect(200);
   expect(statusAfter.body.inProgress).toBe(false);
 });
+
+test('GET /api/recipients/resolve returns active fan IDs', async () => {
+  await pool.query(
+    `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE), (2, FALSE, TRUE), (3, TRUE, FALSE)`,
+  );
+  const res = await request(app).get('/api/recipients/resolve').expect(200);
+  expect(res.body.count).toBe(1);
+  expect(res.body.recipients).toEqual(['1']);
+});
