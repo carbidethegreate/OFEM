@@ -52,6 +52,18 @@ describe('POST /api/messages/send', () => {
     expect(res.status).toBe(400);
   });
 
+  it('resolves recipients when recipients omitted and scope allActiveFans', async () => {
+    const sendSpy = jest.fn().mockResolvedValue();
+    const app = createApp(sendSpy);
+    await pool.query(`INSERT INTO fans (id) VALUES (123);`);
+    const res = await request(app)
+      .post('/api/messages/send')
+      .send({ text: 'Hello world' })
+      .set('Content-Type', 'application/json');
+    expect(res.status).toBe(200);
+    expect(sendSpy).toHaveBeenCalledWith(123, '', 'Hello world', 0, '', [], []);
+  });
+
   it('passes lockedText to sendMessageToFan', async () => {
     await pool.query(
       `INSERT INTO fans (id, active) VALUES (1, TRUE);`
