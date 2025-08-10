@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const FormData = require('form-data');
 const sanitizeMediaIds = require('../sanitizeMediaIds');
+const getActiveFans = require('../utils/getActiveFans');
 
 module.exports = function ({
   getOFAccountId,
@@ -14,41 +15,6 @@ module.exports = function ({
 }) {
   const router = express.Router();
   const upload = multer();
-
-  async function getActiveFans({ allowAllIfEmpty = true } = {}) {
-    // Try multiple schemas, prefer explicit OnlyFans id if present
-    const { rows } = await pool.query(`
-      SELECT
-        COALESCE(of_user_id, ofuserid, user_id, userid, id)::text AS recipient_id,
-        username,
-        COALESCE(active, is_active, subscribed, is_subscribed)::boolean AS active_flag
-      FROM fans
-      ORDER BY 1 ASC
-    `);
-    let list = rows
-      .map((r) => r.recipient_id)
-      .filter((v) => v && v !== 'null' && v !== '0');
-    // If there is an explicit active flag, filter by it, otherwise keep all
-    const hasActiveCol = rows.some(
-      (r) => r.active_flag !== null && r.active_flag !== undefined,
-    );
-    if (hasActiveCol) {
-      list = rows
-        .filter((r) => r.active_flag)
-        .map((r) => r.recipient_id)
-        .filter(Boolean);
-    }
-    if ((!list || list.length === 0) && allowAllIfEmpty) {
-      // Fallback to any id-like columns without requiring active
-      const { rows: anyRows } = await pool.query(`
-        SELECT COALESCE(of_user_id, ofuserid, user_id, userid, id)::text AS recipient_id
-        FROM fans
-        WHERE COALESCE(of_user_id, ofuserid, user_id, userid, id) IS NOT NULL
-      `);
-      list = anyRows.map((r) => r.recipient_id).filter(Boolean);
-    }
-    return list;
-  }
 
   router.post('/vault-media', upload.array('media'), async (req, res) => {
     try {
@@ -314,7 +280,7 @@ module.exports = function ({
         // Respect scope, default to all when not provided
         const wantAll = scope === 'allActiveFans' || !scope;
         if (wantAll) {
-          targets = await getActiveFans({ allowAllIfEmpty: true });
+          targets = await getActiveFans(pool, { allowAllIfEmpty: false });
         }
       }
       if (!targets.length) {
@@ -379,7 +345,7 @@ module.exports = function ({
       if (targets.length === 0) {
         const wantAll = scope === 'allActiveFans' || !scope;
         if (wantAll) {
-          targets = await getActiveFans({ allowAllIfEmpty: true });
+          targets = await getActiveFans(pool, { allowAllIfEmpty: false });
         }
       }
       if (!targets.length) {
