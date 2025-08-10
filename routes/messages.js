@@ -16,37 +16,36 @@ module.exports = function ({
   const upload = multer();
 
   async function getActiveFans({ allowAllIfEmpty = true } = {}) {
-    // Fetch all columns so we can coalesce IDs and active flags regardless of schema
-    const { rows } = await pool.query('SELECT * FROM fans');
-    const allIds = [];
-    const activeIds = [];
-    let hasActiveCol = false;
-    for (const r of rows) {
-      const id =
-        r.of_user_id ??
-        r.ofuserid ??
-        r.user_id ??
-        r.userid ??
-        r.id;
-      if (id == null || id === 'null' || id === 0) continue;
-      const idText = String(id);
-      allIds.push(idText);
-      const activeFlag =
-        r.active ??
-        r.is_active ??
-        r.subscribed ??
-        r.is_subscribed ??
-        (r.issubscribed !== undefined || r.canreceivechatmessage !== undefined
-          ? r.issubscribed && r.canreceivechatmessage
-          : undefined);
-      if (activeFlag !== undefined && activeFlag !== null) {
-        hasActiveCol = true;
-        if (activeFlag) activeIds.push(idText);
-      }
+    // Try multiple schemas, prefer explicit OnlyFans id if present
+    const { rows } = await pool.query(`
+      SELECT
+        COALESCE(of_user_id, ofuserid, user_id, userid, id)::text AS recipient_id,
+        username,
+        COALESCE(active, is_active, subscribed, is_subscribed)::boolean AS active_flag
+      FROM fans
+      ORDER BY 1 ASC
+    `);
+    let list = rows
+      .map((r) => r.recipient_id)
+      .filter((v) => v && v !== 'null' && v !== '0');
+    // If there is an explicit active flag, filter by it, otherwise keep all
+    const hasActiveCol = rows.some(
+      (r) => r.active_flag !== null && r.active_flag !== undefined,
+    );
+    if (hasActiveCol) {
+      list = rows
+        .filter((r) => r.active_flag)
+        .map((r) => r.recipient_id)
+        .filter(Boolean);
     }
-    let list = hasActiveCol ? activeIds : allIds;
     if ((!list || list.length === 0) && allowAllIfEmpty) {
-      list = allIds;
+      // Fallback to any id-like columns without requiring active
+      const { rows: anyRows } = await pool.query(`
+        SELECT COALESCE(of_user_id, ofuserid, user_id, userid, id)::text AS recipient_id
+        FROM fans
+        WHERE COALESCE(of_user_id, ofuserid, user_id, userid, id) IS NOT NULL
+      `);
+      list = anyRows.map((r) => r.recipient_id).filter(Boolean);
     }
     return list;
   }
@@ -376,7 +375,7 @@ module.exports = function ({
       if (targets.length === 0) {
         const wantAll = scope === 'allActiveFans' || !scope;
         if (wantAll) {
-          targets = await getActiveFans();
+          targets = await getActiveFans({ allowAllIfEmpty: true });
         }
       }
       if (!targets.length) {
