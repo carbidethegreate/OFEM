@@ -184,7 +184,8 @@ if (typeof document !== 'undefined') {
     }
 
     function buildPayload(scheduleFlag) {
-      const text = ($('#messageInput')?.innerHTML || '').trim();
+      const messageEl = document.querySelector('#messageInput');
+      const text = (messageEl?.innerHTML || '').trim();
       const price = ($('#priceInput')?.value || '').trim();
       const mediaIds = getSelectedMediaIds();
       const date = $('#scheduleDateInput')?.value || '';
