@@ -88,13 +88,6 @@ module.exports = function ({
     }
   });
 
-  router.post('/messages/send', async (req, res) => {
-    const text = req.body?.text;
-    if (typeof text !== 'string' || !text.trim()) {
-      return res.status(400).json({ error: 'text required' });
-    }
-    res.json({ success: true });
-  });
   /* Story 2: Send Personalized DM to All Fans */
   router.post('/sendMessage', async (req, res) => {
     const missing = getMissingEnvVars();
@@ -274,7 +267,7 @@ module.exports = function ({
     }
   });
 
-  router.post('/send', async (req, res) => {
+  router.post('/messages/send', async (req, res) => {
     const missing = getMissingEnvVars();
     if (missing.length) {
       return res.status(400).json({
@@ -282,7 +275,8 @@ module.exports = function ({
       });
     }
     try {
-      const { text, price, mediaIds, scope, recipients } = req.body || {};
+      const { text, price, lockedText, mediaIds, scope, recipients } =
+        req.body || {};
       if (!text || typeof text !== 'string') {
         return res.status(400).json({ error: 'text is required' });
       }
@@ -310,7 +304,7 @@ module.exports = function ({
               '',
               text,
               typeof price === 'number' ? price : parseFloat(price) || 0,
-              '',
+              typeof lockedText === 'string' ? lockedText : '',
               Array.isArray(mediaIds) ? mediaIds : [],
               [],
             );
