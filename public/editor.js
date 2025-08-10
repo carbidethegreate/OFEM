@@ -217,8 +217,10 @@ if (typeof document !== 'undefined') {
       const endpoint = schedule
         ? '/api/messages/schedule'
         : '/api/messages/send';
-      setBusy('#btnSendAll', true);
-      setBusy('#btnSchedule', true);
+      const btnSend = document.querySelector('#btnSendAll');
+      const btnSchedule = document.querySelector('#btnSchedule');
+      setBusy(btnSend, true);
+      setBusy(btnSchedule, true);
       try {
         const res = await fetch(endpoint, {
           method: 'POST',
@@ -226,15 +228,21 @@ if (typeof document !== 'undefined') {
           body: JSON.stringify(payload),
         });
         const data = await res.json();
-        if (!res.ok)
+        if (!res.ok) {
+          if (data?.error === 'no recipients resolved') {
+            toast('No recipients resolved');
+            return;
+          }
           throw new Error(data?.error || 'Failed to submit messages');
+        }
         updateStatusUI(data);
       } catch (err) {
         console.error(err);
-        alert(err.message || 'Failed to send');
+        const msg = (err && err.message) || 'Failed to send';
+        alert(msg);
       } finally {
-        setBusy('#btnSendAll', false);
-        setBusy('#btnSchedule', false);
+        setBusy(btnSend, false);
+        setBusy(btnSchedule, false);
       }
     }
 
