@@ -113,9 +113,6 @@
       <button id="btnSchedule" type="button" class="btn btn-primary">
         Schedule Message
       </button>
-      <button id="btnAbort" class="btn btn-secondary" disabled>
-        Abort Sending
-      </button>
       <button id="btnClearStatus" type="button" class="btn btn-secondary">
         Clear Status
       </button>
@@ -143,8 +140,6 @@
     <script src="results.js"></script>
     <script>
       let fansData = [];
-      let sendingInProgress = false;
-      let abortFlag = false;
 
       // Simple HTML escape helper to prevent injection when using innerHTML
       function escapeHtml(str) {
@@ -471,191 +466,6 @@
         }
       }
 
-      async function sendMessagesToAll() {
-        if (sendingInProgress) return;
-        if (fansData.length === 0) {
-          alert('No fans to send messages to.');
-          return;
-        }
-        const greeting = document.getElementById('greeting').value;
-        const body = document.getElementById('messageInput').innerHTML.trim();
-        if (!body) {
-          alert('Please enter a message.');
-          return;
-        }
-        const priceVal = document.getElementById('priceInput').value;
-        const price = priceVal ? parseFloat(priceVal) : undefined;
-        const lockedText = document.getElementById('lockedText').value;
-        const mediaFiles = Array.from(
-          document.querySelectorAll('.mediaCheckbox:checked'),
-        ).map((cb) => cb.value);
-        const previews = Array.from(
-          document.querySelectorAll('.previewCheckbox:checked'),
-        ).map((cb) => cb.value);
-        App.Results.clearStatusDots();
-        sendingInProgress = true;
-        abortFlag = false;
-        document.getElementById('refreshBtn').disabled = true;
-        document.getElementById('updateBtn').disabled = true;
-        document.getElementById('btnSendAll').disabled = true;
-        document.getElementById('btnAbort').disabled = false;
-        document.getElementById('statusMsg').innerText = 'Sending messages...';
-        let successCount = 0;
-        let failCount = 0;
-        let totalFailures = 0;
-
-        for (let i = 0; i < fansData.length; i++) {
-          const fan = fansData[i];
-          const fanId = fan.id;
-          if (abortFlag) {
-            console.log('Aborting send loop by user request.');
-            break;
-          }
-          try {
-            const res = await fetch('/api/sendMessage', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: fanId,
-                greeting,
-                body,
-                price,
-                lockedText,
-                mediaFiles,
-                previews,
-              }),
-            });
-            const result = await res.json();
-            if (result.success) {
-              // Success: mark green
-              setStatusDot(fanId, 'green');
-              App.Results.addResult({
-                fanId,
-                username: fan.username || '',
-                parkerName: fan.parker_name || '',
-                success: true,
-              });
-              successCount++;
-              failCount = 0; // reset consecutive fail counter on success
-            } else {
-              // Failure: mark red
-              setStatusDot(fanId, 'red');
-              App.Results.addResult({
-                fanId,
-                username: fan.username || '',
-                parkerName: fan.parker_name || '',
-                success: false,
-                error: result.error || '',
-              });
-              failCount++;
-              totalFailures++;
-              if (failCount >= 10) {
-                // 10 consecutive failures -> auto-abort
-                abortFlag = true;
-                console.log('Auto-abort: 10 consecutive failures.');
-                break;
-              }
-            }
-          } catch (err) {
-            console.error('Error sending to fan ' + fanId + ':', err);
-            // Treat network or unexpected error as failure
-            setStatusDot(fanId, 'red');
-            App.Results.addResult({
-              fanId,
-              username: fan.username || '',
-              parkerName: fan.parker_name || '',
-              success: false,
-              error: err.message,
-            });
-            failCount++;
-            totalFailures++;
-            if (failCount >= 10) {
-              abortFlag = true;
-              console.log('Auto-abort due to consecutive errors.');
-              break;
-            }
-          }
-          // Small delay between messages to avoid rate limit issues
-          await new Promise((r) => setTimeout(r, 500));
-        }
-
-        // Finished sending loop
-        sendingInProgress = false;
-        document.getElementById('btnAbort').disabled = true;
-        document.getElementById('refreshBtn').disabled = false;
-        document.getElementById('updateBtn').disabled = false;
-        document.getElementById('btnSendAll').disabled = false;
-        if (abortFlag) {
-          document.getElementById('statusMsg').innerText =
-            'Sending aborted. Sent ' +
-            successCount +
-            ' messages, ' +
-            totalFailures +
-            ' failed.';
-        } else {
-          document.getElementById('statusMsg').innerText =
-            'Finished sending: ' +
-            successCount +
-            ' succeeded, ' +
-            totalFailures +
-            ' failed.';
-        }
-      }
-
-      async function scheduleMessages() {
-        if (fansData.length === 0) {
-          alert('No fans to send messages to.');
-          return;
-        }
-        const greeting = document.getElementById('greeting').value;
-        const body = document.getElementById('messageInput').innerHTML.trim();
-        if (!body) {
-          alert('Please enter a message.');
-          return;
-        }
-        const dateVal = document.getElementById('scheduleDateInput').value;
-        const timeVal = document.getElementById('scheduleTimeInput').value;
-        const scheduledTime = dateVal && timeVal ? `${dateVal}T${timeVal}` : '';
-        if (!scheduledTime) {
-          alert('Please choose a schedule time.');
-          return;
-        }
-        const priceVal = document.getElementById('priceInput').value;
-        const price = priceVal ? parseFloat(priceVal) : undefined;
-        const lockedText = document.getElementById('lockedText').value;
-        const mediaFiles = Array.from(
-          document.querySelectorAll('.mediaCheckbox:checked'),
-        ).map((cb) => cb.value);
-        const previews = Array.from(
-          document.querySelectorAll('.previewCheckbox:checked'),
-        ).map((cb) => cb.value);
-        try {
-          const res = await fetch('/api/scheduleMessage', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              greeting,
-              body,
-              price,
-              lockedText,
-              mediaFiles,
-              previews,
-              recipients: fansData.map((f) => f.id),
-              scheduledTime,
-            }),
-          });
-          const result = await res.json();
-          if (res.ok && result.success) {
-            alert('Message scheduled.');
-          } else {
-            alert(
-              'Error scheduling message: ' + (result.error || res.statusText),
-            );
-          }
-        } catch (err) {
-          console.error('Error scheduling message:', err);
-        }
-      }
 
       document
         .getElementById('refreshBtn')
@@ -664,23 +474,8 @@
         .getElementById('updateBtn')
         .addEventListener('click', updateParkerNames);
       document
-        .getElementById('btnSendAll')
-        .addEventListener('click', sendMessagesToAll);
-      document
-        .getElementById('btnSchedule')
-        .addEventListener('click', scheduleMessages);
-      document
         .getElementById('btnLoadVaultMedia')
         .addEventListener('click', loadVaultMedia);
-      document
-        .getElementById('btnAbort')
-        .addEventListener('click', function () {
-          if (sendingInProgress) {
-            abortFlag = true;
-            document.getElementById('statusMsg').innerText = 'Aborting...';
-            this.disabled = true;
-          }
-        });
       document
         .getElementById('btnClearStatus')
         .addEventListener('click', App.Results.clearStatusDots);
