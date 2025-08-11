@@ -341,13 +341,20 @@ let sendMessageToFan = async function (
     price: typeof price === 'number' ? price : 0,
   };
   if (lockedText) payload.lockedText = lockedText;
-  await ofApiRequest(() =>
+  const resp = await ofApiRequest(() =>
     ofApi.post(`/${accountId}/chats/${fanId}/messages`, payload),
   );
-  await pool.query(
-    'INSERT INTO messages (fan_id, direction, body, price) VALUES ($1, $2, $3, $4)',
-    [fanId, 'outgoing', formatted, payload.price ?? null],
-  );
+  const msgId =
+    resp.data?.id ||
+    resp.data?.message_id ||
+    resp.data?.messageId ||
+    resp.data?.message?.id;
+  if (msgId != null) {
+    await pool.query(
+      'INSERT INTO messages (id, fan_id, direction, body, price) VALUES ($1, $2, $3, $4, $5)',
+      [msgId.toString(), fanId, 'outgoing', formatted, payload.price ?? null],
+    );
+  }
   let logMsg = `Sent message to ${fanId}: ${template.substring(0, 30)}...`;
   if (payload.mediaFiles.length)
     logMsg += ` [media:${payload.mediaFiles.length}]`;

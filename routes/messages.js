@@ -409,7 +409,8 @@ module.exports = function ({
         [];
       const messages = Array.isArray(raw) ? raw : [];
       for (const m of messages) {
-        const msgId = m.id;
+        const msgId = m.id != null ? m.id.toString() : null;
+        if (msgId == null) continue;
         const direction =
           (m.fromUser?.id || m.user?.id || m.senderId) === accountId
             ? 'outgoing'

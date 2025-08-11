@@ -119,22 +119,17 @@ module.exports = function ({ pool, sanitizeError, sendMessageToFan, openaiAxios,
         }
         // Insert incoming message into DB
         try {
-          if (msgData.id) {
-            // If OnlyFans message ID is provided, use it as primary key (on conflict, update)
+          if (msgData.id != null) {
             const msgId = msgData.id.toString();
             await pool.query(
               `INSERT INTO messages (id, fan_id, direction, body, price, created_at)
                VALUES ($1,$2,$3,$4,$5,$6)
-               ON CONFLICT (id) DO UPDATE 
+               ON CONFLICT (id) DO UPDATE
                SET fan_id=$2, direction=$3, body=$4, price=$5, created_at=$6`,
               [msgId, fanId, 'incoming', messageText, price, createdAt],
             );
           } else {
-            // If no message ID, just insert without id (will use serial)
-            await pool.query(
-              'INSERT INTO messages (fan_id, direction, body, price, created_at) VALUES ($1,$2,$3,$4,$5)',
-              [fanId, 'incoming', messageText, price, createdAt],
-            );
+            console.warn('Skipping message insert: missing message ID');
           }
         } catch (err) {
           console.error('Error saving incoming message:', sanitizeError(err));

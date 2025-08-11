@@ -52,7 +52,7 @@ beforeAll(async () => {
   `);
   await mockPool.query(`
     CREATE TABLE messages (
-      id SERIAL PRIMARY KEY,
+      id BIGINT PRIMARY KEY,
       fan_id BIGINT REFERENCES fans(id),
       direction TEXT,
       body TEXT,
@@ -86,7 +86,7 @@ test('accepts valid schedule inputs', async () => {
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post
     .mockResolvedValueOnce({ data: { id: 1 } })
-    .mockResolvedValueOnce({});
+    .mockResolvedValueOnce({ data: {} });
 
   const res = await request(app)
     .post('/api/ppv')
@@ -142,7 +142,7 @@ test('saves and retrieves message field', async () => {
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
   mockAxios.post
     .mockResolvedValueOnce({ data: { id: 1 } })
-    .mockResolvedValueOnce({});
+    .mockResolvedValueOnce({ data: {} });
 
   await request(app)
     .post('/api/ppv')
@@ -229,7 +229,7 @@ test('sends PPV to fan and logs the send', async () => {
     [ppvId, 11, true],
   );
   mockAxios.get.mockResolvedValueOnce({ data: { accounts: [{ id: 'acc1' }] } });
-  mockAxios.post.mockResolvedValueOnce({});
+  mockAxios.post.mockResolvedValueOnce({ data: { id: 1 } });
   const res = await request(app)
     .post(`/api/ppv/${ppvId}/send`)
     .send({ fanId: 1 });

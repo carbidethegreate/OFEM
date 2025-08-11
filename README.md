@@ -153,6 +153,16 @@ adds any missing columns to the `fans` table, `migrate_messages.js` creates a
 PPV migrations create and extend PPV-related tables. The new `fans` columns and
 their purposes are:
 
+If you already have a `messages` table with a `SERIAL` `id`, run the following
+before executing `migrate_messages.js`:
+
+```sql
+ALTER TABLE messages ALTER COLUMN id TYPE BIGINT;
+ALTER TABLE messages ALTER COLUMN id DROP DEFAULT;
+DROP SEQUENCE IF EXISTS messages_id_seq;
+```
+
+
 - `avatar` – URL to the fan's profile avatar
 - `header` – URL to the profile header image
 - `website` – External website link

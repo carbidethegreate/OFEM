@@ -9,10 +9,10 @@ dotenv.config(); // Load environment variables for db.js
 
 const pool = require('./db');
 
-// SQL to create messages table
+// SQL to create or update messages table
 const createTableQuery = `
 CREATE TABLE IF NOT EXISTS messages (
-    id SERIAL PRIMARY KEY,
+    id BIGINT PRIMARY KEY,
     fan_id BIGINT REFERENCES fans(id),
     direction TEXT,
     body TEXT,
@@ -21,16 +21,31 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 `;
 
+// For existing deployments: convert SERIAL integer IDs to BIGINT and drop sequence
+const alterQueries = [
+  'ALTER TABLE messages ALTER COLUMN id TYPE BIGINT',
+  'ALTER TABLE messages ALTER COLUMN id DROP DEFAULT',
+  'DROP SEQUENCE IF EXISTS messages_id_seq',
+];
+
 (async () => {
   try {
     await pool.query(createTableQuery);
+    for (const q of alterQueries) {
+      try {
+        await pool.query(q);
+      } catch {
+        // Ignore errors (e.g., table already in desired state)
+      }
+    }
     console.log('✅ "messages" table has been created/updated.');
   } catch (err) {
     console.error('Error running messages migration:', err.message);
     process.exitCode = 1;
   } finally {
     await pool.end();
-    if (process.exitCode) process.exit(process.exitCode);
+    if (process.exitCode && !process.env.JEST_WORKER_ID)
+      process.exit(process.exitCode);
   }
 })();
 

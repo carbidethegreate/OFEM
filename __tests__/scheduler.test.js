@@ -52,6 +52,7 @@ beforeAll(async () => {
 
   await mockPool.query(`
     CREATE TABLE messages (
+      id BIGINT PRIMARY KEY,
       fan_id BIGINT,
       direction TEXT,
       body TEXT,
