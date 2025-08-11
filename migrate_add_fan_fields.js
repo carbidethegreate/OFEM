@@ -67,11 +67,20 @@ const columns = [
       ALTER TABLE fans
       ADD COLUMN IF NOT EXISTS of_user_id TEXT;
     `);
-    await pool.query(`
-      UPDATE fans
-      SET of_user_id = COALESCE(of_user_id, ofuserid::text, user_id::text, userid::text, id::text)
-      WHERE of_user_id IS NULL;
+    // Dynamically populate of_user_id from whichever legacy id columns exist
+    const { rows } = await pool.query(`
+      SELECT column_name FROM information_schema.columns WHERE table_name = 'fans';
     `);
+    const existingCols = rows.map(r => r.column_name);
+    const idCols = ['ofuserid', 'user_id', 'userid', 'id'].filter(c => existingCols.includes(c));
+    if (idCols.length) {
+      const coalesceExpr = idCols.map(c => `${c}::text`).join(', ');
+      await pool.query(`
+        UPDATE fans
+        SET of_user_id = COALESCE(${coalesceExpr})
+        WHERE of_user_id IS NULL;
+      `);
+    }
     // Track active fans (optional heuristic based on subscription)
     await pool.query(`
       ALTER TABLE fans
