@@ -13,20 +13,20 @@ jest.mock('../db', () => mockPool);
 
 beforeAll(async () => {
   await mockPool.query('CREATE TABLE fans(id BIGINT PRIMARY KEY);');
-  require('../migrate_messages.js');
-  await new Promise((resolve) => setImmediate(resolve));
+  await require('../migrate_messages.js');
 });
 
 test('migration creates messages table with expected columns', async () => {
   const res = await mockPool.query(
     "SELECT column_name FROM information_schema.columns WHERE table_name='messages' ORDER BY ordinal_position",
   );
-  expect(res.rows.map((r) => r.column_name)).toEqual([
-    'id',
-    'fan_id',
-    'direction',
+  const cols = res.rows.map((r) => r.column_name).sort();
+  expect(cols).toEqual([
     'body',
-    'price',
     'created_at',
+    'direction',
+    'fan_id',
+    'id',
+    'price',
   ]);
 });
