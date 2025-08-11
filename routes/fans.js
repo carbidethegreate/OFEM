@@ -667,7 +667,7 @@ ORDER BY id`);
     }
   });
 
-  router.post('/fans/followAll', async (req, res) => {
+  router.get('/fans/followAll', async (req, res) => {
     let accountId;
     try {
       accountId = await getOFAccountId();
@@ -682,7 +682,7 @@ ORDER BY id`);
       );
       fans = dbRes.rows;
     } catch (err) {
-      console.error('Error in POST /api/fans/followAll:', sanitizeError(err));
+      console.error('Error in GET /api/fans/followAll:', sanitizeError(err));
       return res.status(500).json({ error: 'Failed to fetch fans.' });
     }
 

@@ -392,7 +392,7 @@ test('PUT /api/fans/:id/parker-name updates Parker Name', async () => {
   expect(dbRes.rows[0].parker_name).toBeNull();
 });
 
-test('POST /api/fans/followAll streams progress and updates DB', async () => {
+test('GET /api/fans/followAll streams progress and updates DB', async () => {
   await pool.query(
     `INSERT INTO fans (id, username, issubscribed) VALUES (1, 'user1', false), (2, 'user2', false)`,
   );
@@ -400,7 +400,7 @@ test('POST /api/fans/followAll streams progress and updates DB', async () => {
   mockAxios.get.mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } });
   mockAxios.post.mockResolvedValue({ data: {} });
 
-  const res = await request(app).post('/api/fans/followAll').expect(200);
+  const res = await request(app).get('/api/fans/followAll').expect(200);
   expect(mockAxios.post).toHaveBeenCalledTimes(2);
   expect(res.text).toContain('"id":1');
   expect(res.text).toContain('"id":2');
