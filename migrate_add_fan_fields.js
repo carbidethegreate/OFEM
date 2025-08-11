@@ -86,10 +86,29 @@ const columns = [
       ALTER TABLE fans
       ADD COLUMN IF NOT EXISTS active BOOLEAN;
     `);
-    await pool.query(`
-      UPDATE fans SET active = TRUE
-      WHERE active IS NULL AND (COALESCE(subscribed, is_subscribed, TRUE) = TRUE);
-    `);
+
+    // Determine which legacy subscription columns exist to avoid referencing
+    // non-existent columns in the update query (which would cause an error on
+    // some databases). Possible legacy columns include:
+    // - subscribed
+    // - is_subscribed
+    // - issubscribed
+    // - isSubscribed
+    const subscriptionCols = [
+      'subscribed',
+      'is_subscribed',
+      'issubscribed',
+      'isSubscribed',
+    ].filter((c) => existingCols.includes(c));
+
+    let updateActiveSql = 'UPDATE fans SET active = TRUE WHERE active IS NULL';
+    if (subscriptionCols.length) {
+      const coalesce = subscriptionCols
+        .map((c) => `${c}::boolean`)
+        .join(', ');
+      updateActiveSql += ` AND (COALESCE(${coalesce}, TRUE) = TRUE)`;
+    }
+    await pool.query(updateActiveSql);
     console.log('✅ Fan fields migration complete.');
   } catch (err) {
     console.error('Error running fan fields migration:', err.message);
