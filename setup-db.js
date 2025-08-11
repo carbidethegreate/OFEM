@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS fans (
     isRestricted BOOLEAN,
     isHidden BOOLEAN,
     isBookmarked BOOLEAN,
-    isSubscribed BOOLEAN,
+    issubscribed BOOLEAN,
     subscribedBy TEXT,
     subscribedOn TEXT,
     subscribedUntil TEXT,

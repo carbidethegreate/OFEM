@@ -135,6 +135,7 @@ module.exports = function ({
           isHidden,
           isBookmarked,
           isSubscribed,
+          issubscribed,
           subscribedBy,
           subscribedOn,
           subscribedUntil,
@@ -232,8 +233,8 @@ isBlocked=$16,
 isMuted=$17,
 isRestricted=$18,
 isHidden=$19,
-isBookmarked=$20,
-isSubscribed=$21,
+            isBookmarked=$20,
+            issubscribed=$21,
 subscribedBy=$22,
 subscribedOn=$23,
 subscribedUntil=$24,
@@ -277,7 +278,7 @@ WHERE id=$1`,
               parseBoolean(isRestricted),
               parseBoolean(isHidden),
               parseBoolean(isBookmarked),
-              parseBoolean(isSubscribed),
+              parseBoolean(issubscribed ?? isSubscribed),
               subscribedBy,
               subscribedOnTs,
               subscribedUntilTs,
@@ -306,7 +307,7 @@ WHERE id=$1`,
 id, username, name, avatar, header, website, location, gender, birthday, about,
 notes,
 lastSeen, joined, canReceiveChatMessage, canSendChatMessage, isBlocked, isMuted, isRestricted,
-isHidden, isBookmarked, isSubscribed, subscribedBy, subscribedOn, subscribedUntil, renewedAd,
+isHidden, isBookmarked, issubscribed, subscribedBy, subscribedOn, subscribedUntil, renewedAd,
 isFriend, tipsSum, postsCount, photosCount, videosCount, audiosCount, mediaCount,
 subscribersCount, favoritesCount, avatarThumbs, headerSize, headerThumbs, listsStates,
 subscribedByData, subscribedOnData, promoOffers, parker_name, is_custom
@@ -340,7 +341,7 @@ $40,$41,$42,$43
               parseBoolean(isRestricted),
               parseBoolean(isHidden),
               parseBoolean(isBookmarked),
-              parseBoolean(isSubscribed),
+              parseBoolean(issubscribed ?? isSubscribed),
               subscribedBy,
               subscribedOnTs,
               subscribedUntilTs,
@@ -590,7 +591,7 @@ isMuted AS "isMuted",
 isRestricted AS "isRestricted",
 isHidden AS "isHidden",
 isBookmarked AS "isBookmarked",
-isSubscribed AS "isSubscribed",
+issubscribed,
 subscribedBy AS "subscribedBy",
 subscribedOn AS "subscribedOn",
 subscribedUntil AS "subscribedUntil",
@@ -626,7 +627,7 @@ ORDER BY id`);
   router.get('/fans/unfollowed', async (req, res) => {
     try {
       const dbRes = await pool.query(
-        'SELECT id, username FROM fans WHERE isSubscribed = FALSE ORDER BY id',
+        'SELECT id, username FROM fans WHERE issubscribed = FALSE ORDER BY id',
       );
       res.json({ fans: dbRes.rows });
     } catch (err) {
@@ -649,7 +650,7 @@ ORDER BY id`);
       await ofApiRequest(() =>
         ofApi.post(`/${accountId}/users/${fanId}/follow`),
       );
-      await pool.query('UPDATE fans SET isSubscribed = TRUE WHERE id=$1', [
+      await pool.query('UPDATE fans SET issubscribed = TRUE WHERE id=$1', [
         fanId,
       ]);
       res.json({ success: true });
@@ -677,7 +678,7 @@ ORDER BY id`);
     let fans;
     try {
       const dbRes = await pool.query(
-        'SELECT id, username FROM fans WHERE isSubscribed = FALSE ORDER BY id',
+        'SELECT id, username FROM fans WHERE issubscribed = FALSE ORDER BY id',
       );
       fans = dbRes.rows;
     } catch (err) {
@@ -695,7 +696,7 @@ ORDER BY id`);
         await ofApiRequest(() =>
           ofApi.post(`/${accountId}/users/${fan.id}/follow`),
         );
-        await pool.query('UPDATE fans SET isSubscribed = TRUE WHERE id=$1', [
+        await pool.query('UPDATE fans SET issubscribed = TRUE WHERE id=$1', [
           fan.id,
         ]);
         res.write(

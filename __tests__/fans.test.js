@@ -35,7 +35,7 @@ CREATE TABLE fans (
     isRestricted BOOLEAN,
     isHidden BOOLEAN,
     isBookmarked BOOLEAN,
-    isSubscribed BOOLEAN,
+    issubscribed BOOLEAN,
     subscribedBy TEXT,
     subscribedOn TEXT,
     subscribedUntil TEXT,
@@ -115,7 +115,7 @@ test('inserts and retrieves fan with new columns', async () => {
     avatar: 'avatar1',
     website: 'https://example.com',
     lastSeen: ts,
-    isSubscribed: false,
+    issubscribed: false,
     tipsSum: 100,
     avatarThumbs: { foo: 1 },
   };
@@ -145,7 +145,7 @@ test('inserts and retrieves fan with new columns', async () => {
     username: 'user1',
     avatar: 'avatar1',
     website: 'https://example.com',
-    isSubscribed: false,
+    issubscribed: false,
     tipsSum: 100,
     avatarThumbs: { foo: 1 },
     parker_name: 'Alice',
@@ -171,7 +171,7 @@ test('updates existing fan fields', async () => {
     ...fanData1,
     avatar: 'avatar2',
     website: 'https://new.example.com',
-    isSubscribed: true,
+    issubscribed: true,
     tipsSum: 200,
     avatarThumbs: { foo: 2 },
   };
@@ -212,7 +212,7 @@ test('updates existing fan fields', async () => {
   expect(fan).toMatchObject({
     avatar: 'avatar2',
     website: 'https://new.example.com',
-    isSubscribed: true,
+    issubscribed: true,
     tipsSum: 200,
     avatarThumbs: { foo: 2 },
     parker_name: 'Alice',
@@ -297,7 +297,7 @@ test('merges fans and followings without duplication', async () => {
   const followingDb = res.body.fans.find((f) => f.id === 2);
   expect(fanDb).toMatchObject({
     avatar: 'a2',
-    isSubscribed: true,
+    issubscribed: true,
     parker_name: 'Alice',
   });
   expect(followingDb).toMatchObject({ username: 'user2', parker_name: 'Bob' });
@@ -394,7 +394,7 @@ test('PUT /api/fans/:id/parker-name updates Parker Name', async () => {
 
 test('POST /api/fans/followAll streams progress and updates DB', async () => {
   await pool.query(
-    `INSERT INTO fans (id, username, isSubscribed) VALUES (1, 'user1', false), (2, 'user2', false)`,
+    `INSERT INTO fans (id, username, issubscribed) VALUES (1, 'user1', false), (2, 'user2', false)`,
   );
 
   mockAxios.get.mockResolvedValueOnce({ data: { data: [{ id: 'acc1' }] } });
@@ -407,7 +407,7 @@ test('POST /api/fans/followAll streams progress and updates DB', async () => {
   expect(res.text).toContain('"done":true');
 
   const dbRes = await pool.query(
-    'SELECT id, isSubscribed FROM fans ORDER BY id',
+    'SELECT id, issubscribed FROM fans ORDER BY id',
   );
   expect(dbRes.rows).toEqual([
     { id: 1, issubscribed: true },
@@ -449,7 +449,7 @@ test('updateParkerNames status endpoint reflects progress', async () => {
 
 test('GET /api/recipients/resolve returns active fan IDs', async () => {
   await pool.query(
-    `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE), (2, FALSE, TRUE), (3, TRUE, FALSE)`,
+    `INSERT INTO fans (id, issubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE), (2, FALSE, TRUE), (3, TRUE, FALSE)`,
   );
   const res = await request(app).get('/api/recipients/resolve').expect(200);
   expect(res.body.count).toBe(1);

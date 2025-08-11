@@ -30,7 +30,7 @@ const columns = [
   ['isRestricted', 'BOOLEAN'],
   ['isHidden', 'BOOLEAN'],
   ['isBookmarked', 'BOOLEAN'],
-  ['isSubscribed', 'BOOLEAN'],
+  ['issubscribed', 'BOOLEAN'],
   ['subscribedBy', 'TEXT'],
   ['subscribedOn', 'TEXT'],
   ['subscribedUntil', 'TEXT'],
@@ -58,6 +58,17 @@ const columns = [
 
 (async () => {
   try {
+    const { rows: colRows } = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'fans';`
+    );
+    const hasCamel = colRows.some((r) => r.column_name === 'isSubscribed');
+    const hasLower = colRows.some((r) => r.column_name === 'issubscribed');
+    if (hasCamel && !hasLower) {
+      await pool.query(
+        'ALTER TABLE fans RENAME COLUMN "isSubscribed" TO issubscribed;'
+      );
+    }
+
     for (const [name, type] of columns) {
       const sql = `ALTER TABLE fans ADD COLUMN IF NOT EXISTS ${name} ${type};`;
       await pool.query(sql);
@@ -94,7 +105,7 @@ const columns = [
     // - is_subscribed
     // - issubscribed
     // - isSubscribed
-    const subscriptionCols = ['subscribed', 'is_subscribed', 'issubscribed', 'isSubscribed']
+    const subscriptionCols = ['subscribed', 'is_subscribed', 'issubscribed']
       .map((c) => c.toLowerCase())
       .filter((c) => existingCols.includes(c));
 

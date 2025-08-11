@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS fans (
     isRestricted BOOLEAN,
     isHidden BOOLEAN,
     isBookmarked BOOLEAN,
-    isSubscribed BOOLEAN,
+    issubscribed BOOLEAN,
     subscribedBy TEXT,
     subscribedOn TEXT,
     subscribedUntil TEXT,
@@ -81,7 +81,7 @@ ALTER TABLE fans
     ADD COLUMN IF NOT EXISTS isRestricted BOOLEAN,
     ADD COLUMN IF NOT EXISTS isHidden BOOLEAN,
     ADD COLUMN IF NOT EXISTS isBookmarked BOOLEAN,
-    ADD COLUMN IF NOT EXISTS isSubscribed BOOLEAN,
+    ADD COLUMN IF NOT EXISTS issubscribed BOOLEAN,
     ADD COLUMN IF NOT EXISTS subscribedBy TEXT,
     ADD COLUMN IF NOT EXISTS subscribedOn TEXT,
     ADD COLUMN IF NOT EXISTS subscribedUntil TEXT,
@@ -119,6 +119,16 @@ ALTER TABLE fans
 
 (async () => {
   try {
+    const { rows: colRows } = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'fans';`
+    );
+    const hasCamel = colRows.some((r) => r.column_name === 'isSubscribed');
+    const hasLower = colRows.some((r) => r.column_name === 'issubscribed');
+    if (hasCamel && !hasLower) {
+      await pool.query(
+        'ALTER TABLE fans RENAME COLUMN "isSubscribed" TO issubscribed;'
+      );
+    }
     await pool.query(createTableQuery);
     await pool.query(addColumnsQuery);
     console.log('✅ "fans" table has been created/updated.');

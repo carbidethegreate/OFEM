@@ -19,11 +19,8 @@ module.exports = async function getActiveFans(pool, { allowAllIfEmpty = true } =
       r.subscribed ??
       r.is_subscribed ??
       (r.issubscribed !== undefined ||
-      r.canreceivechatmessage !== undefined ||
-      r.isSubscribed !== undefined ||
-      r.canReceiveChatMessage !== undefined
-        ? (r.issubscribed ?? r.isSubscribed) &&
-          (r.canreceivechatmessage ?? r.canReceiveChatMessage)
+      r.canreceivechatmessage !== undefined
+        ? r.issubscribed && r.canreceivechatmessage
         : undefined);
     if (activeFlag !== undefined && activeFlag !== null) {
       hasActiveCol = true;

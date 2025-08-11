@@ -46,7 +46,7 @@ beforeAll(async () => {
       parker_name TEXT,
       username TEXT,
       location TEXT,
-      isSubscribed BOOLEAN,
+      issubscribed BOOLEAN,
       canReceiveChatMessage BOOLEAN
     );
   `);
@@ -218,7 +218,7 @@ test('does not reset last_sent_at when schedule unchanged', async () => {
 
 test('sends PPV to fan and logs the send', async () => {
   await mockPool.query(
-    "INSERT INTO fans (id, parker_name, username, location, isSubscribed, canReceiveChatMessage) VALUES (1,'Alice','user1','Wonderland',TRUE,TRUE)",
+    "INSERT INTO fans (id, parker_name, username, location, issubscribed, canReceiveChatMessage) VALUES (1,'Alice','user1','Wonderland',TRUE,TRUE)",
   );
   const ppvRes = await mockPool.query(
     "INSERT INTO ppv_sets (ppv_number, message, price) VALUES (1,'hello',5) RETURNING id",
