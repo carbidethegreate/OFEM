@@ -118,7 +118,10 @@ module.exports = function ({
         ofApi.post(`/${accountId}/media/vault/lists`, { name }),
       );
       const list = resp.data?.list || resp.data;
-      const id = list.id;
+      const id = list?.id;
+      if (id == null) {
+        return res.status(400).json({ error: 'id missing in response' });
+      }
       await pool.query(
         'INSERT INTO vault_lists (id, name) VALUES ($1,$2) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name',
         [id, name],
