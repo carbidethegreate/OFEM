@@ -114,13 +114,12 @@
 
         const icon = global.document.createElement('span');
         icon.className = 'icon';
+        const mediaType = m.type || m.mediaType || '';
         icon.textContent =
-          m.type === 'video' ? '🎬' : m.type === 'audio' ? '🎵' : '🖼️';
+          mediaType === 'video' ? '🎬' : mediaType === 'audio' ? '🎵' : '🖼️';
         div.appendChild(icon);
 
-        const thumb =
-          (m.preview && (m.preview.url || m.preview.src)) ||
-          (m.thumb && (m.thumb.url || m.thumb.src));
+        const thumb = m.preview_url || m.thumb_url || '';
         if (thumb) {
           const img = global.document.createElement('img');
           img.src = thumb;
@@ -154,8 +153,8 @@
         previewLabel.append(' Preview');
         div.appendChild(previewLabel);
 
-        const likes = m.likes || m.likes_count || m.likesCount || 0;
-        const tips = m.tips || m.tips_amount || m.tipsAmount || 0;
+        const likes = m.likes || 0;
+        const tips = m.tips || 0;
         const statsSpan = global.document.createElement('span');
         statsSpan.className = 'media-stats';
         statsSpan.textContent = ` Likes: ${likes} Tips: ${tips}`;
@@ -559,6 +558,7 @@
     if (deleteListBtn) deleteListBtn.addEventListener('click', deleteVaultList);
     fetchVaultLists();
     fetchPpvs();
+    loadVaultMedia();
   }
 
   const PPV = {
