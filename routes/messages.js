@@ -409,6 +409,7 @@ module.exports = function ({
         [];
       const messages = Array.isArray(raw) ? raw : [];
       for (const m of messages) {
+        // Message IDs can exceed the 32-bit range; convert to string to preserve precision.
         const msgId = m.id != null ? m.id.toString() : null;
         if (msgId == null) continue;
         const direction =
