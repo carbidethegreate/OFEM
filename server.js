@@ -305,11 +305,11 @@ let sendMessageToFan = async function (
   let template = [greeting, body].filter(Boolean).join(' ').trim();
   const accountId = await getOFAccountId();
   const dbRes = await pool.query(
-    'SELECT parker_name, username, location, isSubscribed AS "isSubscribed", canReceiveChatMessage AS "canReceiveChatMessage" FROM fans WHERE id=$1',
+    'SELECT parker_name, username, location, issubscribed, canreceivechatmessage FROM fans WHERE id=$1',
     [fanId],
   );
   const row = dbRes.rows[0] || {};
-  if (!row.isSubscribed || !row.canReceiveChatMessage) {
+  if (!row.issubscribed || !row.canreceivechatmessage) {
     const err = new Error(
       'Fan is not subscribed or cannot receive chat messages',
     );
@@ -567,7 +567,7 @@ async function processRecurringPPVs() {
     );
     if (ppvRes.rows.length === 0) return;
     const fansRes = await pool.query(
-      'SELECT id FROM fans WHERE isSubscribed = TRUE AND canReceiveChatMessage = TRUE',
+      'SELECT id FROM fans WHERE issubscribed = TRUE AND canreceivechatmessage = TRUE',
     );
     const fanIds = fansRes.rows.map((r) => r.id);
     for (const ppv of ppvRes.rows) {

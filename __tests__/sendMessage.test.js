@@ -29,7 +29,7 @@ beforeAll(async () => {
       isRestricted BOOLEAN,
       isHidden BOOLEAN,
       isBookmarked BOOLEAN,
-      isSubscribed BOOLEAN
+      issubscribed BOOLEAN
     );
   `);
 });
@@ -65,7 +65,7 @@ describe('POST /api/messages/send', () => {
     const sendSpy = jest.fn().mockResolvedValue();
     const app = createApp(sendSpy);
     await pool.query(
-      `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (123, TRUE, TRUE);`,
+      `INSERT INTO fans (id, issubscribed, canReceiveChatMessage) VALUES (123, TRUE, TRUE);`,
     );
     const res = await request(app)
       .post('/api/messages/send')
@@ -77,7 +77,7 @@ describe('POST /api/messages/send', () => {
 
   it('passes lockedText to sendMessageToFan', async () => {
     await pool.query(
-      `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE);`
+      `INSERT INTO fans (id, issubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE);`
     );
     const sendSpy = jest.fn().mockResolvedValue();
     const app = createApp(sendSpy);
@@ -91,7 +91,7 @@ describe('POST /api/messages/send', () => {
   it('returns no recipients resolved when fan cannot receive messages', async () => {
     const app = createApp(jest.fn());
     await pool.query(
-      `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (5, TRUE, FALSE);`,
+      `INSERT INTO fans (id, issubscribed, canReceiveChatMessage) VALUES (5, TRUE, FALSE);`,
     );
     const res = await request(app)
       .post('/api/messages/send')

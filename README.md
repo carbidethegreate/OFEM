@@ -170,7 +170,7 @@ their purposes are:
 - `isRestricted` – Fan is restricted from certain interactions
 - `isHidden` – Profile is hidden from the creator
 - `isBookmarked` – Fan is bookmarked
-- `isSubscribed` – Active subscription status
+- `issubscribed` – Active subscription status
 - `subscribedBy` – Who initiated the subscription
 - `subscribedOn` – When the subscription started
 - `subscribedUntil` – Subscription expiration date
@@ -220,7 +220,7 @@ apply all migrations to an existing database in one step.
 
 Open <http://localhost:3000/follow.html> to follow back users who are not yet
 subscribed. The page calls `GET /api/fans/unfollowed` to list accounts where
-`isSubscribed` is `false`. Selecting **Follow All** issues a `POST
+`issubscribed` is `false`. Selecting **Follow All** issues a `POST
 /api/fans/:id/follow` for each entry.
 
 Requests are throttled with a 500 ms delay to respect OnlyFans rate limits. The
@@ -264,7 +264,7 @@ database. Each fan includes:
 - `id`, `username`, `name`, `parker_name`, `is_custom`
 - Profile details: `avatar`, `header`, `website`, `location`, `gender`, `birthday`, `about`, `notes`
 - Activity data: `lastSeen`, `joined`, `canReceiveChatMessage`, `canSendChatMessage`
-- Status flags: `isBlocked`, `isMuted`, `isRestricted`, `isHidden`, `isBookmarked`, `isSubscribed`, `isFriend`, `renewedAd`
+- Status flags: `isBlocked`, `isMuted`, `isRestricted`, `isHidden`, `isBookmarked`, `issubscribed`, `isFriend`, `renewedAd`
 - Subscription info: `subscribedBy`, `subscribedOn`, `subscribedUntil`, `subscribedByData`, `subscribedOnData`, `promoOffers`
 - Counts: `tipsSum`, `postsCount`, `photosCount`, `videosCount`, `audiosCount`, `mediaCount`, `subscribersCount`, `favoritesCount`
 - Media fields: `avatarThumbs`, `headerSize`, `headerThumbs`, `listsStates`
@@ -283,7 +283,7 @@ database. Each fan includes:
       "is_custom": false,
       "avatar": "https://cdn.example.com/avatar.jpg",
       "location": "USA",
-      "isSubscribed": true,
+      "issubscribed": true,
       "tipsSum": 100,
       "avatarThumbs": { "150": "https://cdn.example.com/avatar_150.jpg" },
       "promoOffers": {},

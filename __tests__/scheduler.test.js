@@ -22,7 +22,7 @@ beforeAll(async () => {
     CREATE TABLE fans (
       id BIGSERIAL PRIMARY KEY,
       username TEXT,
-      isSubscribed BOOLEAN,
+      issubscribed BOOLEAN,
       canReceiveChatMessage BOOLEAN
     );
   `);
@@ -76,7 +76,7 @@ afterEach(() => {
 
 test('recurring PPVs send once per fan per month across cycles', async () => {
   await mockPool.query(
-    `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE), (2, TRUE, TRUE);`,
+    `INSERT INTO fans (id, issubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE), (2, TRUE, TRUE);`,
   );
   await mockPool.query(
     `INSERT INTO ppv_sets (id, description, message, price, schedule_day, schedule_time) VALUES (1, 'desc', 'msg', 5, 15, '10:05');`,
@@ -118,7 +118,7 @@ test('recurring PPVs send once per fan per month across cycles', async () => {
 
 test('sends PPV media from associated vault list', async () => {
   await mockPool.query(
-    `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE);`,
+    `INSERT INTO fans (id, issubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE);`,
   );
   await mockPool.query(
     `INSERT INTO ppv_sets (id, message, price, vault_list_id, schedule_day, schedule_time) VALUES (1, 'hello', 10, 123, 15, '10:05');`,
@@ -158,7 +158,7 @@ test('sends PPV media from associated vault list', async () => {
 
 test('includes preview media when sending paywalled PPVs', async () => {
   await mockPool.query(
-    `INSERT INTO fans (id, isSubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE);`,
+    `INSERT INTO fans (id, issubscribed, canReceiveChatMessage) VALUES (1, TRUE, TRUE);`,
   );
   await mockPool.query(
     `INSERT INTO ppv_sets (id, message, price, schedule_day, schedule_time) VALUES (1, 'hi', 7, 15, '10:05');`,
