@@ -25,6 +25,33 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '2mb' }));
 
+// In-memory activity log capturing console output
+const activityLogs = [];
+function pushLog(level, args) {
+  const msg = args
+    .map((a) => {
+      if (typeof a === 'string') return a;
+      try {
+        return JSON.stringify(a);
+      } catch {
+        return String(a);
+      }
+    })
+    .join(' ');
+  activityLogs.push({ time: new Date().toISOString(), level, msg });
+  if (activityLogs.length > 1000) activityLogs.shift();
+}
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+console.log = (...args) => {
+  pushLog('info', args);
+  originalConsoleLog(...args);
+};
+console.error = (...args) => {
+  pushLog('error', args);
+  originalConsoleError(...args);
+};
+
 // OnlyFans API client (bearer auth)
 const ofApi = axios.create({
   baseURL: 'https://app.onlyfansapi.com/api',
@@ -374,11 +401,13 @@ const webhookRoutes = require('./routes/webhooks')({
   openaiAxios,
   openaiRequest,
 });
+const logsRoutes = require('./routes/logs')({ activityLogs });
 app.use('/api', fansRoutes);
 app.use('/api', ppvRoutes);
 app.use('/api', vaultListsRoutes);
 app.use('/api', messagesRoutes);
 app.use('/api', webhookRoutes);
+app.use('/api', logsRoutes);
 
 // System status endpoint
 app.get('/api/status', async (req, res) => {

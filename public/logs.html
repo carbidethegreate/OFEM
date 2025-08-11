@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html>
   <head>
     <meta charset="UTF-8" />
-    <title>Real-Time OF Manager</title>
+    <title>Activity Logs</title>
     <link rel="stylesheet" href="css/app.css" />
   </head>
   <body>
@@ -17,27 +17,13 @@
         <a href="follow.html" class="btn btn-primary">Follow Fans and Followers</a>
       </nav>
     </header>
-
-    <h1>Real-Time OnlyFans Events</h1>
-    <table id="eventsTable" class="form-table">
-      <thead>
-        <tr>
-          <th>Fan</th>
-          <th>Time</th>
-          <th>Event</th>
-          <th>Content</th>
-          <th>Suggested Reply</th>
-          <th>Thank-You Sent</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody id="eventsTableBody"></tbody>
-    </table>
-
-    <script src="realtime.js"></script>
+    <h1>Activity Logs</h1>
+    <button id="refreshLogsBtn" class="btn btn-secondary">Refresh</button>
+    <div id="logContainer" class="mt-15"></div>
+    <script src="logs.js"></script>
     <script>
-      if (window.App && App.RealTime && App.RealTime.init) {
-        App.RealTime.init();
+      if (window.App && App.ActivityLogs && App.ActivityLogs.init) {
+        App.ActivityLogs.init();
       }
     </script>
   </body>
