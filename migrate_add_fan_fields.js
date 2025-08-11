@@ -71,7 +71,7 @@ const columns = [
     const { rows } = await pool.query(`
       SELECT column_name FROM information_schema.columns WHERE table_name = 'fans';
     `);
-    const existingCols = rows.map(r => r.column_name);
+    const existingCols = rows.map(r => r.column_name.toLowerCase());
     const idCols = ['ofuserid', 'user_id', 'userid', 'id'].filter(c => existingCols.includes(c));
     if (idCols.length) {
       const coalesceExpr = idCols.map(c => `${c}::text`).join(', ');
@@ -94,12 +94,9 @@ const columns = [
     // - is_subscribed
     // - issubscribed
     // - isSubscribed
-    const subscriptionCols = [
-      'subscribed',
-      'is_subscribed',
-      'issubscribed',
-      'isSubscribed',
-    ].filter((c) => existingCols.includes(c));
+    const subscriptionCols = ['subscribed', 'is_subscribed', 'issubscribed', 'isSubscribed']
+      .map((c) => c.toLowerCase())
+      .filter((c) => existingCols.includes(c));
 
     let updateActiveSql = 'UPDATE fans SET active = TRUE WHERE active IS NULL';
     if (subscriptionCols.length) {
