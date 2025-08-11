@@ -157,7 +157,7 @@ If you already have a `messages` table with a `SERIAL` `id`, run the following
 before executing `migrate_messages.js`:
 
 ```sql
-ALTER TABLE messages ALTER COLUMN id TYPE BIGINT;
+ALTER TABLE messages ALTER COLUMN id TYPE BIGINT USING id::BIGINT;
 ALTER TABLE messages ALTER COLUMN id DROP DEFAULT;
 DROP SEQUENCE IF EXISTS messages_id_seq;
 ```
@@ -205,7 +205,7 @@ DROP SEQUENCE IF EXISTS messages_id_seq;
 
 `migrate_messages.js` creates a `messages` table used for storing message history:
 
-- `id` – serial primary key
+- `id` – bigint primary key
 - `fan_id` – reference to `fans.id`
 - `direction` – 'sent' or 'received'
 - `body` – message text

@@ -10,6 +10,7 @@ dotenv.config(); // Load environment variables for db.js
 const pool = require('./db');
 
 // SQL to create or update messages table
+// Use BIGINT for message IDs since OnlyFans message identifiers may exceed 32-bit integers.
 const createTableQuery = `
 CREATE TABLE IF NOT EXISTS messages (
     id BIGINT PRIMARY KEY,
@@ -23,7 +24,8 @@ CREATE TABLE IF NOT EXISTS messages (
 
 // For existing deployments: convert SERIAL integer IDs to BIGINT and drop sequence
 const alterQueries = [
-  'ALTER TABLE messages ALTER COLUMN id TYPE BIGINT',
+  // Explicitly cast existing values to BIGINT and remove auto-increment
+  'ALTER TABLE messages ALTER COLUMN id TYPE BIGINT USING id::BIGINT',
   'ALTER TABLE messages ALTER COLUMN id DROP DEFAULT',
   'DROP SEQUENCE IF EXISTS messages_id_seq',
 ];
