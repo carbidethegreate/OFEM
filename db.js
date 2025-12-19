@@ -10,6 +10,7 @@ dotenv.config(); // Load environment variables from .env file
 const { Client, Pool } = require('pg');
 
 // Read database configuration from environment
+const DATABASE_URL = process.env.DATABASE_URL;
 const DB_NAME = process.env.DB_NAME;
 const DB_USER = process.env.DB_USER;
 const DB_PASSWORD = process.env.DB_PASSWORD;
@@ -89,24 +90,33 @@ async function ensureDatabaseExists() {
   }
 }
 
-// Immediately ensure the database exists before proceeding
-(async () => {
-  try {
-    await ensureDatabaseExists();
-  } catch {
-    // Fail fast if database setup is incorrect
-    process.exit(1);
-  }
-})();
+let pool;
 
-// Create a connection pool to the application database
-const pool = new Pool({
-  user: DB_USER,
-  password: DB_PASSWORD,
-  host: DB_HOST,
-  port: DB_PORT,
-  database: DB_NAME,
-});
+if (DATABASE_URL) {
+  pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
+} else {
+  // Immediately ensure the database exists before proceeding
+  (async () => {
+    try {
+      await ensureDatabaseExists();
+    } catch {
+      // Fail fast if database setup is incorrect
+      process.exit(1);
+    }
+  })();
+
+  // Create a connection pool to the application database
+  pool = new Pool({
+    user: DB_USER,
+    password: DB_PASSWORD,
+    host: DB_HOST,
+    port: DB_PORT,
+    database: DB_NAME,
+  });
+}
 
 module.exports = pool;
 
