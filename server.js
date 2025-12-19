@@ -305,14 +305,12 @@ let sendMessageToFan = async function (
   let template = [greeting, body].filter(Boolean).join(' ').trim();
   const accountId = await getOFAccountId();
   const dbRes = await pool.query(
-    'SELECT parker_name, username, location, issubscribed, canreceivechatmessage FROM fans WHERE id=$1',
+    'SELECT parker_name, username, location, canreceivechatmessage FROM fans WHERE id=$1',
     [fanId],
   );
   const row = dbRes.rows[0] || {};
-  if (!row.issubscribed || !row.canreceivechatmessage) {
-    const err = new Error(
-      'Fan is not subscribed or cannot receive chat messages',
-    );
+  if (!row.canreceivechatmessage) {
+    const err = new Error('Fan cannot receive chat messages');
     err.code = 'FAN_NOT_ELIGIBLE';
     throw err;
   }
