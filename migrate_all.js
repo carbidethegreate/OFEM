@@ -1,3 +1,4 @@
+   
 /* OnlyFans Express Messenger (OFEM)
    File: migrate_all.js
    Purpose: Run all database migration scripts sequentially
@@ -8,6 +9,7 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 
 const scripts = [
+      'migrate.js',
   'migrate_add_fan_fields.js',
   'migrate_messages.js',
   'migrate_scheduled_messages.js',
