@@ -35,7 +35,7 @@
 </head>
 <body>
 <h1>Bulk Image Upload</h1>
-<p>Drag and drop images below or click to select files. After uploading, captions will be auto‑generated via ChatGPT.</p>
+<p>Drag and drop images below or click to select files. After uploading, captions will be auto generated via ChatGPT.</p>
 <div id="drop-area">
   <input type="file" id="fileElem" multiple accept="image/*" style="display:none;">
   <p>Drag & Drop Files Here</p>
@@ -83,12 +83,58 @@ function handleFiles(event) {
   }
 }
 
-// Placeholder buttons—connect these to your backend later
-document.getElementById('generateCaptions').addEventListener('click', () => {
-  alert('This would send the images to ChatGPT to generate captions.');
+let scheduleData = null;
+
+document.getElementById('generateCaptions').addEventListener('click', async () => {
+  if (filesToUpload.length === 0) {
+    alert('Please add images first.');
+    return;
+  }
+  const formData = new FormData();
+  filesToUpload.forEach((file) => formData.append('images', file));
+  try {
+    const response = await fetch('/api/bulk-upload', {
+      method: 'POST',
+      body: formData
+    });
+    if (!response.ok) {
+      throw new Error('Failed to generate captions');
+    }
+    const data = await response.json();
+    const inputs = document.querySelectorAll('.caption-input');
+    data.captions.forEach((c, idx) => {
+      if (inputs[idx]) {
+        inputs[idx].value = c.caption;
+      }
+    });
+    scheduleData = data.schedule;
+    alert('Captions generated. You can edit them before scheduling.');
+  } catch (err) {
+    alert(err.message);
+  }
 });
-document.getElementById('schedulePosts').addEventListener('click', () => {
-  alert('This would schedule the posts with the provided captions.');
+
+document.getElementById('schedulePosts').addEventListener('click', async () => {
+  if (!scheduleData) {
+    alert('Please generate captions first.');
+    return;
+  }
+  try {
+    await Promise.all(scheduleData.map(item =>
+      fetch('/api/scheduleMessage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: item.filename,
+          message: item.caption,
+          sendAt: item.sendAt
+        })
+      })
+    ));
+    alert('Posts scheduled!');
+  } catch (err) {
+    alert('Failed to schedule posts');
+  }
 });
 </script>
 </body>
