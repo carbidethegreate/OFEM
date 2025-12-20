@@ -1,5 +1,7 @@
 const express = require('express');
-const multer = require('multer');
+
+
+const fs = require('fs').promises;const multer = require('multer');
 const { Configuration, OpenAIApi } = require('openai');
 const dayjs = require('dayjs');
 
@@ -12,10 +14,12 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
   try {
     const captions = [];
     for (const file of req.files) {
-      const prompt = `Write an engaging OnlyFans post for an image called ${file.originalname}. Include relevant emojis.`;
+      const prompt = `Pro Classic Bodybuilder, Big Muscle Jock, USMC Marine, wrestler, and former simi pro football player who is also famous on TikTok is sending this image (${file.originalname}) out on his OnlyFans wall and messages and he needs a short caption that is masculine and spicy - keep in mind that the post needs to be for both straight women and gay men so avoid the word baby or anything that would suggest gender. Be direct and dominant, confident.`;
       const completion = await openai.createChatCompletion({
         model: 'gpt-4-turbo',
-        messages: [{ role: 'system', content: prompt }],
+        messages: [
+          { role: 'system', content: prompt }
+        ],
         max_tokens: 150
       });
       const caption = completion.data.choices[0].message.content.trim();
@@ -24,13 +28,11 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
 
     // Generate simple schedule suggestions: one per day starting tomorrow
     const now = dayjs();
-    const schedule = captions.map((c, idx) => {
-      return {
-        filename: c.filename,
-        caption: c.caption,
-        sendAt: now.add(idx + 1, 'day').toISOString()
-      };
-    });
+    const schedule = captions.map((c, idx) => ({
+      filename: c.filename,
+      caption: c.caption,
+      sendAt: now.add(idx + 1, 'day').toISOString()
+    }));
 
     res.json({ captions, schedule });
   } catch (err) {
