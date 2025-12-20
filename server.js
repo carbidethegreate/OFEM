@@ -610,6 +610,10 @@ async function processRecurringPPVs() {
           now,
           id,
         ]);
+
+// Bulk upload route
+const bulkUploadRoutes = require('./routes/bulkUpload');
+app.use('/api', bulkUploadRoutes);
       }
     }
   } catch (err) {
@@ -619,6 +623,10 @@ async function processRecurringPPVs() {
 
 // Serve frontend static files
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Import bulk upload route
+const bulkUploadRoutes = require('./routes/bulkUpload');
+app.use('/api', bulkUploadRoutes);
 
 async function processAllSchedules() {
   await processScheduledMessages();
