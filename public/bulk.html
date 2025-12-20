@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OFEM Bulk Upload</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  #drop-area {
+    border: 2px dashed #ccc;
+    border-radius: 10px;
+    padding: 30px;
+    text-align: center;
+    color: #666;
+  }
+  #gallery {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .item {
+    border: 1px solid #ddd;
+    padding: 10px;
+    width: 200px;
+  }
+  .item img {
+    max-width: 100%;
+    height: auto;
+  }
+  .caption-input {
+    width: 100%;
+    margin-top: 5px;
+  }
+</style>
+</head>
+<body>
+<h1>Bulk Image Upload</h1>
+<p>Drag and drop images below or click to select files. After uploading, captions will be auto‑generated via ChatGPT.</p>
+<div id="drop-area">
+  <input type="file" id="fileElem" multiple accept="image/*" style="display:none;">
+  <p>Drag & Drop Files Here</p>
+  <button id="fileSelect">Select Files</button>
+</div>
+<div id="gallery"></div>
+<button id="generateCaptions">Generate Captions</button>
+<button id="schedulePosts">Schedule Posts</button>
+
+<script>
+// Basic drag-and-drop handling
+const dropArea = document.getElementById('drop-area');
+const fileElem = document.getElementById('fileElem');
+const fileSelect = document.getElementById('fileSelect');
+const gallery = document.getElementById('gallery');
+let filesToUpload = [];
+
+fileSelect.addEventListener('click', () => fileElem.click());
+
+fileElem.addEventListener('change', handleFiles, false);
+dropArea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropArea.classList.add('hover');
+});
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('hover'));
+dropArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropArea.classList.remove('hover');
+  handleFiles({ target: { files: e.dataTransfer.files } });
+});
+
+function handleFiles(event) {
+  const files = event.target.files;
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue;
+    filesToUpload.push(file);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.innerHTML = `<img src="${e.target.result}" alt="${file.name}"><input class="caption-input" placeholder="Caption for ${file.name}">`;
+      gallery.appendChild(div);
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+// Placeholder buttons—connect these to your backend later
+document.getElementById('generateCaptions').addEventListener('click', () => {
+  alert('This would send the images to ChatGPT to generate captions.');
+});
+document.getElementById('schedulePosts').addEventListener('click', () => {
+  alert('This would schedule the posts with the provided captions.');
+});
+</script>
+</body>
+</html>
