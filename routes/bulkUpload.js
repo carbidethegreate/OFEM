@@ -16,7 +16,7 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
       const imageBuffer = await fs.readFile(file.path);
       const dataUri = `data:${file.mimetype};base64,${imageBuffer.toString('base64')}`;
 
-      const prompt = `I am going to post this image (for your reference I am a Pro Classic Bodybuilder, Big Muscle Jock, former USMC Marine, wrestler, and former semi‑pro football player who is also famous on TikTok). Look at the image and write a short masculine, spicy caption; it should appeal to both straight women and gay men, so avoid the word “baby” or anything that suggests gender. Be direct, dominant, and confident and write a message to send along with the image.`;
+      const prompt = `I am a professional Classic Bodybuilder, big muscular jock, former USMC Marine, wrestler, and former semi pro football player with a large following on TikTok. I will be posting an image on an NSFW platform. Review the image and write a short, masculine, spicy caption to accompany it. The caption should appeal equally to straight women and gay men, so avoid gendered terms and avoid words like baby. The tone must be direct, dominant, confident, and self assured. The content should be spicy but clean, suggestive without being explicit. Do not use quotation marks or em dashes. Write the caption as a message addressed directly to the viewer. If you are unable to generate a caption for any reason, respond only with: This image is for you!`;
 
       const completion = await openai.createChatCompletion({
         model: 'gpt-4o',
