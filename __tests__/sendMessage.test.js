@@ -103,4 +103,28 @@ describe('POST /api/messages/send', () => {
       diagnostics: { fans_in_db: 1 },
     });
   });
+
+  it('keeps previews that exist in mediaFiles and forwards them', async () => {
+    const sendSpy = jest.fn().mockResolvedValue();
+    const app = createApp(sendSpy);
+    await request(app)
+      .post('/api/sendMessage')
+      .send({
+        userId: 42,
+        body: 'preview test',
+        mediaFiles: ['111', '222', '222'],
+        previews: ['222', '333', '222', 'not-media'],
+      })
+      .set('Content-Type', 'application/json')
+      .expect(200);
+    expect(sendSpy).toHaveBeenCalledWith(
+      42,
+      '',
+      'preview test',
+      0,
+      '',
+      ['111', '222', '222'],
+      ['222'],
+    );
+  });
 });

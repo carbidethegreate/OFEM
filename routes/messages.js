@@ -95,19 +95,15 @@ module.exports = function ({
       const greeting = req.body.greeting || '';
       const body = req.body.body || '';
 
-      // Normalize IDs and remove duplicates/overlaps
-      let mediaFiles = sanitizeMediaIds(req.body.mediaFiles);
-      let previews = sanitizeMediaIds(req.body.previews);
+      // Normalize media and keep previews as a de-duplicated subset of media
+      const mediaFiles = sanitizeMediaIds(req.body.mediaFiles);
       const mediaSet = new Set(mediaFiles);
-      const previewSet = new Set(previews);
-      for (const id of [...previewSet]) {
-        if (mediaSet.has(id)) {
-          mediaSet.delete(id);
-          previewSet.delete(id);
-        }
-      }
-      mediaFiles = Array.from(mediaSet);
-      previews = Array.from(previewSet);
+      const seenPreview = new Set();
+      const previews = sanitizeMediaIds(req.body.previews).filter((id) => {
+        if (!mediaSet.has(id) || seenPreview.has(id)) return false;
+        seenPreview.add(id);
+        return true;
+      });
 
       // Locked text string (paywalled message)
       const lockedText =
