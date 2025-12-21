@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Bulk Results</title>
+  <style>
+    .post { border: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
+    .actions button { margin-right: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Scheduled Posts</h1>
+  <div id="message"></div>
+  <div id="posts"></div>
+  <script>
+    // Load scheduled posts from localStorage; each post should have image, caption and date fields
+    const posts = JSON.parse(localStorage.getItem('scheduledPosts') || '[]');
+    const postsDiv = document.getElementById('posts');
+    const messageDiv = document.getElementById('message');
+
+    function renderPosts() {
+      postsDiv.innerHTML = '';
+      if (posts.length === 0) {
+        postsDiv.innerHTML = '<p>No scheduled posts.</p>';
+        return;
+      }
+      posts.forEach((post, index) => {
+        const div = document.createElement('div');
+        div.className = 'post';
+        div.innerHTML = `
+          <img src="${post.image}" alt="image" style="max-width:200px;"><br>
+          <strong>Caption:</strong> ${post.caption}<br>
+          <strong>Scheduled for:</strong> <span id="date-${index}">${post.date}</span><br>
+          <div class="actions">
+            <button onclick="editDate(${index})">Edit Date/Time</button>
+            <button onclick="deletePost(${index})">Delete</button>
+            <button onclick="sendNow(${index})">Send Now</button>
+          </div>
+        `;
+        postsDiv.appendChild(div);
+      });
+    }
+
+    function editDate(index) {
+      const newDate = prompt('Enter new date and time:', posts[index].date);
+      if (newDate) {
+        posts[index].date = newDate;
+        localStorage.setItem('scheduledPosts', JSON.stringify(posts));
+        renderPosts();
+      }
+    }
+
+    function deletePost(index) {
+      if (confirm('Delete this post?')) {
+        posts.splice(index, 1);
+        localStorage.setItem('scheduledPosts', JSON.stringify(posts));
+        renderPosts();
+      }
+    }
+
+    async function sendNow(index) {
+      try {
+        messageDiv.textContent = 'Sending...';
+        // Placeholder: integration with OnlyFans API to send as post and message.
+        // Use add-media-to-list to add media to a list and count-queue-items to monitor queue.
+        // After sending, remove from scheduled posts list.
+        posts.splice(index, 1);
+        localStorage.setItem('scheduledPosts', JSON.stringify(posts));
+        renderPosts();
+        messageDiv.textContent = 'Post sent successfully!';
+      } catch (err) {
+        messageDiv.textContent = 'Error sending post.';
+      }
+    }
+
+    renderPosts();
+  </script>
+</body>
+</html>
