@@ -13,6 +13,7 @@ const scripts = [
   'migrate_add_fan_fields.js',
   'migrate_messages.js',
   'migrate_scheduled_messages.js',
+  'migrate_add_scheduled_posts.js',
   'migrate_add_vault_lists.js',
   'migrate_add_ppv_tables.js',
   'migrate_add_ppv_schedule_fields.js',

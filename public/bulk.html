@@ -110,28 +110,15 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
     return;
   }
   try {
-    await Promise.all(scheduleData.map(item =>
-      fetch('/api/scheduleMessage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filename: item.filename,
-          message: item.caption,
-          sendAt: item.sendAt
-        })
-      })
-    ));
     const items = Array.from(document.querySelectorAll('#gallery .item'));
     const posts = items.map((item, idx) => {
       const imgEl = item.querySelector('img');
       const captionEl = item.querySelector('.caption-input');
-      const dateInput = item.querySelector('.schedule-input');
+      const scheduleFromApi = scheduleData[idx] && scheduleData[idx].sendAt;
       return {
         image_url: imgEl ? imgEl.src : '',
         caption: captionEl ? captionEl.value : '',
-        schedule_time:
-          (scheduleData[idx] && scheduleData[idx].sendAt) ||
-          (dateInput ? dateInput.value : '')
+        schedule_time: scheduleFromApi || null
       };
     });
     const persistRes = await fetch('/api/scheduled-posts', {
@@ -139,24 +126,26 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(posts)
     });
-    if (!persistRes.ok) {
-      console.error('Failed to persist scheduled posts', persistRes.statusText);
+    const responseBody = await persistRes.json();
+    if (!persistRes.ok || !responseBody.success) {
+      const errorMsg = responseBody?.error || persistRes.statusText;
+      console.error('Failed to persist scheduled posts', errorMsg);
+      alert('Failed to schedule posts');
+      return;
     }
-    // persist scheduled posts to localStorage
-    const scheduled = JSON.parse(localStorage.getItem('scheduledPosts') || '[]');
-    items.forEach(item => {
-      const imgEl = item.querySelector('img');
-      const captionEl = item.querySelector('.caption-input');
-      const dateInput = item.querySelector('.schedule-input');
-      scheduled.push({
-        image: imgEl ? imgEl.src : '',
-        caption: captionEl ? captionEl.value : '',
-        date: dateInput ? dateInput.value : '',
-        status: 'pending'
-      });
-    });
+    const savedPosts = Array.isArray(responseBody.posts)
+      ? responseBody.posts
+      : [];
+    const scheduled = savedPosts.map((post) => ({
+      image: post.image_url || '',
+      caption: post.caption || '',
+      date: post.schedule_time
+        ? new Date(post.schedule_time).toLocaleString()
+        : '',
+      status: post.status || 'pending'
+    }));
     localStorage.setItem('scheduledPosts', JSON.stringify(scheduled));
-    alert('Posts scheduled!');
+    alert(`Posts scheduled! Saved ${scheduled.length} item(s).`);
   } catch (err) {
     console.error(err);
     alert('Failed to schedule posts');

@@ -13,10 +13,32 @@
   <div id="message"></div>
   <div id="posts"></div>
   <script>
-    // Load scheduled posts from localStorage; each post should have image, caption and date fields
-    const posts = JSON.parse(localStorage.getItem('scheduledPosts') || '[]');
     const postsDiv = document.getElementById('posts');
     const messageDiv = document.getElementById('message');
+    let posts = [];
+
+    async function loadPosts() {
+      try {
+        messageDiv.textContent = 'Loading posts...';
+        const res = await fetch('/api/scheduled-posts');
+        if (!res.ok) throw new Error('Failed to load scheduled posts');
+        const data = await res.json();
+        posts = Array.isArray(data.posts) ? data.posts.map((p) => ({
+          image: p.image_url || '',
+          caption: p.caption || '',
+          date: p.schedule_time
+            ? new Date(p.schedule_time).toLocaleString()
+            : '',
+          status: p.status || 'pending'
+        })) : [];
+        localStorage.setItem('scheduledPosts', JSON.stringify(posts));
+        messageDiv.textContent = `Loaded ${posts.length} scheduled post(s).`;
+      } catch (err) {
+        messageDiv.textContent = 'Unable to load posts from server; showing local data.';
+        posts = JSON.parse(localStorage.getItem('scheduledPosts') || '[]');
+      }
+      renderPosts();
+    }
 
     function renderPosts() {
       postsDiv.innerHTML = '';
@@ -31,6 +53,7 @@
           <img src="${post.image}" alt="image" style="max-width:200px;"><br>
           <strong>Caption:</strong> ${post.caption}<br>
           <strong>Scheduled for:</strong> <span id="date-${index}">${post.date}</span><br>
+          <strong>Status:</strong> ${post.status || 'pending'}<br>
           <div class="actions">
             <button onclick="editDate(${index})">Edit Date/Time</button>
             <button onclick="deletePost(${index})">Delete</button>
@@ -73,7 +96,7 @@
       }
     }
 
-    renderPosts();
+    loadPosts();
   </script>
 </body>
 </html>

@@ -194,32 +194,81 @@ module.exports = function ({
   });
 
   router.post('/scheduled-posts', async (req, res) => {
+    const posts = Array.isArray(req.body) ? req.body : [];
+    if (posts.length === 0) {
+      return res.status(400).json({ error: 'No posts provided' });
+    }
+
     const client = await pool.connect();
     try {
-      const posts = Array.isArray(req.body) ? req.body : [];
       await client.query('BEGIN');
-      for (const post of posts) {
-        const imageUrl = post?.image_url || null;
-        const caption = post?.caption || '';
-        const scheduleTime = post?.schedule_time
-          ? new Date(post.schedule_time)
-          : null;
-        await client.query(
-          'INSERT INTO scheduled_posts (image_url, caption, schedule_time, status) VALUES ($1, $2, $3, $4)',
+      const saved = [];
+
+      for (let i = 0; i < posts.length; i++) {
+        const post = posts[i] || {};
+        const imageUrl =
+          typeof post.image_url === 'string' ? post.image_url : null;
+        const caption = typeof post.caption === 'string' ? post.caption : '';
+        const scheduleTimeInput = post.schedule_time || post.sendAt || null;
+        const scheduleTime =
+          scheduleTimeInput && !Number.isNaN(new Date(scheduleTimeInput).getTime())
+            ? new Date(scheduleTimeInput)
+            : null;
+
+        if (scheduleTimeInput && scheduleTime === null) {
+          const err = new Error(`Invalid schedule_time for post ${i + 1}`);
+          err.status = 400;
+          throw err;
+        }
+
+        const { rows } = await client.query(
+          'INSERT INTO scheduled_posts (image_url, caption, schedule_time, status) VALUES ($1, $2, $3, $4) RETURNING id, image_url, caption, schedule_time, status',
           [imageUrl, caption, scheduleTime, 'pending'],
         );
+        saved.push(rows[0]);
       }
+
       await client.query('COMMIT');
-      res.status(201).json({ success: true });
+      res.status(201).json({
+        success: true,
+        posts: saved.map((p) => ({
+          ...p,
+          schedule_time: p.schedule_time
+            ? new Date(p.schedule_time).toISOString()
+            : null,
+        })),
+      });
     } catch (err) {
       await client.query('ROLLBACK');
+      const status = err.status || 500;
       console.error(
         'Error saving scheduled posts:',
         sanitizeError(err),
       );
-      res.status(500).json({ error: 'Failed to save scheduled posts' });
+      res
+        .status(status)
+        .json({ error: err.message || 'Failed to save scheduled posts' });
     } finally {
       client.release();
+    }
+  });
+
+  router.get('/scheduled-posts', async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        'SELECT id, image_url, caption, schedule_time, status FROM scheduled_posts ORDER BY schedule_time NULLS LAST, id DESC',
+      );
+      res.json({
+        posts: rows.map((p) => ({
+          ...p,
+          schedule_time: p.schedule_time
+            ? new Date(p.schedule_time).toISOString()
+            : null,
+        })),
+      });
+    } catch (err) {
+      console.error('Error fetching scheduled posts:', sanitizeError(err));
+      res.status(500).json({ error: 'Failed to fetch scheduled posts' });
     }
   });
 
