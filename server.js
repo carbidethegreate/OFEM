@@ -611,9 +611,6 @@ async function processRecurringPPVs() {
           id,
         ]);
 
-// Bulk upload route
-const bulkUploadRoutes = require('./routes/bulkUpload');
-app.use('/api', bulkUploadRoutes);
       }
     }
   } catch (err) {
