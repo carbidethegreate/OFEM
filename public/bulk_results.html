@@ -30,11 +30,13 @@
           status: p.status || 'pending'
         })) : [];
         messageDiv.textContent = `Loaded ${posts.length} scheduled post(s).`;
+        renderPosts();
       } catch (err) {
+        console.error(err);
         messageDiv.textContent = 'Unable to load posts from server.';
         posts = [];
+        postsDiv.innerHTML = '';
       }
-      renderPosts();
     }
 
     function renderPosts() {

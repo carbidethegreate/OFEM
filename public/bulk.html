@@ -24,6 +24,7 @@ body { font-family: Arial, sans-serif; margin: 20px; }
 <div id="gallery"></div>
 <button id="generateCaptions">Generate Captions</button>
 <button id="schedulePosts">Schedule Posts</button>
+<div id="statusMessage" role="status"></div>
 
 <script>
 // Basic drag-and-drop handling
@@ -31,6 +32,7 @@ const dropArea = document.getElementById('drop-area');
 const fileElem = document.getElementById('fileElem');
 const fileSelect = document.getElementById('fileSelect');
 const gallery = document.getElementById('gallery');
+const statusMessage = document.getElementById('statusMessage');
 let filesToUpload = [];
 
 fileSelect.addEventListener('click', () => fileElem.click());
@@ -74,6 +76,7 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
     alert('Please select images first.');
     return;
   }
+  statusMessage.textContent = 'Generating captions...';
   const formData = new FormData();
   filesToUpload.forEach((file) => formData.append('images', file));
 
@@ -82,11 +85,11 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
       method: 'POST',
       body: formData
     });
-    const data = await response.json();
-    if (data.error) {
-      alert('Failed to generate captions');
-      return;
+    if (!response.ok) {
+      throw new Error(`Failed to generate captions: ${response.status}`);
     }
+    const data = await response.json();
+    if (data.error) throw new Error('Failed to generate captions');
     const captionInputs = document.querySelectorAll('.caption-input');
     const scheduleInputs = document.querySelectorAll('.schedule-input');
     data.captions.forEach((c, idx) => {
@@ -97,10 +100,10 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
       const dateObj = new Date(s.sendAt);
       scheduleInputs[idx].value = dateObj.toLocaleString();
     });
-    alert('Captions generated.');
+    statusMessage.textContent = 'Captions generated.';
   } catch (err) {
     console.error(err);
-    alert('Failed to generate captions');
+    statusMessage.textContent = 'Failed to generate captions.';
   }
 });
 
@@ -109,6 +112,7 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
     alert('Please generate captions first.');
     return;
   }
+  statusMessage.textContent = 'Scheduling posts...';
   try {
     const items = Array.from(document.querySelectorAll('#gallery .item'));
     const posts = items.map((item, idx) => {
@@ -121,18 +125,16 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
         schedule_time: scheduleFromApi || null
       };
     });
-    const persistRes = await fetch('/api/scheduled-posts', {
+    const persistRes = await fetch('https://ofem.onrender.com/api/scheduled-posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(posts)
     });
-    const responseBody = await persistRes.json();
-    if (!persistRes.ok || !responseBody.success) {
-      const errorMsg = responseBody?.error || persistRes.statusText;
-      console.error('Failed to persist scheduled posts', errorMsg);
-      alert('Failed to schedule posts');
-      return;
+    if (!persistRes.ok) {
+      throw new Error(`Failed to schedule posts: ${persistRes.status}`);
     }
+    const responseBody = await persistRes.json();
+    if (!responseBody.success) throw new Error(responseBody?.error || 'Failed to schedule posts');
     const savedPosts = Array.isArray(responseBody.posts)
       ? responseBody.posts
       : [];
@@ -144,11 +146,10 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
         : '',
       status: post.status || 'pending'
     }));
-    localStorage.setItem('scheduledPosts', JSON.stringify(scheduled));
-    alert(`Posts scheduled! Saved ${scheduled.length} item(s).`);
+    statusMessage.textContent = `Posts scheduled! Saved ${scheduled.length} item(s).`;
   } catch (err) {
     console.error(err);
-    alert('Failed to schedule posts');
+    statusMessage.textContent = 'Failed to schedule posts.';
   }
 });
 </script>
