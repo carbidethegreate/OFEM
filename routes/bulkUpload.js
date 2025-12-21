@@ -16,7 +16,7 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
       const imageBuffer = await fs.readFile(file.path);
       const dataUri = `data:${file.mimetype};base64,${imageBuffer.toString('base64')}`;
 
-      const prompt = `Look at this image and understand that you're writing as a Pro Classic Bodybuilder, Big Muscle Jock, USMC Marine, wrestler, and former semi‑pro football player who is also famous on TikTok is sending this image out on his OnlyFans wall and messages. He needs a short caption that is masculine and spicy; it should appeal to both straight women and gay men, so avoid the word “baby” or anything that suggests gender. Be direct, dominant, and confident and write a message to send along with the image.`;
+      const prompt = `I am going to post this image (for your reference I am a Pro Classic Bodybuilder, Big Muscle Jock, former USMC Marine, wrestler, and former semi‑pro football player who is also famous on TikTok). Look at the image and write a short masculine, spicy caption; it should appeal to both straight women and gay men, so avoid the word “baby” or anything that suggests gender. Be direct, dominant, and confident and write a message to send along with the image.`;
 
       const completion = await openai.createChatCompletion({
         model: 'gpt-4o',
