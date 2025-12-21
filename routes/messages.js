@@ -193,6 +193,36 @@ module.exports = function ({
     }
   });
 
+  router.post('/scheduled-posts', async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const posts = Array.isArray(req.body) ? req.body : [];
+      await client.query('BEGIN');
+      for (const post of posts) {
+        const imageUrl = post?.image_url || null;
+        const caption = post?.caption || '';
+        const scheduleTime = post?.schedule_time
+          ? new Date(post.schedule_time)
+          : null;
+        await client.query(
+          'INSERT INTO scheduled_posts (image_url, caption, schedule_time, status) VALUES ($1, $2, $3, $4)',
+          [imageUrl, caption, scheduleTime, 'pending'],
+        );
+      }
+      await client.query('COMMIT');
+      res.status(201).json({ success: true });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error(
+        'Error saving scheduled posts:',
+        sanitizeError(err),
+      );
+      res.status(500).json({ error: 'Failed to save scheduled posts' });
+    } finally {
+      client.release();
+    }
+  });
+
   router.get('/scheduledMessages', async (req, res) => {
     try {
       const dbRes = await pool.query(
