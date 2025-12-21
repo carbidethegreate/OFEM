@@ -16,10 +16,10 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
       const imageBuffer = await fs.readFile(file.path);
       const dataUri = `data:${file.mimetype};base64,${imageBuffer.toString('base64')}`;
 
-      const prompt = `Pro Classic Bodybuilder, Big Muscle Jock, USMC Marine, wrestler, and former semi-pro football player who is also famous on TikTok is sending this image out on his OnlyFans wall and messages. He needs a short caption that is masculine and spicy; it should appeal to both straight women and gay men, so avoid the word “baby” or anything that suggests gender. Be direct, dominant, and confident.`;
+      const prompt = `Pro Classic Bodybuilder, Big Muscle Jock, USMC Marine, wrestler, and former semi‑pro football player who is also famous on TikTok is sending this image out on his OnlyFans wall and messages. He needs a short caption that is masculine and spicy; it should appeal to both straight women and gay men, so avoid the word “baby” or anything that suggests gender. Be direct, dominant, and confident.`;
 
       const completion = await openai.createChatCompletion({
-        model: 'gpt-4-vision-preview',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'user',
