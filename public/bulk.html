@@ -127,6 +127,23 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
     alert('Failed to schedule posts');
   }
 });
+<script>
+document.getElementById('schedulePosts').addEventListener('click', () => {
+  const items = document.querySelectorAll('#gallery .item');
+  const scheduled = JSON.parse(localStorage.getItem('scheduledPosts') || '[]');
+  items.forEach(item => {
+    const imgEl = item.querySelector('img');
+    const captionEl = item.querySelector('.caption-input');
+    const dateInput = item.querySelector('.schedule-input');
+    scheduled.push({
+      image: imgEl ? imgEl.src : '',
+      caption: captionEl ? captionEl.value : '',
+      date: dateInput ? dateInput.value : '',      status: 'pending'
+    });
+  });
+  localStorage.setItem('scheduledPosts', JSON.stringify(scheduled));
+});
+</script>
 </script>
 </body>
 </html>
