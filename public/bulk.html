@@ -2,40 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>OFEM Bulk Upload</title>
+<title>OFEM Bulk Uploads</title>
 <style>
-  body { font-family: Arial, sans-serif; margin: 20px; }
-  #drop-area {
-    border: 2px dashed #ccc;
-    border-radius: 10px;
-    padding: 30px;
-    text-align: center;
-    color: #666;
-  }
-  #gallery {
-    margin-top: 20px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .item {
-    border: 1px solid #ddd;
-    padding: 10px;
-    width: 200px;
-  }
-  .item img {
-    max-width: 100%;
-    height: auto;
-  }
-  .caption-input {
-    width: 100%;
-    margin-top: 5px;
-  }
+body { font-family: Arial, sans-serif; margin: 20px; }
+#drop-area { border: 2px dashed #ccc; border-radius: 10px; padding: 30px; text-align: center; color: #666; }
+#gallery { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+.item { display: flex; align-items: flex-start; border: 1px solid #ddd; padding: 10px; gap: 10px; }
+.item img { max-width: 200px; height: auto; }
+.caption-input { flex: 1; height: 100px; }
+.schedule-input { width: 200px; }
 </style>
 </head>
 <body>
 <h1>Bulk Image Upload</h1>
-<p>Drag and drop images below or click to select files. After uploading, captions will be auto generated via ChatGPT.</p>
+<p>Drag and drop images below or click to select files. After uploading, captions will be auto generated via ChatGPT.</p>
 <div id="drop-area">
   <input type="file" id="fileElem" multiple accept="image/*" style="display:none;">
   <p>Drag & Drop Files Here</p>
@@ -76,46 +56,56 @@ function handleFiles(event) {
     reader.onload = (e) => {
       const div = document.createElement('div');
       div.className = 'item';
-      div.innerHTML = `<img src="${e.target.result}" alt="${file.name}"><input class="caption-input" placeholder="Caption for ${file.name}">`;
+      div.innerHTML = `
+        <img src="${e.target.result}" alt="${file.name}">
+        <textarea class="caption-input" placeholder="Caption for ${file.name}"></textarea>
+        <input class="schedule-input" placeholder="Schedule date/time" disabled>
+      `;
       gallery.appendChild(div);
     };
     reader.readAsDataURL(file);
   }
 }
 
-let scheduleData = null;
+let scheduleData = [];
 
 document.getElementById('generateCaptions').addEventListener('click', async () => {
   if (filesToUpload.length === 0) {
-    alert('Please add images first.');
+    alert('Please select images first.');
     return;
   }
   const formData = new FormData();
   filesToUpload.forEach((file) => formData.append('images', file));
+
   try {
     const response = await fetch('/api/bulk-upload', {
       method: 'POST',
       body: formData
     });
-    if (!response.ok) {
-      throw new Error('Failed to generate captions');
-    }
     const data = await response.json();
-    const inputs = document.querySelectorAll('.caption-input');
+    if (data.error) {
+      alert('Failed to generate captions');
+      return;
+    }
+    const captionInputs = document.querySelectorAll('.caption-input');
+    const scheduleInputs = document.querySelectorAll('.schedule-input');
     data.captions.forEach((c, idx) => {
-      if (inputs[idx]) {
-        inputs[idx].value = c.caption;
-      }
+      captionInputs[idx].value = c.caption;
     });
     scheduleData = data.schedule;
-    alert('Captions generated. You can edit them before scheduling.');
+    data.schedule.forEach((s, idx) => {
+      const dateObj = new Date(s.sendAt);
+      scheduleInputs[idx].value = dateObj.toLocaleString();
+    });
+    alert('Captions generated.');
   } catch (err) {
-    alert(err.message);
+    console.error(err);
+    alert('Failed to generate captions');
   }
 });
 
 document.getElementById('schedulePosts').addEventListener('click', async () => {
-  if (!scheduleData) {
+  if (!scheduleData || scheduleData.length === 0) {
     alert('Please generate captions first.');
     return;
   }
@@ -133,6 +123,7 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
     ));
     alert('Posts scheduled!');
   } catch (err) {
+    console.error(err);
     alert('Failed to schedule posts');
   }
 });
