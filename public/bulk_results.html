@@ -20,22 +20,19 @@
     async function loadPosts() {
       try {
         messageDiv.textContent = 'Loading posts...';
-        const res = await fetch('/api/scheduled-posts');
+        const res = await fetch('https://ofem.onrender.com/api/scheduled-posts');
         if (!res.ok) throw new Error('Failed to load scheduled posts');
         const data = await res.json();
         posts = Array.isArray(data.posts) ? data.posts.map((p) => ({
           image: p.image_url || '',
           caption: p.caption || '',
-          date: p.schedule_time
-            ? new Date(p.schedule_time).toLocaleString()
-            : '',
+          date: p.schedule_time ? new Date(p.schedule_time).toLocaleString() : '',
           status: p.status || 'pending'
         })) : [];
-        localStorage.setItem('scheduledPosts', JSON.stringify(posts));
         messageDiv.textContent = `Loaded ${posts.length} scheduled post(s).`;
       } catch (err) {
-        messageDiv.textContent = 'Unable to load posts from server; showing local data.';
-        posts = JSON.parse(localStorage.getItem('scheduledPosts') || '[]');
+        messageDiv.textContent = 'Unable to load posts from server.';
+        posts = [];
       }
       renderPosts();
     }
@@ -68,7 +65,6 @@
       const newDate = prompt('Enter new date and time:', posts[index].date);
       if (newDate) {
         posts[index].date = newDate;
-        localStorage.setItem('scheduledPosts', JSON.stringify(posts));
         renderPosts();
       }
     }
@@ -76,7 +72,6 @@
     function deletePost(index) {
       if (confirm('Delete this post?')) {
         posts.splice(index, 1);
-        localStorage.setItem('scheduledPosts', JSON.stringify(posts));
         renderPosts();
       }
     }
@@ -84,11 +79,8 @@
     async function sendNow(index) {
       try {
         messageDiv.textContent = 'Sending...';
-        // Placeholder: integration with OnlyFans API to send as post and message.
-        // Use add-media-to-list to add media to a list and count-queue-items to monitor queue.
-        // After sending, remove from scheduled posts list.
+        // Placeholder for sending logic
         posts.splice(index, 1);
-        localStorage.setItem('scheduledPosts', JSON.stringify(posts));
         renderPosts();
         messageDiv.textContent = 'Post sent successfully!';
       } catch (err) {
