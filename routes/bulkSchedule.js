@@ -409,26 +409,63 @@ module.exports = function ({
       const requester = rateLimiter?.call
         ? (fn) => rateLimiter.call(fn)
         : (fn) => ofApiRequest(fn);
+      const accountId = normalizeAccountId(await getOFAccountId());
       const resp = await requester(() =>
-        ofApi.get('/v1/queue/list-queue-items', {
+        ofApi.get(`/${accountId}/queue`, {
           params: { queueItemIds: ids },
         }),
       );
       const data = resp.data || {};
-      const rows =
-        data.items ||
-        data.list ||
-        data.queueItems ||
-        data.data?.items ||
-        data.data?.list ||
-        data.data?.queueItems ||
-        [];
+      const rows = [];
+      const layers = [data, data?.data, data?.data?.data];
+      for (const layer of layers) {
+        if (!layer) continue;
+        const collections = [
+          layer.queueItems,
+          layer.queue_items,
+          layer.queue,
+          layer.items,
+          layer.list,
+          layer.data?.queueItems,
+          layer.data?.queue_items,
+          layer.data?.queue,
+          layer.data?.items,
+          layer.data?.list,
+        ];
+        for (const collection of collections) {
+          if (!collection) continue;
+          if (Array.isArray(collection)) {
+            rows.push(...collection);
+          } else if (Array.isArray(collection.items)) {
+            rows.push(...collection.items);
+          }
+        }
+      }
       const statuses = {};
       for (const row of rows) {
-        const queueId = coalesceId(row?.queue_item_id, row?.id, row?.queueId, row?.queue_id);
+        const queueItem = row?.queue || row?.queueItem || row?.queue_item;
+        const queueId = coalesceId(
+          row?.queue_item_id,
+          row?.id,
+          row?.queueId,
+          row?.queue_id,
+          row?.queueItemId,
+          queueItem?.queue_item_id,
+          queueItem?.queueItemId,
+          queueItem?.queueId,
+          queueItem?.queue_id,
+          queueItem?.id,
+        );
         if (!queueId) continue;
         const normalized = normalizeQueueStatus(
-          row?.status || row?.state || row?.queueStatus || row?.queue_status,
+          row?.status ||
+            row?.state ||
+            row?.queueStatus ||
+            row?.queue_status ||
+            queueItem?.status ||
+            queueItem?.state ||
+            queueItem?.queueStatus ||
+            queueItem?.queue_status,
         );
         if (normalized) statuses[queueId] = normalized;
       }
