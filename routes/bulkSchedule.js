@@ -239,11 +239,12 @@ module.exports = function ({
       );
       const form = new FormData();
       form.append('file', buffer, { filename, contentType });
+      const accountId = await getOFAccountId();
       const requester = rateLimiter?.call
         ? (fn) => rateLimiter.call(fn)
         : (fn) => ofApiRequest(fn);
       const resp = await requester(() =>
-        ofApi.post('/v1/media/upload-media-to-the-only-fans-cdn', form, {
+        ofApi.post(`/${accountId}/media/upload`, form, {
           headers: form.getHeaders(),
         }),
       );
