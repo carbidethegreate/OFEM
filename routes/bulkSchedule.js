@@ -1,4 +1,6 @@
 const express = require('express');
+const axios = require('axios');
+const FormData = require('form-data');
 const {
   tokenFingerprint,
   cloudflareError,
@@ -24,6 +26,7 @@ module.exports = function ({
   ofApiRequest,
   ofApi,
   hasBulkScheduleTables = () => true,
+  OF_FETCH_LIMIT = 1000,
 }) {
   const router = express.Router();
   router.use(express.json({ limit: '10mb' }));
@@ -114,6 +117,164 @@ module.exports = function ({
       meta: row.meta || {},
       created_at: row.created_at ? new Date(row.created_at).toISOString() : null,
     };
+  }
+
+  function resolveScheduleTimeUtc(value) {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toISOString();
+  }
+
+  function normalizeQueueStatus(status) {
+    if (!status) return null;
+    const normalized = String(status).toLowerCase();
+    if (['sent', 'complete', 'completed', 'done'].includes(normalized)) {
+      return 'sent';
+    }
+    if (
+      ['queued', 'pending', 'scheduled', 'processing', 'in_queue', 'waiting'].includes(
+        normalized,
+      )
+    ) {
+      return 'queued';
+    }
+    if (['failed', 'error', 'cancelled', 'canceled'].includes(normalized)) {
+      return 'error';
+    }
+    return normalized;
+  }
+
+  function coalesceId(...candidates) {
+    for (const candidate of candidates) {
+      if (candidate === 0 || candidate) return candidate;
+    }
+    return null;
+  }
+
+  function pickFilename(base, fallback = 'upload') {
+    if (base && typeof base === 'string') return base;
+    return fallback;
+  }
+
+  async function downloadMediaFile(url, filenameHint) {
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const contentType = response.headers['content-type'] || 'application/octet-stream';
+    const filename = pickFilename(filenameHint, 'bulk-upload');
+    return {
+      buffer: Buffer.from(response.data),
+      contentType,
+      filename,
+    };
+  }
+
+  async function uploadSingleUseMedia({
+    imageUrl,
+    filenameHint,
+    destination,
+    itemId,
+  }) {
+    if (!imageUrl) {
+      throw new Error('Missing image URL for upload');
+    }
+    const { buffer, contentType, filename } = await downloadMediaFile(
+      imageUrl,
+      filenameHint,
+    );
+    const form = new FormData();
+    form.append('file', buffer, { filename, contentType });
+    const resp = await ofApiRequest(() =>
+      ofApi.post('/v1/media/upload-media-to-the-only-fans-cdn', form, {
+        headers: form.getHeaders(),
+      }),
+    );
+    const mediaId = coalesceId(
+      resp.data?.prefixed_id,
+      resp.data?.media_id,
+      resp.data?.mediaId,
+      resp.data?.id,
+      resp.data?.media?.id,
+      resp.data?.media?.media_id,
+    );
+    if (!mediaId) {
+      throw new Error('Upload succeeded but media ID is missing');
+    }
+    await appendLog(itemId, 'info', `upload:${destination}`, 'Media uploaded', {
+      mediaId,
+      destination,
+    });
+    return { mediaId, raw: resp.data };
+  }
+
+  async function fetchActiveFollowings(limit = OF_FETCH_LIMIT) {
+    const ids = new Set();
+    let page = 1;
+    const pageSize = Math.min(100, limit);
+    while (ids.size < limit) {
+      const resp = await ofApiRequest(() =>
+        ofApi.get('/v1/following/list-active-followings', {
+          params: { page, limit: pageSize },
+        }),
+      );
+      const data = resp.data || {};
+      const rows =
+        data.list ||
+        data.followings ||
+        data.users ||
+        data.data?.list ||
+        data.data?.followings ||
+        data.data?.users ||
+        [];
+      const list = Array.isArray(rows) ? rows : [];
+      for (const u of list) {
+        const id = coalesceId(u?.id, u?.user_id, u?.userId, u?.of_user_id);
+        if (id != null) ids.add(Number(id));
+        if (ids.size >= limit) break;
+      }
+      const hasMore =
+        data.hasMore ??
+        data.has_more ??
+        data.data?.hasMore ??
+        data.data?.has_more ??
+        (list.length > 0 && list.length >= pageSize);
+      if (!hasMore || list.length === 0 || ids.size >= limit) break;
+      page += 1;
+    }
+    return Array.from(ids).slice(0, limit);
+  }
+
+  async function confirmQueueStatuses(queueIds = []) {
+    const ids = queueIds.filter(Boolean);
+    if (!ids.length) return {};
+    try {
+      const resp = await ofApiRequest(() =>
+        ofApi.get('/v1/queue/list-queue-items', {
+          params: { queueItemIds: ids },
+        }),
+      );
+      const data = resp.data || {};
+      const rows =
+        data.items ||
+        data.list ||
+        data.queueItems ||
+        data.data?.items ||
+        data.data?.list ||
+        data.data?.queueItems ||
+        [];
+      const statuses = {};
+      for (const row of rows) {
+        const queueId = coalesceId(row?.queue_item_id, row?.id, row?.queueId, row?.queue_id);
+        if (!queueId) continue;
+        const normalized = normalizeQueueStatus(
+          row?.status || row?.state || row?.queueStatus || row?.queue_status,
+        );
+        if (normalized) statuses[queueId] = normalized;
+      }
+      return statuses;
+    } catch (err) {
+      console.warn('Queue status lookup failed:', sanitizeErrorFn(err));
+      return {};
+    }
   }
 
   router.post('/scheduled-posts', async (req, res) => {
@@ -579,7 +740,6 @@ module.exports = function ({
         return res.status(404).json({ error: 'No matching schedule items' });
       }
 
-      const accountId = await getOFAccountId();
       const results = [];
 
       for (const item of items) {
@@ -592,6 +752,18 @@ module.exports = function ({
           continue;
         }
 
+        const scheduleTimeUtc = resolveScheduleTimeUtc(item.schedule_time);
+        const caption = item.caption || '';
+        const filenameHint = item.source_filename || `bulk-item-${item.id}`;
+        let postMediaId = item.post_media_id || null;
+        let messageMediaId = item.message_media_id || null;
+        let postId = item.of_post_id || null;
+        let messageId = item.of_message_id || null;
+        let postQueueId = item.of_post_queue_id || null;
+        let messageQueueId = item.of_message_queue_id || null;
+        let postStatus = item.post_status || null;
+        let messageStatus = item.message_status || null;
+
         try {
           await appendLog(
             item.id,
@@ -600,7 +772,7 @@ module.exports = function ({
             'Starting bulk send',
             {
               destination: item.destination,
-              schedule_time: item.schedule_time,
+              schedule_time: scheduleTimeUtc || item.schedule_time,
               timezone: item.timezone,
             },
           );
@@ -609,88 +781,158 @@ module.exports = function ({
             throw new Error('Missing image_url_cf for item');
           }
 
-          const uploadResp = await ofApiRequest(() =>
-            ofApi.post(`/${accountId}/media/scrape`, {
-              url: item.image_url_cf,
-            }),
-          );
-          const mediaId =
-            uploadResp.data?.media?.id ||
-            uploadResp.data?.id ||
-            uploadResp.data?.mediaId ||
-            uploadResp.data?.media_id ||
-            null;
+          if (['message', 'both'].includes(destination)) {
+            const messageUpload = await uploadSingleUseMedia({
+              imageUrl: item.image_url_cf,
+              filenameHint: `${filenameHint}-message`,
+              destination: 'message',
+              itemId: item.id,
+            });
+            messageMediaId = messageUpload.mediaId;
 
-          const queuePayload = {
-            text: item.caption || '',
-            media_ids: mediaId ? [mediaId] : [],
-          };
-          if (item.schedule_time) queuePayload.schedule_time = item.schedule_time;
-          if (item.timezone) queuePayload.timezone = item.timezone;
+            const recipientIds = await fetchActiveFollowings(OF_FETCH_LIMIT);
+            if (!recipientIds.length) {
+              throw new Error('No active followings available for messaging');
+            }
 
-          let postQueueId = item.of_post_queue_id || null;
-          let messageQueueId = item.of_message_queue_id || null;
+            const messagePayload = {
+              userIds: recipientIds,
+              mediaIds: [messageMediaId],
+              text: caption,
+            };
+            if (scheduleTimeUtc) messagePayload.scheduleTime = scheduleTimeUtc;
 
-          if (['post', 'both'].includes(destination)) {
-            const queueResp = await ofApiRequest(() =>
-              ofApi.post(`/${accountId}/queue`, {
-                type: 'post',
-                ...queuePayload,
-              }),
+            const messageResp = await ofApiRequest(() =>
+              ofApi.post('/v1/mass-messaging/send-mass-message', messagePayload),
             );
-            postQueueId =
-              queueResp.data?.id ||
-              queueResp.data?.queue_id ||
-              queueResp.data?.queueId ||
-              queueResp.data?.data?.id ||
-              postQueueId;
+            messageId = coalesceId(
+              messageResp.data?.id,
+              messageResp.data?.messageId,
+              messageResp.data?.message_id,
+              messageResp.data?.data?.id,
+              messageResp.data?.data?.messageId,
+              messageResp.data?.massMessageId,
+              messageResp.data?.mass_message_id,
+            );
+            messageQueueId = coalesceId(
+              messageResp.data?.queueId,
+              messageResp.data?.queue_id,
+              messageResp.data?.queueItemId,
+              messageResp.data?.queue_item_id,
+              messageResp.data?.data?.queue_id,
+              messageResp.data?.data?.queueId,
+            );
+            messageStatus =
+              normalizeQueueStatus(
+                messageResp.data?.status ||
+                  messageResp.data?.queueStatus ||
+                  messageResp.data?.queue_status,
+              ) || (messageQueueId ? 'queued' : 'sent');
+            await appendLog(item.id, 'info', 'send:message', 'Mass message submitted', {
+              messageId,
+              messageQueueId,
+              recipients: recipientIds.length,
+              schedule_time: scheduleTimeUtc,
+            });
           }
 
-          if (['message', 'both'].includes(destination)) {
-            const queueResp = await ofApiRequest(() =>
-              ofApi.post(`/${accountId}/queue`, {
-                type: 'message',
-                ...queuePayload,
-              }),
+          if (['post', 'both'].includes(destination)) {
+            const postUpload = await uploadSingleUseMedia({
+              imageUrl: item.image_url_cf,
+              filenameHint: `${filenameHint}-post`,
+              destination: 'post',
+              itemId: item.id,
+            });
+            postMediaId = postUpload.mediaId;
+
+            const postPayload = {
+              text: caption,
+              mediaIds: [postMediaId],
+            };
+            if (scheduleTimeUtc) postPayload.scheduleTime = scheduleTimeUtc;
+
+            const postResp = await ofApiRequest(() =>
+              ofApi.post('/v1/posts/send-post', postPayload),
             );
-            messageQueueId =
-              queueResp.data?.id ||
-              queueResp.data?.queue_id ||
-              queueResp.data?.queueId ||
-              queueResp.data?.data?.id ||
-              messageQueueId;
+            postId = coalesceId(
+              postResp.data?.id,
+              postResp.data?.postId,
+              postResp.data?.post_id,
+              postResp.data?.data?.id,
+              postResp.data?.data?.postId,
+            );
+            postQueueId = coalesceId(
+              postResp.data?.queueId,
+              postResp.data?.queue_id,
+              postResp.data?.queueItemId,
+              postResp.data?.queue_item_id,
+              postResp.data?.data?.queue_id,
+              postResp.data?.data?.queueId,
+            );
+            postStatus =
+              normalizeQueueStatus(
+                postResp.data?.status || postResp.data?.queueStatus || postResp.data?.queue_status,
+              ) || (postQueueId ? 'queued' : 'sent');
+            await appendLog(item.id, 'info', 'send:post', 'Post submission completed', {
+              postId,
+              postQueueId,
+              schedule_time: scheduleTimeUtc,
+            });
+          }
+
+          const queueStatuses = await confirmQueueStatuses([postQueueId, messageQueueId]);
+          if (queueStatuses[postQueueId]) postStatus = queueStatuses[postQueueId];
+          if (queueStatuses[messageQueueId]) messageStatus = queueStatuses[messageQueueId];
+
+          const relevantStatuses = [];
+          if (['post', 'both'].includes(destination)) relevantStatuses.push(postStatus);
+          if (['message', 'both'].includes(destination)) relevantStatuses.push(messageStatus);
+          let localStatus = 'queued';
+          if (relevantStatuses.some((s) => s === 'error')) {
+            localStatus = 'error';
+          } else if (relevantStatuses.length && relevantStatuses.every((s) => s === 'sent')) {
+            localStatus = 'sent';
           }
 
           const { rows: updatedRows } = await pool.query(
             `UPDATE bulk_schedule_items
              SET post_media_id = $1,
                  message_media_id = $2,
-                 of_post_queue_id = $3,
-                 of_message_queue_id = $4,
-                 local_status = $5,
-                 post_status = $6,
-                 message_status = $7,
-                 last_error = $8,
+                 of_post_id = $3,
+                 of_message_id = $4,
+                 of_post_queue_id = $5,
+                 of_message_queue_id = $6,
+                 local_status = $7,
+                 post_status = $8,
+                 message_status = $9,
+                 last_error = $10,
                  updated_at = NOW()
-             WHERE id = $9
+            WHERE id = $11
              RETURNING *`,
             [
-              ['post', 'both'].includes(destination) ? mediaId : item.post_media_id,
+              ['post', 'both'].includes(destination) ? postMediaId : item.post_media_id,
               ['message', 'both'].includes(destination)
-                ? mediaId
+                ? messageMediaId
                 : item.message_media_id,
-              postQueueId,
-              messageQueueId,
-              'queued',
-              postQueueId ? 'queued' : item.post_status,
-              messageQueueId ? 'queued' : item.message_status,
+              ['post', 'both'].includes(destination) ? postId : item.of_post_id,
+              ['message', 'both'].includes(destination) ? messageId : item.of_message_id,
+              ['post', 'both'].includes(destination) ? postQueueId : item.of_post_queue_id,
+              ['message', 'both'].includes(destination)
+                ? messageQueueId
+                : item.of_message_queue_id,
+              localStatus,
+              ['post', 'both'].includes(destination) ? postStatus || 'queued' : item.post_status,
+              ['message', 'both'].includes(destination)
+                ? messageStatus || 'queued'
+                : item.message_status,
               null,
               item.id,
             ],
           );
 
           await appendLog(item.id, 'info', 'send:queued', 'Item queued', {
-            mediaId,
+            postMediaId,
+            messageMediaId,
             postQueueId,
             messageQueueId,
           });
@@ -705,11 +947,19 @@ module.exports = function ({
           const { rows: updatedRows } = await pool.query(
             `UPDATE bulk_schedule_items
              SET local_status = $1,
-                 last_error = $2,
+                 post_status = $2,
+                 message_status = $3,
+                 last_error = $4,
                  updated_at = NOW()
-             WHERE id = $3
+             WHERE id = $5
              RETURNING *`,
-            ['error', safeMessage, item.id],
+            [
+              'error',
+              ['post', 'both'].includes(destination) ? 'error' : item.post_status,
+              ['message', 'both'].includes(destination) ? 'error' : item.message_status,
+              safeMessage,
+              item.id,
+            ],
           );
           outcome.status = 'error';
           outcome.error = safeMessage;

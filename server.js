@@ -610,6 +610,7 @@ const bulkScheduleRoutes = require('./routes/bulkSchedule')({
   ofApiRequest,
   ofApi,
   hasBulkScheduleTables: () => hasBulkScheduleTables,
+  OF_FETCH_LIMIT,
 });
 app.use('/api', fansRoutes);
 app.use('/api', ppvRoutes);
