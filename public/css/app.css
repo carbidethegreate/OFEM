@@ -31,6 +31,14 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .nav-bar a {
@@ -235,6 +243,24 @@ input {
   padding: 0 5px;
 }
 
+.quick-links {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: #f8fbff;
+}
+
+.quick-links h2 {
+  margin: 0 0 6px;
+}
+
+.quick-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 /* Modal */
 .modal {
   position: fixed;
@@ -289,9 +315,17 @@ li {
     width: 100%;
     margin: 4px 0;
   }
+  .nav-group,
+  .nav-actions {
+    width: 100%;
+    justify-content: center;
+  }
   .nav-bar a {
     display: block;
     margin: 5px 0;
+  }
+  .quick-link-actions {
+    flex-direction: column;
   }
   #toolbar {
     display: flex;

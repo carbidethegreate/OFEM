@@ -7,14 +7,20 @@
   </head>
   <body>
     <header class="site-header">
-      <nav class="nav-bar">
-        <a href="index.html">Dashboard</a>
-        <a href="ppv.html">PPV Manager</a>
-        <a href="history.html">Message History</a>
-        <a href="queue.html">Scheduled Queue</a>
-        <a href="realtime.html">Real-Time Manager</a>
-        <a href="logs.html">Activity Logs</a>
-        <a href="follow.html" class="btn btn-primary">Follow Fans and Followers</a>
+      <nav class="nav-bar" aria-label="Primary">
+        <div class="nav-group" aria-label="Core navigation">
+          <a href="index.html">Dashboard</a>
+          <a href="ppv.html">PPV Manager</a>
+          <a href="history.html">Message History</a>
+          <a href="queue.html">Scheduled Queue</a>
+          <a href="realtime.html">Real-Time Manager</a>
+          <a href="logs.html">Activity Logs</a>
+        </div>
+        <div class="nav-group nav-actions" aria-label="Bulk tools and follow actions">
+          <a href="/bulk.html" class="btn btn-secondary">Bulk Upload</a>
+          <a href="/bulk_results.html" class="btn btn-secondary">Bulk Results</a>
+          <a href="follow.html" class="btn btn-primary">Follow Fans and Followers</a>
+        </div>
       </nav>
     </header>
     <h1>OnlyFans Express Messenger (OFEM)</h1>
@@ -32,7 +38,19 @@
       </button>
       <a href="history.html" target="_blank">Message History</a>
       <a href="queue.html" target="_blank">Scheduled Queue</a>
+      <a href="/bulk.html" class="btn btn-secondary" target="_blank">Bulk Upload</a>
+      <a href="/bulk_results.html" class="btn btn-secondary" target="_blank">Bulk Results</a>
     </p>
+    <section class="quick-links" aria-label="Bulk workflows">
+      <h2>Bulk Workflows</h2>
+      <p class="mb-4">
+        Upload bulk messages and review delivery outcomes directly from the dashboard.
+      </p>
+      <div class="quick-link-actions">
+        <a href="/bulk.html" class="btn btn-secondary">Go to Bulk Upload</a>
+        <a href="/bulk_results.html" class="btn btn-secondary">View Bulk Results</a>
+      </div>
+    </section>
     <div id="messageSection" class="message-section">
       <input
         type="text"
