@@ -4,9 +4,12 @@ const express = require('express');
 const mockCreateChatCompletion = jest.fn();
 
 jest.mock('openai', () => ({
-  Configuration: jest.fn(),
-  OpenAIApi: jest.fn(() => ({
-    createChatCompletion: mockCreateChatCompletion,
+  OpenAI: jest.fn(() => ({
+    chat: {
+      completions: {
+        create: mockCreateChatCompletion,
+      },
+    },
   })),
 }));
 
@@ -37,7 +40,7 @@ function createAppWithEnv(envOverrides = {}) {
   axiosMock.get = jest.fn().mockResolvedValue({ data: { success: true } });
 
   mockCreateChatCompletion.mockResolvedValue({
-    data: { choices: [{ message: { content: 'Test caption' } }] },
+    choices: [{ message: { content: 'Test caption' } }],
   });
 
   const bulkUploadRoutes = require('../routes/bulkUpload');

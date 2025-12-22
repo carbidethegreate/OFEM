@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
-const { Configuration, OpenAIApi } = require('openai');
+const { OpenAI } = require('openai');
 const dayjs = require('dayjs');
 const crypto = require('crypto');
 const {
@@ -28,9 +28,62 @@ router.use(express.json({ limit: '10mb' }));
 const upload = multer({ dest: 'uploads/' }); // temporary storage
 const fsPromises = fs.promises;
 
-const openai = new OpenAIApi(new Configuration({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-}));
+});
+
+function validateOpenAIConfig() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.OPENAI_MODEL || 'gpt-4o';
+
+  if (!apiKey) {
+    return {
+      error: {
+        status: 400,
+        message: 'Missing OpenAI configuration: OPENAI_API_KEY',
+      },
+    };
+  }
+
+  if (!model || typeof model !== 'string') {
+    return {
+      error: {
+        status: 400,
+        message: 'Invalid OpenAI model configuration: OPENAI_MODEL',
+      },
+    };
+  }
+
+  return { model };
+}
+
+function formatOpenAIError(err, model) {
+  const status = err?.status || err?.response?.status || err?.code || 500;
+  const detailMessage = err?.response?.data?.error?.message || err?.message;
+
+  if (status === 401) {
+    return { status, message: 'Invalid OpenAI API key' };
+  }
+
+  if (status === 429) {
+    return {
+      status,
+      message: 'OpenAI rate limit exceeded. Please try again later.',
+    };
+  }
+
+  if (status === 400 && detailMessage?.toLowerCase?.().includes('model')) {
+    return {
+      status,
+      message: `Unsupported OpenAI model "${model}". Update OPENAI_MODEL to a supported model.`,
+    };
+  }
+
+  return {
+    status: status >= 400 && status < 600 ? status : 500,
+    message: detailMessage || 'OpenAI request failed',
+  };
+}
 
 router.get('/health/cloudflare-images', async (req, res) => {
   const env = {
@@ -100,6 +153,13 @@ function buildUploadResponse(items) {
 
 router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
   try {
+    const openAIConfig = validateOpenAIConfig();
+    if (openAIConfig.error) {
+      return res
+        .status(openAIConfig.error.status)
+        .json({ error: openAIConfig.error.message });
+    }
+
     let cloudflareConfig;
     try {
       cloudflareConfig = getCloudflareConfig();
@@ -175,21 +235,27 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
 
       const prompt = `I am a professional Classic Bodybuilder, big muscular jock, former USMC Marine, wrestler, and former semi pro football player with a large TikTok following. I am posting an image and need a short, masculine, spicy caption to accompany it. Review the image and write a confident, dominant message addressed directly to the viewer. The tone should be bold, controlled, and self assured. The caption must appeal to both straight women and gay men, so avoid gendered language and avoid words like baby. Keep it suggestive but clean, spicy without being explicit. Do not describe sexual acts. Do not use quotation marks or em dashes.`;
 
-      const completion = await openai.createChatCompletion({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: dataUri } },
-            ],
-          },
-        ],
-        max_tokens: 150,
-      });
+      let completion;
+      try {
+        completion = await openai.chat.completions.create({
+          model: openAIConfig.model,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: dataUri } },
+              ],
+            },
+          ],
+          max_tokens: 150,
+        });
+      } catch (openAIError) {
+        const formatted = formatOpenAIError(openAIError, openAIConfig.model);
+        return res.status(formatted.status).json({ error: formatted.message });
+      }
 
-      const caption = completion.data.choices[0].message.content.trim();
+      const caption = completion?.choices?.[0]?.message?.content?.trim() || '';
       const uploadStatus = uploadError ? 'failed' : 'success';
       const sendAt = startTime.add((responseItems.length + 1) * 5, 'day').toISOString();
 
@@ -274,6 +340,10 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
       return res
         .status(status)
         .json({ error: err.message, cloudflareStatus: err.cloudflareStatus ?? null });
+    }
+    if (err?.response?.data?.error?.type === 'invalid_request_error') {
+      const formatted = formatOpenAIError(err, process.env.OPENAI_MODEL || 'gpt-4o');
+      return res.status(formatted.status).json({ error: formatted.message });
     }
     res.status(500).json({ error: 'Internal Server Error' });
   }
