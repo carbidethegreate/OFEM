@@ -5,6 +5,7 @@ const axios = require('axios');
 const FormData = require('form-data');
 const { Configuration, OpenAIApi } = require('openai');
 const dayjs = require('dayjs');
+const crypto = require('crypto');
 const { sanitizeError } = require('../sanitizeError');
 
 const router = express.Router();
@@ -12,10 +13,40 @@ const upload = multer({ dest: 'uploads/' }); // temporary storage
 const fsPromises = fs.promises;
 
 // Cloudflare Images configuration (set in Render env vars/secrets)
-const CF_IMAGES_ACCOUNT_ID = process.env.CF_IMAGES_ACCOUNT_ID;
-const CF_IMAGES_TOKEN = process.env.CF_IMAGES_TOKEN;
-const CF_IMAGES_DELIVERY_HASH =
-  process.env.CF_IMAGES_DELIVERY_HASH || process.env.CF_IMAGES_ACCOUNT_HASH;
+const CF_IMAGES_VARIANT = process.env.CF_IMAGES_VARIANT || 'public';
+
+function tokenFingerprint(token) {
+  if (!token) return null;
+  return crypto.createHash('sha256').update(token).digest('hex').slice(0, 8);
+}
+
+function getCloudflareConfig() {
+  const accountId = process.env.CF_IMAGES_ACCOUNT_ID;
+  const token = process.env.CF_IMAGES_TOKEN;
+  const deliveryHash =
+    process.env.CF_IMAGES_DELIVERY_HASH || process.env.CF_IMAGES_ACCOUNT_HASH;
+  const variant = CF_IMAGES_VARIANT || 'public';
+
+  const missing = [];
+  if (!accountId) missing.push('CF_IMAGES_ACCOUNT_ID');
+  if (!token) missing.push('CF_IMAGES_TOKEN');
+  if (!deliveryHash) missing.push('CF_IMAGES_DELIVERY_HASH/CF_IMAGES_ACCOUNT_HASH');
+
+  if (missing.length) {
+    const err = new Error(`Missing environment variables: ${missing.join(', ')}`);
+    err.statusCode = 400;
+    err.isConfigError = true;
+    throw err;
+  }
+
+  return { accountId, token, deliveryHash, variant };
+}
+
+function formatEnvErrorResponse(err) {
+  if (!err?.isConfigError) return null;
+  const status = err.statusCode || 400;
+  return { status, payload: { error: err.message } };
+}
 
 function cloudflareError(message, statusCode, cloudflareStatus) {
   const err = new Error(message || 'Cloudflare upload failed');
@@ -25,16 +56,33 @@ function cloudflareError(message, statusCode, cloudflareStatus) {
   return err;
 }
 
-function getCloudflareDeliveryUrl(imageId) {
-  if (!CF_IMAGES_DELIVERY_HASH || !imageId) return null;
-  return `https://imagedelivery.net/${CF_IMAGES_DELIVERY_HASH}/${imageId}/public`;
+function getCloudflareDeliveryUrl(deliveryHash, variant, imageId) {
+  if (!deliveryHash || !imageId) return null;
+  return `https://imagedelivery.net/${deliveryHash}/${imageId}/${variant || 'public'}`;
 }
 
-async function uploadToCloudflareImages(filePath, filename, mimetype) {
-  if (!CF_IMAGES_ACCOUNT_ID || !CF_IMAGES_TOKEN) {
-    throw cloudflareError('Cloudflare Images environment variables missing', 400);
+async function verifyCloudflareToken({ token }) {
+  try {
+    await axios.get('https://api.cloudflare.com/client/v4/user/tokens/verify', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (err) {
+    const status = err?.response?.status;
+    const statusCode = status ? (status >= 500 ? 502 : 401) : 502;
+    const cfErr = cloudflareError('Cloudflare token verification failed', statusCode, status);
+    cfErr.responseErrors = err?.response?.data?.errors || null;
+    cfErr.requestId =
+      err?.response?.headers?.['cf-ray'] ||
+      err?.response?.headers?.['cf-request-id'] ||
+      null;
+    cfErr.isVerificationError = true;
+    throw cfErr;
   }
+}
 
+async function uploadToCloudflareImages(filePath, filename, mimetype, config) {
   const form = new FormData();
   form.append('file', fs.createReadStream(filePath), {
     filename,
@@ -44,12 +92,12 @@ async function uploadToCloudflareImages(filePath, filename, mimetype) {
   let res;
   try {
     res = await axios.post(
-      `https://api.cloudflare.com/client/v4/accounts/${CF_IMAGES_ACCOUNT_ID}/images/v1`,
+      `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/images/v1`,
       form,
       {
         headers: {
           ...form.getHeaders(),
-          Authorization: `Bearer ${CF_IMAGES_TOKEN}`,
+          Authorization: `Bearer ${config.token}`,
         },
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
@@ -67,6 +115,12 @@ async function uploadToCloudflareImages(filePath, filename, mimetype) {
     const sanitized = sanitizeError(err);
     const cfErr = cloudflareError(errMsg, statusCode, status);
     cfErr.responseData = sanitized?.response?.data ?? err?.response?.data ?? null;
+    cfErr.requestId =
+      sanitized?.response?.headers?.['cf-ray'] ||
+      sanitized?.response?.headers?.['cf-request-id'] ||
+      err?.response?.headers?.['cf-ray'] ||
+      err?.response?.headers?.['cf-request-id'] ||
+      null;
     throw cfErr;
   }
 
@@ -79,7 +133,7 @@ async function uploadToCloudflareImages(filePath, filename, mimetype) {
 
   const imageId = res.data?.result?.id;
   const variantUrl =
-    getCloudflareDeliveryUrl(imageId) ||
+    getCloudflareDeliveryUrl(config.deliveryHash, config.variant, imageId) ||
     (Array.isArray(res.data?.result?.variants) && res.data.result.variants[0]) ||
     null;
 
@@ -94,17 +148,25 @@ function logCloudflareFailure(err, filename) {
     sanitized?.response?.status ??
     err?.response?.status ??
     null;
-  const responseData =
-    sanitized?.response?.data ??
-    err?.responseData ??
-    err?.response?.data ??
+  const cloudflareErrors =
+    sanitized?.response?.data?.errors ??
+    err?.responseErrors ??
+    err?.responseData?.errors ??
+    err?.response?.data?.errors ??
     null;
+  const requestId =
+    err?.requestId ||
+    sanitized?.response?.headers?.['cf-ray'] ||
+    sanitized?.response?.headers?.['cf-request-id'] ||
+    err?.response?.headers?.['cf-ray'] ||
+    err?.response?.headers?.['cf-request-id'] ||
+    null;
+
   console.error('Cloudflare upload failed:', {
     filename,
-    message: sanitized?.message || err?.message || 'Cloudflare upload failed',
     status: responseStatus,
-    cloudflareStatus: responseStatus,
-    response: responseData,
+    cloudflareErrors,
+    requestId,
   });
 }
 
@@ -114,8 +176,37 @@ const openai = new OpenAIApi(new Configuration({
 
 router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
   try {
+    let cloudflareConfig;
+    try {
+      cloudflareConfig = getCloudflareConfig();
+    } catch (configErr) {
+      const envError = formatEnvErrorResponse(configErr);
+      if (envError) {
+        return res.status(envError.status).json(envError.payload);
+      }
+      throw configErr;
+    }
+
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    try {
+      console.info('Verifying Cloudflare token fingerprint', {
+        tokenFingerprint: tokenFingerprint(cloudflareConfig.token),
+      });
+      await verifyCloudflareToken(cloudflareConfig);
+    } catch (verifyErr) {
+      const status =
+        verifyErr?.statusCode ||
+        verifyErr?.cloudflareStatus ||
+        verifyErr?.response?.status ||
+        401;
+      const message = verifyErr?.isVerificationError
+        ? 'Invalid Cloudflare configuration: CF_IMAGES_TOKEN'
+        : 'Cloudflare token verification failed';
+      logCloudflareFailure(verifyErr, 'token-verification');
+      return res.status(status).json({ error: message });
     }
 
     const failOnCloudflareError = req.query?.failOnCloudflareError === 'true';
@@ -133,6 +224,7 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
           file.path,
           file.originalname,
           file.mimetype,
+          cloudflareConfig,
         );
       } catch (uploadErr) {
         const cfErr =
