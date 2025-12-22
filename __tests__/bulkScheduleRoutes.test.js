@@ -66,7 +66,7 @@ CREATE TABLE bulk_logs (
 `;
 
 async function createApp(options = {}) {
-  const { useV1MediaUpload = false } = options;
+  const { useV1MediaUpload = false, missingEnvVars = [] } = options;
   const mem = newDb();
   const pg = mem.adapters.createPg();
   const pool = new pg.Pool();
@@ -96,7 +96,7 @@ async function createApp(options = {}) {
 
   const ofApi = { post: jest.fn(), get: jest.fn(), put: jest.fn() };
   const ofApiRequest = jest.fn((fn) => fn());
-  const getMissingEnvVars = jest.fn(() => []);
+  const getMissingEnvVars = jest.fn(() => missingEnvVars);
   const getOFAccountId = jest.fn().mockResolvedValue('acc1');
 
   const routerFactory = require('../routes/bulkSchedule');
@@ -146,6 +146,23 @@ describe('bulk schedule routes', () => {
     formatUploadError.mockImplementation((err) => ({
       message: err?.message || 'Upload failed',
     }));
+  });
+
+  test('POST /api/scheduled-posts fails when ONLYFANS_ACCOUNT_ID is missing', async () => {
+    const { app, getMissingEnvVars, getOFAccountId } = await createApp({
+      missingEnvVars: ['ONLYFANS_ACCOUNT_ID'],
+    });
+
+    const res = await request(app).post('/api/scheduled-posts').send([]).expect(400);
+
+    expect(res.body).toEqual({
+      error: 'Missing environment variable(s): ONLYFANS_ACCOUNT_ID',
+    });
+    expect(getMissingEnvVars).toHaveBeenCalledWith([
+      'ONLYFANS_API_KEY',
+      'ONLYFANS_ACCOUNT_ID',
+    ]);
+    expect(getOFAccountId).not.toHaveBeenCalled();
   });
 
   test('POST /api/scheduled-posts rejects invalid schedule_time and skips inserts', async () => {

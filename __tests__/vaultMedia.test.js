@@ -9,6 +9,7 @@ mockAxios.create.mockReturnValue(mockAxios);
 let app;
 beforeAll(() => {
   process.env.ONLYFANS_API_KEY = 'test';
+  process.env.ONLYFANS_ACCOUNT_ID = 'acc1';
   process.env.OPENAI_API_KEY = 'test';
   app = require('../server');
 });

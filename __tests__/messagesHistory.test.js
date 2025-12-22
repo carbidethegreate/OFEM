@@ -14,6 +14,7 @@ let app;
 
 beforeAll(async () => {
   process.env.ONLYFANS_API_KEY = 'test';
+  process.env.ONLYFANS_ACCOUNT_ID = 'acc1';
   process.env.OPENAI_API_KEY = 'test';
   await mockPool.query(`
     CREATE TABLE fans (

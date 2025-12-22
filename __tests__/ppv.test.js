@@ -15,6 +15,7 @@ let shouldSendNow;
 
 beforeAll(async () => {
   process.env.ONLYFANS_API_KEY = 'test';
+  process.env.ONLYFANS_ACCOUNT_ID = 'acc1';
   process.env.OPENAI_API_KEY = 'test';
   process.env.DB_NAME = 'testdb';
   process.env.DB_USER = 'user';

@@ -74,6 +74,7 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 let OFAccountId = null;
 const REQUIRED_ENV_VARS = [
   'ONLYFANS_API_KEY',
+  'ONLYFANS_ACCOUNT_ID',
   'DB_NAME',
   'DB_USER',
   'DB_PASSWORD',
@@ -430,19 +431,26 @@ async function openaiRequest(requestFn, maxRetries = 5) {
   }
 }
 
+function resolveConfiguredOFAccountId() {
+  const envAccountId = (process.env.ONLYFANS_ACCOUNT_ID || '').trim();
+  return envAccountId || null;
+}
+
 async function getOFAccountId(refresh = false) {
-  if (!refresh && OFAccountId) return OFAccountId;
-  const accountsResp = await ofApiRequest(() => ofApi.get('/accounts'));
-  const rawAccounts = accountsResp.data?.data || accountsResp.data;
-  const accounts = Array.isArray(rawAccounts)
-    ? rawAccounts
-    : rawAccounts?.accounts || [];
-  if (!accounts || accounts.length === 0) {
-    throw new Error('No OnlyFans account is connected to this API key.');
+  const configuredAccountId = resolveConfiguredOFAccountId();
+  if (configuredAccountId) {
+    if (refresh || OFAccountId !== configuredAccountId) {
+      OFAccountId = configuredAccountId;
+      console.log(`Using OnlyFans account: ${OFAccountId}`);
+    }
+    return OFAccountId;
   }
-  OFAccountId = accounts[0].id;
-  console.log(`Using OnlyFans account: ${OFAccountId}`);
-  return OFAccountId;
+  if (!refresh && OFAccountId) return OFAccountId;
+  const err = new Error(
+    'ONLYFANS_ACCOUNT_ID is required. Set it to your OnlyFans account ID or slug.',
+  );
+  err.status = 400;
+  throw err;
 }
 // Determine if an OnlyFans account appears system generated
 function isSystemGenerated(username = '', profileName = '') {
@@ -675,6 +683,7 @@ app.get('/api/status', async (req, res) => {
   };
   const requiredEnv = [
     'ONLYFANS_API_KEY',
+    'ONLYFANS_ACCOUNT_ID',
     'OPENAI_API_KEY',
     'OPENAI_MODEL',
     'DB_NAME',
@@ -918,7 +927,7 @@ async function initScheduling() {
 
 if (require.main === module) {
   (async () => {
-    const missing = getMissingEnvVars(['ONLYFANS_API_KEY']);
+    const missing = getMissingEnvVars(['ONLYFANS_API_KEY', 'ONLYFANS_ACCOUNT_ID']);
     if (missing.length) {
       console.error(
         `Missing environment variable(s): ${missing.join(', ')}`,
