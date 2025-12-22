@@ -33,9 +33,10 @@ function getCloudflareConfig() {
   if (!deliveryHash) missing.push('CF_IMAGES_DELIVERY_HASH/CF_IMAGES_ACCOUNT_HASH');
 
   if (missing.length) {
-    const err = new Error(`Missing environment variables: ${missing.join(', ')}`);
+    const err = new Error('Cloudflare Images environment variables missing');
     err.statusCode = 400;
     err.isConfigError = true;
+    err.missing = missing;
     throw err;
   }
 
@@ -45,7 +46,7 @@ function getCloudflareConfig() {
 function formatEnvErrorResponse(err) {
   if (!err?.isConfigError) return null;
   const status = err.statusCode || 400;
-  return { status, payload: { error: err.message } };
+  return { status, payload: { error: err.message, cloudflareStatus: null } };
 }
 
 function cloudflareError(message, statusCode, cloudflareStatus) {
@@ -170,14 +171,27 @@ function logCloudflareFailure(err, filename) {
     err?.responseData?.errors ??
     err?.response?.data?.errors ??
     null;
+  const cloudflareStatus =
+    err?.cloudflareStatus ??
+    sanitized?.response?.status ??
+    err?.statusCode ??
+    err?.response?.status ??
+    null;
   const requestId =
     err?.requestId ||
     extractRequestId(err, sanitized);
 
+  const response =
+    cloudflareErrors && Array.isArray(cloudflareErrors)
+      ? { errors: cloudflareErrors }
+      : undefined;
+
   console.error('Cloudflare upload failed:', {
     filename,
     status: responseStatus,
+    cloudflareStatus,
     cloudflareErrors,
+    response,
     requestId,
   });
 }

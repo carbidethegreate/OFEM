@@ -30,7 +30,7 @@ const alterQueries = [
   'DROP SEQUENCE IF EXISTS messages_id_seq',
 ];
 
-(async () => {
+async function runMigration() {
   try {
     await pool.query(createTableQuery);
     for (const q of alterQueries) {
@@ -40,7 +40,9 @@ const alterQueries = [
         // Ignore errors (e.g., table already in desired state)
       }
     }
-    console.log('✅ "messages" table has been created/updated.');
+    if (!process.env.JEST_WORKER_ID) {
+      console.log('✅ "messages" table has been created/updated.');
+    }
   } catch (err) {
     console.error('Error running messages migration:', err.message);
     process.exitCode = 1;
@@ -49,6 +51,16 @@ const alterQueries = [
     if (process.exitCode && !process.env.JEST_WORKER_ID)
       process.exit(process.exitCode);
   }
-})();
+}
+
+const migrationPromise = runMigration();
+module.exports = migrationPromise;
+
+if (require.main === module) {
+  migrationPromise.catch((err) => {
+    console.error('Migration failed:', err?.message || err);
+    if (!process.exitCode) process.exit(1);
+  });
+}
 
 /* End of File – Last modified 2025-08-05 */
