@@ -35,6 +35,7 @@ const gallery = document.getElementById('gallery');
 const statusMessage = document.getElementById('statusMessage');
 let filesToUpload = [];
 let uploadResults = [];
+let uploadErrorMessage = '';
 
 fileSelect.addEventListener('click', () => fileElem.click());
 
@@ -85,10 +86,19 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
       body: formData
     });
     if (!response.ok) {
-      throw new Error(`Failed to generate captions: ${response.status}`);
+      let errorDetail = `Failed to generate captions: ${response.status}`;
+      try {
+        const errorJson = await response.json();
+        if (errorJson?.error) {
+          errorDetail = `${errorDetail} - ${errorJson.error}`;
+        }
+      } catch (parseErr) {
+        // ignore
+      }
+      throw new Error(errorDetail);
     }
     const data = await response.json();
-    if (data.error) throw new Error('Failed to generate captions');
+    if (data.error && !data.uploadErrors) throw new Error('Failed to generate captions');
     const uploads = Array.isArray(data.uploads) ? data.uploads : [];
     const items = Array.isArray(data.items) ? data.items : [];
     const schedule = Array.isArray(data.schedule) ? data.schedule : [];
@@ -111,10 +121,19 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
         scheduleInputs[idx].value = dateObj.toLocaleString();
       }
     });
-    statusMessage.textContent = 'Captions generated.';
+    const uploadErrors = Array.isArray(data.uploadErrors)
+      ? data.uploadErrors.filter(Boolean)
+      : [];
+    const cloudflareError = data.cloudflareError || uploadErrors[0] || null;
+    uploadErrorMessage = cloudflareError?.message || '';
+    if (cloudflareError) {
+      statusMessage.textContent = `Captions generated, but uploads failed: ${uploadErrorMessage}`;
+    } else {
+      statusMessage.textContent = 'Captions generated.';
+    }
   } catch (err) {
     console.error(err);
-    statusMessage.textContent = 'Failed to generate captions.';
+    statusMessage.textContent = err?.message || 'Failed to generate captions.';
   }
 });
 
@@ -130,6 +149,16 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
   statusMessage.textContent = 'Scheduling posts...';
   try {
     const items = Array.from(document.querySelectorAll('#gallery .item'));
+    const hasMissingUploads =
+      !uploadResults ||
+      uploadResults.some((u) => !u || !u.url);
+    if (hasMissingUploads) {
+      const reason = uploadErrorMessage
+        ? `Cannot schedule posts because uploads failed: ${uploadErrorMessage}`
+        : 'Cannot schedule posts because uploads are missing. Please retry uploads.';
+      statusMessage.textContent = reason;
+      return;
+    }
     const posts = items.map((item, idx) => {
       const upload = uploadResults[idx];
       if (!upload || !upload.url) {

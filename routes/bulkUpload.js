@@ -1,6 +1,5 @@
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 const FormData = require('form-data');
@@ -17,6 +16,14 @@ const CF_IMAGES_TOKEN = process.env.CF_IMAGES_TOKEN;
 const CF_IMAGES_DELIVERY_HASH =
   process.env.CF_IMAGES_DELIVERY_HASH || process.env.CF_IMAGES_ACCOUNT_HASH;
 
+function cloudflareError(message, statusCode, cloudflareStatus) {
+  const err = new Error(message || 'Cloudflare upload failed');
+  err.isCloudflareError = true;
+  err.statusCode = statusCode || 502;
+  err.cloudflareStatus = cloudflareStatus ?? null;
+  return err;
+}
+
 function getCloudflareDeliveryUrl(imageId) {
   if (!CF_IMAGES_DELIVERY_HASH || !imageId) return null;
   return `https://imagedelivery.net/${CF_IMAGES_DELIVERY_HASH}/${imageId}/public`;
@@ -24,7 +31,7 @@ function getCloudflareDeliveryUrl(imageId) {
 
 async function uploadToCloudflareImages(filePath, filename, mimetype) {
   if (!CF_IMAGES_ACCOUNT_ID || !CF_IMAGES_TOKEN) {
-    throw new Error('Cloudflare Images environment variables missing');
+    throw cloudflareError('Cloudflare Images environment variables missing', 400);
   }
 
   const form = new FormData();
@@ -33,23 +40,35 @@ async function uploadToCloudflareImages(filePath, filename, mimetype) {
     contentType: mimetype,
   });
 
-  const res = await axios.post(
-    `https://api.cloudflare.com/client/v4/accounts/${CF_IMAGES_ACCOUNT_ID}/images/v1`,
-    form,
-    {
-      headers: {
-        ...form.getHeaders(),
-        Authorization: `Bearer ${CF_IMAGES_TOKEN}`,
+  let res;
+  try {
+    res = await axios.post(
+      `https://api.cloudflare.com/client/v4/accounts/${CF_IMAGES_ACCOUNT_ID}/images/v1`,
+      form,
+      {
+        headers: {
+          ...form.getHeaders(),
+          Authorization: `Bearer ${CF_IMAGES_TOKEN}`,
+        },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        timeout: 60000,
       },
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-      timeout: 60000,
-    },
-  );
+    );
+  } catch (err) {
+    if (err?.isCloudflareError) throw err;
+    const status = err?.response?.status;
+    const errMsg =
+      err?.response?.data?.errors?.[0]?.message ||
+      err?.response?.data?.error ||
+      err?.message;
+    const statusCode = status ? (status >= 500 ? 502 : 400) : 502;
+    throw cloudflareError(errMsg, statusCode, status);
+  }
 
   if (!res.data?.success) {
     const msg = res.data?.errors?.[0]?.message || 'Cloudflare upload failed';
-    throw new Error(msg);
+    throw cloudflareError(msg, 502, res.status);
   }
 
   const imageId = res.data?.result?.id;
@@ -71,12 +90,16 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
+    const failOnCloudflareError = req.query?.failOnCloudflareError === 'true';
     const captions = [];
     const uploads = [];
+    const uploadErrors = [];
+
     for (const file of req.files) {
       const imageBuffer = await fsPromises.readFile(file.path);
       const dataUri = `data:${file.mimetype};base64,${imageBuffer.toString('base64')}`;
       let cloudflareUpload = null;
+      let uploadError = null;
       try {
         cloudflareUpload = await uploadToCloudflareImages(
           file.path,
@@ -84,8 +107,35 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
           file.mimetype,
         );
       } catch (uploadErr) {
-        console.error('Cloudflare upload failed:', uploadErr?.message || uploadErr);
-        throw uploadErr;
+        const cfErr =
+          uploadErr?.isCloudflareError
+            || uploadErr?.isAxiosError
+            || uploadErr?.response
+            ? uploadErr
+            : cloudflareError(uploadErr?.message, 502);
+        console.error('Cloudflare upload failed:', cfErr?.message || cfErr);
+        const fallbackStatus = cfErr?.response?.status;
+        const derivedStatusCode =
+          fallbackStatus != null
+            ? fallbackStatus >= 500
+              ? 502
+              : 400
+            : 502;
+        uploadError = {
+          message: cfErr?.message || 'Cloudflare upload failed',
+          statusCode: cfErr?.statusCode || derivedStatusCode,
+          cloudflareStatus:
+            cfErr?.cloudflareStatus ??
+            cfErr?.response?.status ??
+            null,
+        };
+        if (failOnCloudflareError) {
+          throw cloudflareError(
+            uploadError.message,
+            uploadError.statusCode,
+            uploadError.cloudflareStatus,
+          );
+        }
       } finally {
         try {
           await fsPromises.unlink(file.path);
@@ -112,6 +162,7 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
 
       const caption = completion.data.choices[0].message.content.trim();
       captions.push({ filename: file.originalname, caption });
+      uploadErrors.push(uploadError);
       uploads.push({
         filename: file.originalname,
         imageId: cloudflareUpload?.imageId || null,
@@ -135,10 +186,33 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
       imageId: uploads[idx]?.imageId || null,
     }));
 
-    res.json({ captions, schedule, uploads, items });
+    const firstUploadError = uploadErrors.find(Boolean) || null;
+    const responsePayload = {
+      captions,
+      schedule,
+      uploads,
+      items,
+      uploadErrors,
+      uploadStatus: firstUploadError ? 'partial-failure' : 'ok',
+      cloudflareError: firstUploadError
+        ? {
+            message: firstUploadError.message,
+            statusCode: firstUploadError.statusCode,
+            cloudflareStatus: firstUploadError.cloudflareStatus,
+          }
+        : null,
+    };
+
+    res.status(firstUploadError && failOnCloudflareError ? firstUploadError.statusCode : 200).json(responsePayload);
   } catch (err) {
     console.error(err);
-    res.status(500).send('Internal Server Error');
+    if (err?.isCloudflareError) {
+      const status = err.statusCode || 502;
+      return res
+        .status(status)
+        .json({ error: err.message, cloudflareStatus: err.cloudflareStatus ?? null });
+    }
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
