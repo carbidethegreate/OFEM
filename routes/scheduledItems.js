@@ -90,6 +90,7 @@ module.exports = function ({
       scheduled_at_utc: scheduleIso,
       timezone: row.timezone,
       mode: normalizeMode(row.mode),
+      both_disabled: Boolean(row.both_disabled),
       status: row.status,
       upload_strategy_note: row.upload_strategy_note,
       of_media_id_post: row.of_media_id_post,
@@ -620,6 +621,7 @@ module.exports = function ({
         const scheduleTime =
           parseDate(
             item.scheduled_at_utc ||
+              item.scheduledAtUtc ||
               item.schedule_time ||
               item.scheduleTime ||
               item.scheduledDate,
@@ -630,8 +632,8 @@ module.exports = function ({
         const { rows } = await pool.query(
           `INSERT INTO scheduled_items
              (source_filename, media_url, caption, message_body, schedule_time, scheduled_at_utc, timezone,
-              mode, status, upload_strategy_note, of_media_id_post, of_media_id_message)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+              mode, both_disabled, status, upload_strategy_note, of_media_id_post, of_media_id_message)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
            RETURNING *`,
           [
             item.source_filename || item.filename || item.name || null,
@@ -642,6 +644,7 @@ module.exports = function ({
             scheduleTime,
             item.timezone || null,
             normalizeMode(item.mode),
+            Boolean(item.both_disabled),
             initialStatus,
             item.upload_strategy_note || baseNote,
             coalesceId(
@@ -688,19 +691,56 @@ module.exports = function ({
 
   router.patch('/scheduled-items/:id/mode', async (req, res) => {
     if (!ensureTablesAvailable(res)) return;
-    const mode = normalizeMode(req.body?.mode);
     try {
+      const currentRes = await pool.query(
+        'SELECT * FROM scheduled_items WHERE id=$1',
+        [req.params.id],
+      );
+      if (!currentRes.rows.length) {
+        return res.status(404).json({ error: 'Item not found' });
+      }
+      const current = currentRes.rows[0];
+      const scheduleProvided =
+        Object.prototype.hasOwnProperty.call(req.body || {}, 'schedule_time') ||
+        Object.prototype.hasOwnProperty.call(req.body || {}, 'scheduled_at_utc');
+      const scheduleTime = scheduleProvided
+        ? parseDate(req.body?.scheduled_at_utc || req.body?.schedule_time) || null
+        : current.scheduled_at_utc || current.schedule_time || null;
+      const mode = req.body?.mode
+        ? normalizeMode(req.body.mode)
+        : normalizeMode(current.mode);
+      const bothDisabled =
+        req.body?.both_disabled != null
+          ? req.body.both_disabled === true
+          : Boolean(current.both_disabled);
+      const timezoneProvided =
+        Object.prototype.hasOwnProperty.call(req.body || {}, 'timezone');
+      const timezone = timezoneProvided
+        ? typeof req.body?.timezone === 'string' && req.body.timezone.trim()
+          ? req.body.timezone.trim()
+          : null
+        : current.timezone || null;
       const { rows } = await pool.query(
         `UPDATE scheduled_items
-         SET mode=$1, updated_at=NOW()
-         WHERE id=$2
+         SET mode=$1,
+             both_disabled=$2,
+             schedule_time=$3,
+             scheduled_at_utc=$3,
+             timezone=$4,
+             updated_at=NOW()
+         WHERE id=$5
          RETURNING *`,
-        [mode, req.params.id],
+        [mode, bothDisabled, scheduleTime, timezone, req.params.id],
       );
       if (!rows.length) {
         return res.status(404).json({ error: 'Item not found' });
       }
-      await logStep(rows[0].id, 'upload_media', 'info', 'Mode updated', { mode });
+      await logStep(rows[0].id, 'upload_media', 'info', 'Mode updated', {
+        mode,
+        both_disabled: bothDisabled,
+        schedule_time: scheduleTime,
+        timezone,
+      });
       res.json({ item: formatItem(rows[0]) });
     } catch (err) {
       console.error('Error updating scheduled item mode:', sanitizeErrorFn(err));
@@ -737,6 +777,20 @@ module.exports = function ({
     } catch (err) {
       console.error('Error sending scheduled items to queue:', sanitizeErrorFn(err));
       res.status(500).json({ error: 'Failed to send items to queue' });
+    }
+  });
+
+  router.get('/scheduled-items/logs', async (req, res) => {
+    if (!ensureTablesAvailable(res)) return;
+    try {
+      const data = await fetchLogs({
+        page: req.query.page,
+        pageSize: req.query.pageSize,
+      });
+      res.json(data);
+    } catch (err) {
+      console.error('Error fetching scheduled item logs:', sanitizeErrorFn(err));
+      res.status(500).json({ error: 'Failed to fetch logs' });
     }
   });
 
