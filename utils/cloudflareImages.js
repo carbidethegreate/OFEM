@@ -2,7 +2,7 @@ const fs = require('fs');
 const axios = require('axios');
 const FormData = require('form-data');
 const crypto = require('crypto');
-const { sanitizeError } = require('../sanitizeError');
+const { sanitizeError, sanitizeLogPayload } = require('../sanitizeError');
 
 const CF_IMAGES_VARIANT = process.env.CF_IMAGES_VARIANT || 'public';
 
@@ -67,6 +67,40 @@ function extractRequestId(err, sanitized) {
     safeRequestHeaders(sanitized?.response?.headers) ||
     safeRequestHeaders(err?.response?.headers);
   return safeHeaders['cf-ray'] || safeHeaders['cf-request-id'] || null;
+}
+
+function buildCloudflareLogPayload(err, filename) {
+  const sanitized = sanitizeError(err);
+  const responseStatus =
+    err?.cloudflareStatus ??
+    err?.statusCode ??
+    sanitized?.response?.status ??
+    err?.response?.status ??
+    null;
+  const cloudflareErrorsRaw =
+    sanitized?.response?.data?.errors ??
+    err?.responseErrors ??
+    err?.responseData?.errors ??
+    err?.response?.data?.errors ??
+    null;
+  const cloudflareErrors =
+    Array.isArray(cloudflareErrorsRaw) && cloudflareErrorsRaw.length
+      ? cloudflareErrorsRaw
+      : undefined;
+  const cloudflareStatus =
+    err?.cloudflareStatus ??
+    sanitized?.response?.status ??
+    err?.statusCode ??
+    err?.response?.status ??
+    null;
+
+  return sanitizeLogPayload({
+    filename: filename || undefined,
+    status: responseStatus,
+    cloudflareStatus,
+    cloudflareErrors,
+    requestId: err?.requestId || extractRequestId(err, sanitized),
+  });
 }
 
 async function verifyCloudflareToken({ token }) {
@@ -159,42 +193,7 @@ async function uploadToCloudflareImages(fileInput, filename, mimetype, config) {
 }
 
 function logCloudflareFailure(err, filename) {
-  const sanitized = sanitizeError(err);
-  const responseStatus =
-    err?.cloudflareStatus ??
-    err?.statusCode ??
-    sanitized?.response?.status ??
-    err?.response?.status ??
-    null;
-  const cloudflareErrors =
-    sanitized?.response?.data?.errors ??
-    err?.responseErrors ??
-    err?.responseData?.errors ??
-    err?.response?.data?.errors ??
-    null;
-  const cloudflareStatus =
-    err?.cloudflareStatus ??
-    sanitized?.response?.status ??
-    err?.statusCode ??
-    err?.response?.status ??
-    null;
-  const requestId =
-    err?.requestId ||
-    extractRequestId(err, sanitized);
-
-  const response =
-    cloudflareErrors && Array.isArray(cloudflareErrors)
-      ? { errors: cloudflareErrors }
-      : undefined;
-
-  console.error('Cloudflare upload failed:', {
-    filename,
-    status: responseStatus,
-    cloudflareStatus,
-    cloudflareErrors,
-    response,
-    requestId,
-  });
+  console.error('Cloudflare upload failed:', buildCloudflareLogPayload(err, filename));
 }
 
 function formatUploadError(err) {
@@ -226,5 +225,6 @@ module.exports = {
   verifyCloudflareToken,
   uploadToCloudflareImages,
   logCloudflareFailure,
+  buildCloudflareLogPayload,
   formatUploadError,
 };

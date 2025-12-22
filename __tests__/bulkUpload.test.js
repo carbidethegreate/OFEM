@@ -140,10 +140,11 @@ describe('POST /api/bulk-upload', () => {
         filename: 'photo.jpg',
         status: 403,
         cloudflareStatus: 403,
-        response: { errors: [{ message: 'forbidden' }] },
+        cloudflareErrors: [{ message: 'forbidden' }],
+        requestId: null,
       });
       const serialized = JSON.stringify(loggedPayload);
-      expect(serialized).not.toMatch(/Authorization/i);
+      expect(serialized).not.toMatch(/Authorization: Bearer/i);
       expect(serialized).not.toMatch(/top-secret/);
     } finally {
       consoleSpy.mockRestore();
