@@ -32,6 +32,39 @@ const openai = new OpenAIApi(new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
 }));
 
+router.get('/health/cloudflare-images', async (req, res) => {
+  const env = {
+    CF_IMAGES_ACCOUNT_ID: !!process.env.CF_IMAGES_ACCOUNT_ID,
+    CF_IMAGES_TOKEN: !!process.env.CF_IMAGES_TOKEN,
+    CF_IMAGES_DELIVERY_HASH:
+      !!(
+        process.env.CF_IMAGES_DELIVERY_HASH ||
+        process.env.CF_IMAGES_ACCOUNT_HASH
+      ),
+  };
+  const fingerprint = tokenFingerprint(process.env.CF_IMAGES_TOKEN);
+  const hasAllEnv = env.CF_IMAGES_ACCOUNT_ID && env.CF_IMAGES_TOKEN && env.CF_IMAGES_DELIVERY_HASH;
+  let tokenVerify = null;
+
+  if (hasAllEnv) {
+    try {
+      await verifyCloudflareToken({ token: process.env.CF_IMAGES_TOKEN });
+      tokenVerify = 'success';
+    } catch {
+      tokenVerify = 'fail';
+    }
+  }
+
+  const ok = hasAllEnv && tokenVerify === 'success';
+
+  res.json({
+    ok,
+    env,
+    tokenVerify,
+    tokenFingerprint: fingerprint,
+  });
+});
+
 function buildUploadResponse(items) {
   const uploadErrors = [];
   const uploads = items.map((item) => {
