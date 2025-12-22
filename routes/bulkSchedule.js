@@ -402,76 +402,139 @@ module.exports = function ({
     return result;
   }
 
-  async function confirmQueueStatuses(queueIds = [], rateLimiter) {
-    const ids = queueIds.filter(Boolean);
-    if (!ids.length) return {};
+  function formatQueueDate(value, timezone) {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
     try {
-      const requester = rateLimiter?.call
-        ? (fn) => rateLimiter.call(fn)
-        : (fn) => ofApiRequest(fn);
-      const accountId = normalizeAccountId(await getOFAccountId());
-      const resp = await requester(() =>
-        ofApi.get(`/${accountId}/queue`, {
-          params: { queueItemIds: ids },
-        }),
-      );
-      const data = resp.data || {};
-      const rows = [];
-      const layers = [data, data?.data, data?.data?.data];
-      for (const layer of layers) {
-        if (!layer) continue;
-        const collections = [
-          layer.queueItems,
-          layer.queue_items,
-          layer.queue,
-          layer.items,
-          layer.list,
-          layer.data?.queueItems,
-          layer.data?.queue_items,
-          layer.data?.queue,
-          layer.data?.items,
-          layer.data?.list,
-        ];
-        for (const collection of collections) {
-          if (!collection) continue;
-          if (Array.isArray(collection)) {
-            rows.push(...collection);
-          } else if (Array.isArray(collection.items)) {
-            rows.push(...collection.items);
-          }
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone || 'UTC',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      })
+        .format(parsed)
+        .replace(/\//g, '-');
+    } catch {
+      return null;
+    }
+  }
+
+  function countQueueTotals(listByDate) {
+    if (!listByDate || typeof listByDate !== 'object') return null;
+    let total = 0;
+    let found = false;
+    for (const dayCounts of Object.values(listByDate)) {
+      if (!dayCounts || typeof dayCounts !== 'object') continue;
+      for (const count of Object.values(dayCounts)) {
+        const numeric = Number(count);
+        if (Number.isFinite(numeric)) {
+          total += numeric;
+          found = true;
         }
       }
+    }
+    return found ? total : null;
+  }
+
+  async function confirmQueueStatuses(queueEntries = [], rateLimiter) {
+    const entries = (queueEntries || []).map((entry) => {
+      if (entry && typeof entry === 'object') {
+        return {
+          queueId: coalesceId(
+            entry.queueId,
+            entry.queue_id,
+            entry.queueItemId,
+            entry.queue_item_id,
+            entry.id,
+          ),
+          publishDate: entry.publishDate || entry.publishDateTime || entry.schedule_time,
+          timezone: entry.timezone,
+        };
+      }
+      return { queueId: entry, publishDate: null, timezone: null };
+    });
+    const ids = entries.map((entry) => entry.queueId).filter(Boolean);
+    if (!ids.length) return {};
+
+    const timezone = entries.find((entry) => entry.timezone)?.timezone || 'UTC';
+    const publishDates = entries
+      .map((entry) => formatQueueDate(entry.publishDate, timezone))
+      .filter(Boolean);
+    const fallbackDate = formatQueueDate(new Date(), timezone);
+    const publishDateStart = publishDates.length
+      ? publishDates.reduce((min, current) => (current < min ? current : min), publishDates[0])
+      : fallbackDate;
+    const publishDateEnd = publishDates.length
+      ? publishDates.reduce((max, current) => (current > max ? current : max), publishDates[0])
+      : fallbackDate;
+
+    const requester = rateLimiter?.call
+      ? (fn) => rateLimiter.call(fn)
+      : (fn) => ofApiRequest(fn);
+    const accountId = normalizeAccountId(await getOFAccountId());
+    const queryWindow = {
+      publishDateStart,
+      publishDateEnd,
+      timezone,
+    };
+
+    const limitCap = Math.max(Number(OF_FETCH_LIMIT) || 0, 50);
+    let limit = Math.max(ids.length, 20);
+    try {
+      const countsResp = await requester(() =>
+        ofApi.get(`/${accountId}/queue/counts`, { params: queryWindow }),
+      );
+      const totalCount = countQueueTotals(countsResp?.data?.data?.list || countsResp?.data?.list);
+      if (Number.isFinite(totalCount) && totalCount > 0) {
+        limit = Math.max(limit, totalCount);
+      }
+    } catch (err) {
+      const sanitized = sanitizeErrorFn(err);
+      console.warn('Queue count lookup skipped during status confirmation', {
+        message: sanitized?.message || err?.message,
+      });
+    }
+    limit = Math.min(limit, limitCap);
+
+    try {
+      const resp = await requester(() =>
+        ofApi.get(`/${accountId}/queue`, {
+          params: {
+            ...queryWindow,
+            limit,
+          },
+        }),
+      );
+      const list =
+        resp?.data?.data?.list ||
+        resp?.data?.list ||
+        resp?.data?.data?.data?.list ||
+        resp?.data?.data?.queueItems ||
+        resp?.data?.queueItems ||
+        [];
+      const rows = Array.isArray(list) ? list : [];
       const statuses = {};
       for (const row of rows) {
-        const queueItem = row?.queue || row?.queueItem || row?.queue_item;
         const queueId = coalesceId(
-          row?.queue_item_id,
           row?.id,
           row?.queueId,
           row?.queue_id,
-          row?.queueItemId,
-          queueItem?.queue_item_id,
-          queueItem?.queueItemId,
-          queueItem?.queueId,
-          queueItem?.queue_id,
-          queueItem?.id,
+          row?.entity?.queueId,
+          row?.entity?.queue_id,
         );
         if (!queueId) continue;
-        const normalized = normalizeQueueStatus(
-          row?.status ||
-            row?.state ||
-            row?.queueStatus ||
-            row?.queue_status ||
-            queueItem?.status ||
-            queueItem?.state ||
-            queueItem?.queueStatus ||
-            queueItem?.queue_status,
-        );
-        if (normalized) statuses[queueId] = normalized;
+        statuses[queueId] = 'queued';
+      }
+      for (const id of ids) {
+        if (!statuses[id]) statuses[id] = 'sent';
       }
       return statuses;
     } catch (err) {
-      console.warn('Queue status lookup failed:', sanitizeErrorFn(err));
+      const sanitized = sanitizeErrorFn(err);
+      console.warn('Queue status lookup failed via list endpoint', {
+        message: sanitized?.message || err?.message,
+      });
       return {};
     }
   }
@@ -1251,7 +1314,18 @@ module.exports = function ({
           }
 
           const queueStatuses = await confirmQueueStatuses(
-            [postQueueId, messageQueueId],
+            [
+              {
+                queueId: postQueueId,
+                publishDate: item.schedule_time,
+                timezone: item.timezone,
+              },
+              {
+                queueId: messageQueueId,
+                publishDate: item.schedule_time,
+                timezone: item.timezone,
+              },
+            ],
             rateLimiter,
           );
           if (queueStatuses[postQueueId]) postStatus = queueStatuses[postQueueId];
