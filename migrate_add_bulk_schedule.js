@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS bulk_schedule_items (
   schedule_time TIMESTAMPTZ,
   timezone TEXT,
   destination TEXT,
+  legacy_scheduled_post_id BIGINT,
   post_media_id BIGINT,
   message_media_id BIGINT,
   of_post_id BIGINT,
@@ -43,6 +44,7 @@ ALTER TABLE bulk_schedule_items
   ADD COLUMN IF NOT EXISTS schedule_time TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS timezone TEXT,
   ADD COLUMN IF NOT EXISTS destination TEXT,
+  ADD COLUMN IF NOT EXISTS legacy_scheduled_post_id BIGINT,
   ADD COLUMN IF NOT EXISTS post_media_id BIGINT,
   ADD COLUMN IF NOT EXISTS message_media_id BIGINT,
   ADD COLUMN IF NOT EXISTS of_post_id BIGINT,
@@ -55,6 +57,12 @@ ALTER TABLE bulk_schedule_items
   ADD COLUMN IF NOT EXISTS last_error TEXT,
   ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+`;
+
+const bulkLegacyIndex = `
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bulk_schedule_legacy_id
+  ON bulk_schedule_items(legacy_scheduled_post_id)
+  WHERE legacy_scheduled_post_id IS NOT NULL;
 `;
 
 const destinationConstraint = `
@@ -138,6 +146,7 @@ CREATE INDEX IF NOT EXISTS idx_bulk_logs_item_id_created_at
     await pool.query(alterBulkScheduleItemsTable);
     await pool.query(destinationConstraint);
     await pool.query(localStatusConstraint);
+    await pool.query(bulkLegacyIndex);
     console.log("✅ 'bulk_schedule_items' table created/updated.");
 
     await pool.query(createBulkLogsTable);
