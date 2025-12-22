@@ -26,7 +26,7 @@ module.exports = function ({
   getOFAccountId,
   ofApiRequest,
   ofApi,
-  hasBulkScheduleTables = () => true,
+  hasScheduledItemsTables = () => true,
   OF_FETCH_LIMIT = 1000,
   useV1MediaUpload = process.env.OF_USE_V1_MEDIA_UPLOAD === 'true',
 }) {
@@ -37,6 +37,7 @@ module.exports = function ({
   const { appendLog, fetchLogs } = createBulkLogger({
     pool,
     sanitizeError: sanitizeErrorFn,
+    tableName: 'scheduled_item_logs',
   });
   function parseRetryAfterMs(headers) {
     if (!headers || typeof headers !== 'object') return null;
@@ -141,11 +142,11 @@ module.exports = function ({
     });
   }
 
-  function ensureBulkTablesAvailable(res) {
-    if (hasBulkScheduleTables()) return true;
+  function ensureScheduledTablesAvailable(res) {
+    if (hasScheduledItemsTables()) return true;
     res.status(503).json({
       error:
-        'bulk_schedule_items/bulk_logs tables missing; run migrations to enable bulk scheduling',
+        'scheduled_items/scheduled_item_logs tables missing; run migrations to enable scheduling',
     });
     return false;
   }
@@ -168,12 +169,20 @@ module.exports = function ({
     return allowed.includes(normalized) ? normalized : 'both';
   }
 
+  function resolveStatus(row = {}) {
+    const status = row.status;
+    if (status && status !== 'draft') return status;
+    if (row.local_status) return row.local_status;
+    return status || null;
+  }
+
   function formatItem(row) {
     if (!row) return null;
     const scheduleIso = row.schedule_time
       ? new Date(row.schedule_time).toISOString()
       : null;
     const destination = normalizeDestination(row.destination);
+    const resolvedStatus = resolveStatus(row);
     return {
       id: row.id,
       batch_id: row.batch_id,
@@ -184,15 +193,24 @@ module.exports = function ({
       schedule_time: scheduleIso,
       timezone: row.timezone,
       destination,
-      status: row.local_status,
-      local_status: row.local_status,
+      mode: row.mode || destination,
+      both_disabled: row.both_disabled || false,
+      status: resolvedStatus,
+      local_status: resolvedStatus,
       post_status: row.post_status,
       message_status: row.message_status,
+      of_media_id_post: row.of_media_id_post || row.post_media_id,
+      of_media_id_message: row.of_media_id_message || row.message_media_id,
+      of_post_id: row.of_post_id,
+      of_message_id: row.of_message_id,
+      of_queue_id_post: row.of_queue_id_post || row.of_post_queue_id,
+      of_message_queue_id: row.of_message_queue_id,
+      of_message_batch_id: row.of_message_batch_id,
       last_error: row.last_error,
       created_at: row.created_at,
       updated_at: row.updated_at,
       statuses: {
-        local: row.local_status,
+        local: resolvedStatus,
         post: row.post_status,
         message: row.message_status,
       },
@@ -647,7 +665,7 @@ module.exports = function ({
   }
 
   router.post('/scheduled-posts', async (req, res) => {
-    if (!ensureBulkTablesAvailable(res) || !requireOnlyfansEnv(res)) return;
+    if (!ensureScheduledTablesAvailable(res) || !requireOnlyfansEnv(res)) return;
     const incomingPosts = Array.isArray(req.body)
       ? req.body
       : Array.isArray(req.body?.posts)
@@ -853,7 +871,7 @@ module.exports = function ({
 
       for (const { idx, ...record } of schedulable) {
         const { rows } = await client.query(
-          `INSERT INTO bulk_schedule_items (
+          `INSERT INTO scheduled_items (
             batch_id,
             source_filename,
             image_url_cf,
@@ -861,8 +879,11 @@ module.exports = function ({
             schedule_time,
             timezone,
             destination,
+            mode,
+            both_disabled,
+            status,
             local_status
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
           RETURNING *`,
           [
             record.batchId,
@@ -872,6 +893,9 @@ module.exports = function ({
             record.schedule_time,
             record.timezone,
             record.destination,
+            record.destination,
+            false,
+            'scheduled',
             'scheduled',
           ],
         );
@@ -882,10 +906,10 @@ module.exports = function ({
       for (const savedPost of saved) {
         const target = scheduleResults[savedPost.originalIndex];
         if (target) {
-          target.status = 'scheduled';
+          target.status = savedPost.status || 'scheduled';
           target.id = savedPost.id;
           target.image_url = savedPost.image_url_cf;
-          target.local_status = savedPost.local_status;
+          target.local_status = savedPost.status || savedPost.local_status;
           target.schedule_time = savedPost.schedule_time
             ? new Date(savedPost.schedule_time).toISOString()
             : null;
@@ -928,10 +952,10 @@ module.exports = function ({
   });
 
   router.get('/scheduled-posts', async (req, res) => {
-    if (!ensureBulkTablesAvailable(res)) return;
+    if (!ensureScheduledTablesAvailable(res)) return;
     try {
       const { rows } = await pool.query(
-        'SELECT * FROM bulk_schedule_items ORDER BY schedule_time NULLS LAST, id DESC',
+        'SELECT * FROM scheduled_items ORDER BY schedule_time NULLS LAST, id DESC',
       );
       res.json({
         posts: rows.map((row) => formatItem(row)),
@@ -943,7 +967,7 @@ module.exports = function ({
   });
 
   router.get('/bulk-schedule', async (req, res) => {
-    if (!ensureBulkTablesAvailable(res)) return;
+    if (!ensureScheduledTablesAvailable(res)) return;
     try {
       const filters = [];
       const values = [];
@@ -954,7 +978,9 @@ module.exports = function ({
           .map((s) => s.trim().toLowerCase())
           .filter(Boolean);
         if (statuses.length) {
-          filters.push(`local_status = ANY($${values.length + 1})`);
+          filters.push(
+            `CASE WHEN status = 'draft' THEN COALESCE(local_status, status) ELSE status END = ANY($${values.length + 1})`,
+          );
           values.push(statuses);
           appliedFilters.status = statuses;
         }
@@ -972,7 +998,7 @@ module.exports = function ({
       }
       const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
       const { rows } = await pool.query(
-        `SELECT * FROM bulk_schedule_items ${where}
+        `SELECT * FROM scheduled_items ${where}
          ORDER BY schedule_time NULLS LAST, id DESC`,
         values,
       );
@@ -992,7 +1018,7 @@ module.exports = function ({
   });
 
   router.patch('/bulk-schedule/:id', async (req, res) => {
-    if (!ensureBulkTablesAvailable(res)) return;
+    if (!ensureScheduledTablesAvailable(res)) return;
     const updates = [];
     const values = [];
     let idx = 1;
@@ -1034,7 +1060,7 @@ module.exports = function ({
 
     try {
       const { rows } = await pool.query(
-        `UPDATE bulk_schedule_items
+        `UPDATE scheduled_items
          SET ${updates.join(', ')}
          WHERE id = $${idx}
          RETURNING *`,
@@ -1065,10 +1091,10 @@ module.exports = function ({
   });
 
   router.delete('/bulk-schedule/:id', async (req, res) => {
-    if (!ensureBulkTablesAvailable(res)) return;
+    if (!ensureScheduledTablesAvailable(res)) return;
     try {
       const result = await pool.query(
-        'DELETE FROM bulk_schedule_items WHERE id=$1',
+        'DELETE FROM scheduled_items WHERE id=$1',
         [req.params.id],
       );
       res.json({ success: result.rowCount > 0 });
@@ -1079,7 +1105,7 @@ module.exports = function ({
   });
 
   router.get('/bulk-logs', async (req, res) => {
-    if (!ensureBulkTablesAvailable(res)) return;
+    if (!ensureScheduledTablesAvailable(res)) return;
     try {
       const parsedItemId =
         req.query.itemId !== undefined ? parseInt(req.query.itemId, 10) : null;
@@ -1097,7 +1123,7 @@ module.exports = function ({
   });
 
   router.post('/bulk-send', async (req, res) => {
-    if (!ensureBulkTablesAvailable(res) || !requireOnlyfansEnv(res)) return;
+    if (!ensureScheduledTablesAvailable(res) || !requireOnlyfansEnv(res)) return;
     const itemIds = Array.isArray(req.body?.itemIds)
       ? req.body.itemIds
           .map((id) =>
@@ -1114,7 +1140,7 @@ module.exports = function ({
 
     try {
       const { rows: items } = await pool.query(
-        'SELECT * FROM bulk_schedule_items WHERE id = ANY($1)',
+        'SELECT * FROM scheduled_items WHERE id = ANY($1)',
         [itemIds],
       );
       if (!items.length) {
@@ -1125,9 +1151,10 @@ module.exports = function ({
       const results = [];
 
       for (const item of items) {
+        const currentStatus = resolveStatus(item);
         const destination = normalizeDestination(item.destination);
         const outcome = { id: item.id, destination };
-        if (!force && item.local_status === 'sent') {
+        if (!force && currentStatus === 'sent') {
           outcome.status = 'skipped';
           outcome.reason = 'Already marked as sent';
           outcome.item = formatItem(item);
@@ -1138,11 +1165,11 @@ module.exports = function ({
         const scheduleTimeUtc = resolveScheduleTimeUtc(item.schedule_time);
         const caption = item.caption || '';
         const filenameHint = item.source_filename || `bulk-item-${item.id}`;
-        let postMediaId = item.post_media_id || null;
-        let messageMediaId = item.message_media_id || null;
+        let postMediaId = item.of_media_id_post || item.post_media_id || null;
+        let messageMediaId = item.of_media_id_message || item.message_media_id || null;
         let postId = item.of_post_id || null;
         let messageId = item.of_message_id || null;
-        let postQueueId = item.of_post_queue_id || null;
+        let postQueueId = item.of_queue_id_post || item.of_post_queue_id || null;
         let messageQueueId = item.of_message_queue_id || null;
         let postStatus = item.post_status || null;
         let messageStatus = item.message_status || null;
@@ -1342,31 +1369,36 @@ module.exports = function ({
           }
 
           const { rows: updatedRows } = await pool.query(
-            `UPDATE bulk_schedule_items
-             SET post_media_id = $1,
-                 message_media_id = $2,
+            `UPDATE scheduled_items
+             SET of_media_id_post = $1,
+                 of_media_id_message = $2,
                  of_post_id = $3,
                  of_message_id = $4,
-                 of_post_queue_id = $5,
+                 of_queue_id_post = $5,
                  of_message_queue_id = $6,
-                 local_status = $7,
-                 post_status = $8,
-                 message_status = $9,
-                 last_error = $10,
-                 updated_at = NOW()
-            WHERE id = $11
+                 of_message_batch_id = $7,
+                 status = $8,
+                 local_status = $8,
+                 post_status = $9,
+                 message_status = $10,
+                 last_error = $11,
+                 updated_at = NOW(),
+                 post_media_id = $1,
+                 message_media_id = $2
+            WHERE id = $12
              RETURNING *`,
             [
-              ['post', 'both'].includes(destination) ? postMediaId : item.post_media_id,
+              ['post', 'both'].includes(destination) ? postMediaId : item.of_media_id_post,
               ['message', 'both'].includes(destination)
                 ? messageMediaId
-                : item.message_media_id,
+                : item.of_media_id_message,
               ['post', 'both'].includes(destination) ? postId : item.of_post_id,
               ['message', 'both'].includes(destination) ? messageId : item.of_message_id,
-              ['post', 'both'].includes(destination) ? postQueueId : item.of_post_queue_id,
+              ['post', 'both'].includes(destination) ? postQueueId : item.of_queue_id_post,
               ['message', 'both'].includes(destination)
                 ? messageQueueId
                 : item.of_message_queue_id,
+              ['message', 'both'].includes(destination) ? messageQueueId : item.of_message_batch_id,
               localStatus,
               ['post', 'both'].includes(destination) ? postStatus || 'queued' : item.post_status,
               ['message', 'both'].includes(destination)
@@ -1391,7 +1423,7 @@ module.exports = function ({
           });
 
           const updatedItem = updatedRows[0] || item;
-          outcome.status = updatedItem.local_status || 'queued';
+          outcome.status = updatedItem.status || updatedItem.local_status || 'queued';
           outcome.item = formatItem(updatedItem);
         } catch (err) {
           const sanitized = sanitizeErrorFn(err);
@@ -1405,8 +1437,9 @@ module.exports = function ({
             meta: sanitized,
           });
           const { rows: updatedRows } = await pool.query(
-            `UPDATE bulk_schedule_items
-             SET local_status = $1,
+            `UPDATE scheduled_items
+             SET status = $1,
+                 local_status = $1,
                  post_status = $2,
                  message_status = $3,
                  last_error = $4,

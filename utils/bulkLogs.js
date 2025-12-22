@@ -34,13 +34,13 @@ function formatLogRow(row) {
   };
 }
 
-function createBulkLogger({ pool, sanitizeError }) {
+function createBulkLogger({ pool, sanitizeError, tableName = 'scheduled_item_logs' }) {
   const logError = sanitizeError || ((err) => err);
 
   async function appendLog({ itemId = null, level = 'info', event = null, message = '', meta = {} }) {
     try {
       await pool.query(
-        'INSERT INTO bulk_logs (item_id, level, event, message, meta) VALUES ($1, $2, $3, $4, $5)',
+        `INSERT INTO ${tableName} (item_id, level, event, message, meta) VALUES ($1, $2, $3, $4, $5)`,
         [
           itemId || null,
           normalizeLevel(level),
@@ -74,13 +74,13 @@ function createBulkLogger({ pool, sanitizeError }) {
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
     const logsRes = await pool.query(
-      `SELECT * FROM bulk_logs ${where}
+      `SELECT * FROM ${tableName} ${where}
        ORDER BY created_at DESC, id DESC
        LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
       [...values, safePageSize, offset],
     );
     const countRes = await pool.query(
-      `SELECT COUNT(*)::int AS count FROM bulk_logs ${where}`,
+      `SELECT COUNT(*)::int AS count FROM ${tableName} ${where}`,
       values,
     );
 
@@ -91,7 +91,7 @@ function createBulkLogger({ pool, sanitizeError }) {
       globalValues.push(normalizeLevel(level));
     }
     const globalsRes = await pool.query(
-      `SELECT * FROM bulk_logs
+      `SELECT * FROM ${tableName}
        WHERE ${globalFilters.join(' AND ')}
        ORDER BY created_at DESC, id DESC
        LIMIT 20`,

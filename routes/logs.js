@@ -1,15 +1,19 @@
 const express = require('express');
 const { createBulkLogger } = require('../utils/bulkLogs');
 
-module.exports = function ({ pool, hasBulkScheduleTables = () => true }) {
+module.exports = function ({
+  pool,
+  hasScheduledItemsTables = () => true,
+  logsTable = 'scheduled_item_logs',
+}) {
   const router = express.Router();
-  const { fetchLogs } = createBulkLogger({ pool });
+  const { fetchLogs } = createBulkLogger({ pool, tableName: logsTable });
 
   router.get('/logs', async (req, res) => {
-    if (!hasBulkScheduleTables()) {
+    if (!hasScheduledItemsTables()) {
       return res.status(503).json({
         error:
-          'bulk_schedule_items/bulk_logs tables missing; run migrations to enable bulk scheduling',
+          'scheduled_items/scheduled_item_logs tables missing; run migrations to enable scheduling',
       });
     }
 
