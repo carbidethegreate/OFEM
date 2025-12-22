@@ -89,6 +89,7 @@ const OF_FETCH_LIMIT =
 let hasScheduledMessagesTable = true;
 let hasPpvSetsTable = true;
 let hasScheduledPostsTable = true;
+let hasBulkScheduleTables = true;
 
 const createScheduledPostsTable = `
 CREATE TABLE IF NOT EXISTS scheduled_posts (
@@ -108,6 +109,129 @@ ALTER TABLE scheduled_posts
   ADD COLUMN IF NOT EXISTS schedule_time TIMESTAMP WITH TIME ZONE,
   ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
   ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+`;
+
+const createBulkScheduleItemsTable = `
+CREATE TABLE IF NOT EXISTS bulk_schedule_items (
+  id BIGSERIAL PRIMARY KEY,
+  batch_id TEXT,
+  source_filename TEXT,
+  image_url_cf TEXT,
+  caption TEXT,
+  schedule_time TIMESTAMPTZ,
+  timezone TEXT,
+  destination TEXT,
+  post_media_id BIGINT,
+  message_media_id BIGINT,
+  of_post_id BIGINT,
+  of_message_id BIGINT,
+  of_post_queue_id BIGINT,
+  of_message_queue_id BIGINT,
+  local_status TEXT DEFAULT 'draft',
+  post_status TEXT,
+  message_status TEXT,
+  last_error TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+`;
+
+const alterBulkScheduleItemsTable = `
+ALTER TABLE bulk_schedule_items
+  ADD COLUMN IF NOT EXISTS batch_id TEXT,
+  ADD COLUMN IF NOT EXISTS source_filename TEXT,
+  ADD COLUMN IF NOT EXISTS image_url_cf TEXT,
+  ADD COLUMN IF NOT EXISTS caption TEXT,
+  ADD COLUMN IF NOT EXISTS schedule_time TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS timezone TEXT,
+  ADD COLUMN IF NOT EXISTS destination TEXT,
+  ADD COLUMN IF NOT EXISTS post_media_id BIGINT,
+  ADD COLUMN IF NOT EXISTS message_media_id BIGINT,
+  ADD COLUMN IF NOT EXISTS of_post_id BIGINT,
+  ADD COLUMN IF NOT EXISTS of_message_id BIGINT,
+  ADD COLUMN IF NOT EXISTS of_post_queue_id BIGINT,
+  ADD COLUMN IF NOT EXISTS of_message_queue_id BIGINT,
+  ADD COLUMN IF NOT EXISTS local_status TEXT DEFAULT 'draft',
+  ADD COLUMN IF NOT EXISTS post_status TEXT,
+  ADD COLUMN IF NOT EXISTS message_status TEXT,
+  ADD COLUMN IF NOT EXISTS last_error TEXT,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+`;
+
+const bulkDestinationConstraint = `
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.constraint_column_usage
+    WHERE table_name = 'bulk_schedule_items'
+      AND constraint_name = 'bulk_schedule_items_destination_check'
+  ) THEN
+    ALTER TABLE bulk_schedule_items
+      ADD CONSTRAINT bulk_schedule_items_destination_check
+      CHECK (destination IN ('post', 'message', 'both'));
+  END IF;
+END $$;
+`;
+
+const bulkLocalStatusConstraint = `
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.constraint_column_usage
+    WHERE table_name = 'bulk_schedule_items'
+      AND constraint_name = 'bulk_schedule_items_local_status_check'
+  ) THEN
+    ALTER TABLE bulk_schedule_items
+      ADD CONSTRAINT bulk_schedule_items_local_status_check
+      CHECK (local_status IN ('draft', 'pending', 'scheduled', 'queued', 'sent', 'error'));
+  END IF;
+END $$;
+`;
+
+const createBulkLogsTable = `
+CREATE TABLE IF NOT EXISTS bulk_logs (
+  id BIGSERIAL PRIMARY KEY,
+  item_id BIGINT REFERENCES bulk_schedule_items(id),
+  level TEXT,
+  event TEXT,
+  message TEXT,
+  meta JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+`;
+
+const alterBulkLogsTable = `
+ALTER TABLE bulk_logs
+  ADD COLUMN IF NOT EXISTS item_id BIGINT REFERENCES bulk_schedule_items(id),
+  ADD COLUMN IF NOT EXISTS level TEXT,
+  ADD COLUMN IF NOT EXISTS event TEXT,
+  ADD COLUMN IF NOT EXISTS message TEXT,
+  ADD COLUMN IF NOT EXISTS meta JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+`;
+
+const bulkLogLevelConstraint = `
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.constraint_column_usage
+    WHERE table_name = 'bulk_logs'
+      AND constraint_name = 'bulk_logs_level_check'
+  ) THEN
+    ALTER TABLE bulk_logs
+      ADD CONSTRAINT bulk_logs_level_check
+      CHECK (level IN ('info', 'warn', 'error'));
+  END IF;
+END $$;
+`;
+
+const bulkLogsIndex = `
+CREATE INDEX IF NOT EXISTS idx_bulk_logs_item_id_created_at
+  ON bulk_logs (item_id, created_at);
 `;
 
 // Utility to check for table existence using information_schema.columns
@@ -139,6 +263,26 @@ async function ensureScheduledPostsTable() {
     hasScheduledPostsTable = false;
     console.error(
       'scheduled_posts table unavailable; run migrations to enable bulk post scheduling:',
+      sanitizeError(err),
+    );
+  }
+}
+
+async function ensureBulkScheduleTables() {
+  try {
+    await pool.query(createBulkScheduleItemsTable);
+    await pool.query(alterBulkScheduleItemsTable);
+    await pool.query(bulkDestinationConstraint);
+    await pool.query(bulkLocalStatusConstraint);
+    await pool.query(createBulkLogsTable);
+    await pool.query(alterBulkLogsTable);
+    await pool.query(bulkLogLevelConstraint);
+    await pool.query(bulkLogsIndex);
+    hasBulkScheduleTables = true;
+  } catch (err) {
+    hasBulkScheduleTables = false;
+    console.error(
+      'bulk_schedule_items/bulk_logs tables unavailable; run migrations to enable bulk scheduling:',
       sanitizeError(err),
     );
   }
@@ -449,7 +593,6 @@ const messagesRoutes = require('./routes/messages')({
   sanitizeError,
   sendMessageToFan,
   getMissingEnvVars,
-  hasScheduledPostsTable: () => hasScheduledPostsTable,
 });
 const webhookRoutes = require('./routes/webhooks')({
   pool,
@@ -459,12 +602,22 @@ const webhookRoutes = require('./routes/webhooks')({
   openaiRequest,
 });
 const logsRoutes = require('./routes/logs')({ activityLogs });
+const bulkScheduleRoutes = require('./routes/bulkSchedule')({
+  pool,
+  sanitizeError,
+  getMissingEnvVars,
+  getOFAccountId,
+  ofApiRequest,
+  ofApi,
+  hasBulkScheduleTables: () => hasBulkScheduleTables,
+});
 app.use('/api', fansRoutes);
 app.use('/api', ppvRoutes);
 app.use('/api', vaultListsRoutes);
 app.use('/api', messagesRoutes);
 app.use('/api', webhookRoutes);
 app.use('/api', logsRoutes);
+app.use('/api', bulkScheduleRoutes);
 
 // System status endpoint
 app.get('/api/status', async (req, res) => {
@@ -520,6 +673,11 @@ app.get('/api/status', async (req, res) => {
   if (!hasScheduledPostsTable) {
     status.database.scheduled_posts_message =
       'scheduled_posts table missing; run migrations to enable scheduled posts';
+  }
+  status.database.bulk_schedule_tables = hasBulkScheduleTables;
+  if (!hasBulkScheduleTables) {
+    status.database.bulk_schedule_message =
+      'bulk_schedule_items/bulk_logs tables missing; run migrations to enable bulk scheduling';
   }
   res.json(status);
 });
@@ -723,6 +881,7 @@ if (require.main === module) {
       process.exit(1);
     }
     await ensureScheduledPostsTable();
+    await ensureBulkScheduleTables();
     await verifyOnlyFansToken();
     app.listen(port, () => {
       console.log(`OFEM server listening on http://localhost:${port}`);
