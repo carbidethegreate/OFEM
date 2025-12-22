@@ -76,8 +76,9 @@ module.exports = function ({
 
   function formatItem(row) {
     if (!row) return null;
-    const scheduleIso = row.schedule_time
-      ? new Date(row.schedule_time).toISOString()
+    const scheduleSource = row.scheduled_at_utc || row.schedule_time;
+    const scheduleIso = scheduleSource
+      ? new Date(scheduleSource).toISOString()
       : null;
     return {
       id: row.id,
@@ -86,6 +87,7 @@ module.exports = function ({
       caption: row.caption,
       message_body: row.message_body,
       schedule_time: scheduleIso,
+      scheduled_at_utc: scheduleIso,
       timezone: row.timezone,
       mode: normalizeMode(row.mode),
       status: row.status,
@@ -95,6 +97,7 @@ module.exports = function ({
       of_queue_id_post: row.of_queue_id_post,
       of_message_batch_id: row.of_message_batch_id,
       of_message_job_id: row.of_message_job_id,
+      message_batch_id: row.of_message_batch_id,
       post_status: row.post_status,
       message_status: row.message_status,
       last_error: row.last_error,
@@ -389,26 +392,24 @@ module.exports = function ({
     itemId,
     messageMediaId,
     text,
-    schedule,
     recipients,
   }) {
     const accountId = normalizeAccountId(await getOFAccountId());
     const payload = {
-      userIds: recipients,
+      recipientIds: recipients,
       mediaIds: messageMediaId ? [messageMediaId] : [],
       text: text || '',
     };
-    if (schedule) {
-      payload.scheduleTime = schedule.toISOString();
-    }
-    await logStep(itemId, 'send_message', 'start', 'Submitting mass message', {
+    await logStep(itemId, 'send_message', 'start', 'Submitting messages', {
       recipients: recipients.length,
-      schedule_time: schedule ? schedule.toISOString() : null,
+      media_id: messageMediaId,
     });
     const resp = await ofApiRequest(() =>
-      ofApi.post(`/${accountId}/mass-messaging`, payload),
+      ofApi.post(`/${accountId}/messages`, payload),
     );
     const batchId = coalesceId(
+      resp.data?.message_batch_id,
+      resp.data?.messageBatchId,
       resp.data?.batchId,
       resp.data?.batch_id,
       resp.data?.data?.batch_id,
@@ -420,12 +421,14 @@ module.exports = function ({
     );
     const status =
       normalizeQueueStatus(
-        resp.data?.status ||
-          resp.data?.queueStatus ||
-          resp.data?.queue_status ||
-          resp.data?.data?.queue_status,
-      ) || 'queued';
-    await logStep(itemId, 'send_message', 'end', 'Mass message submitted', {
+          resp.data?.status ||
+            resp.data?.queueStatus ||
+            resp.data?.queue_status ||
+          resp.data?.data?.queue_status ||
+          resp.data?.message_status ||
+          resp.data?.messageStatus,
+      ) || 'sent';
+    await logStep(itemId, 'send_message', 'end', 'Messages submitted', {
       batchId,
       jobId,
       recipients: recipients.length,
@@ -461,7 +464,7 @@ module.exports = function ({
     let messageStatus = item.message_status || null;
     let messageBatchId = item.of_message_batch_id || null;
     let messageJobId = item.of_message_job_id || null;
-    const schedule = parseDate(item.schedule_time);
+    const schedule = parseDate(item.scheduled_at_utc || item.schedule_time);
     const text = item.caption || item.message_body || '';
 
     try {
@@ -514,12 +517,11 @@ module.exports = function ({
           itemId: item.id,
           messageMediaId,
           text,
-          schedule,
           recipients,
         });
         messageBatchId = messageResult.batchId || messageBatchId;
         messageJobId = messageResult.jobId || messageJobId;
-        messageStatus = messageResult.status || messageStatus || 'queued';
+        messageStatus = messageResult.status || messageStatus || 'sent';
       }
 
       const { rows } = await pool.query(
@@ -614,14 +616,22 @@ module.exports = function ({
       const inserted = [];
       for (const rawItem of items) {
         const item = rawItem || {};
+        const now = new Date();
         const scheduleTime =
-          parseDate(item.schedule_time || item.scheduleTime || item.scheduledDate) ||
+          parseDate(
+            item.scheduled_at_utc ||
+              item.schedule_time ||
+              item.scheduleTime ||
+              item.scheduledDate,
+          ) ||
           null;
+        const initialStatus =
+          scheduleTime && scheduleTime.getTime() > now.getTime() ? 'scheduled' : 'ready';
         const { rows } = await pool.query(
           `INSERT INTO scheduled_items
-             (source_filename, media_url, caption, message_body, schedule_time, timezone,
+             (source_filename, media_url, caption, message_body, schedule_time, scheduled_at_utc, timezone,
               mode, status, upload_strategy_note, of_media_id_post, of_media_id_message)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
            RETURNING *`,
           [
             item.source_filename || item.filename || item.name || null,
@@ -629,9 +639,10 @@ module.exports = function ({
             item.caption || item.text || '',
             item.message_body || item.message || item.caption || '',
             scheduleTime,
+            scheduleTime,
             item.timezone || null,
             normalizeMode(item.mode),
-            'ready',
+            initialStatus,
             item.upload_strategy_note || baseNote,
             coalesceId(
               item.of_media_id_post,
@@ -743,6 +754,95 @@ module.exports = function ({
       res.status(500).json({ error: 'Failed to fetch logs' });
     }
   });
+
+  let workerTimer = null;
+  let workerRunning = false;
+  let lastEnvWarningKey = null;
+
+  function hasOnlyfansEnvConfigured() {
+    const missing = getMissingEnvVars([
+      'ONLYFANS_API_KEY',
+      'ONLYFANS_ACCOUNT_ID',
+    ]);
+    const key = missing.join(',');
+    if (missing.length) {
+      if (lastEnvWarningKey !== key) {
+        console.warn(
+          'Scheduled item worker skipping run; missing environment variables:',
+          missing,
+        );
+      }
+      lastEnvWarningKey = key;
+      return false;
+    }
+    lastEnvWarningKey = null;
+    return true;
+  }
+
+  async function fetchPendingScheduledItems(limit = 10) {
+    const { rows } = await pool.query(
+      `SELECT * FROM scheduled_items
+       WHERE status IN ('ready', 'scheduled')
+         AND (
+           COALESCE(scheduled_at_utc, schedule_time) IS NULL
+           OR COALESCE(scheduled_at_utc, schedule_time) <= NOW()
+         )
+       ORDER BY COALESCE(scheduled_at_utc, schedule_time) NULLS FIRST, id
+       LIMIT $1`,
+      [limit],
+    );
+    return rows;
+  }
+
+  async function runScheduledItemWorker() {
+    if (workerRunning) return;
+    if (process.env.NODE_ENV === 'test') return;
+    if (!hasScheduledItemsTables()) return;
+    if (!hasOnlyfansEnvConfigured()) return;
+    workerRunning = true;
+    try {
+      const pending = await fetchPendingScheduledItems();
+      for (const item of pending) {
+        await logStep(item.id, 'worker_dispatch', 'start', 'Dispatching scheduled item', {
+          scheduled_at_utc: item.scheduled_at_utc || item.schedule_time,
+          mode: item.mode,
+        });
+        const result = await processSend(item);
+        await logStep(item.id, 'worker_dispatch', 'end', 'Scheduled item dispatched', {
+          status: result?.status,
+        });
+      }
+    } catch (err) {
+      const sanitized = sanitizeErrorFn(err);
+      console.error('Scheduled item worker failed:', sanitized);
+      await appendLog({
+        step: 'worker_dispatch',
+        phase: 'error',
+        level: 'error',
+        message: sanitized?.message || err.message || 'Scheduled item worker failed',
+        meta: sanitized || {},
+      });
+    } finally {
+      workerRunning = false;
+    }
+  }
+
+  function startScheduledItemWorker(intervalMs = 60000) {
+    if (workerTimer || process.env.NODE_ENV === 'test') return workerTimer;
+    runScheduledItemWorker();
+    workerTimer = setInterval(runScheduledItemWorker, intervalMs);
+    return workerTimer;
+  }
+
+  function stopScheduledItemWorker() {
+    if (workerTimer) {
+      clearInterval(workerTimer);
+      workerTimer = null;
+    }
+  }
+
+  router.startWorker = startScheduledItemWorker;
+  router.stopWorker = stopScheduledItemWorker;
 
   return router;
 };
