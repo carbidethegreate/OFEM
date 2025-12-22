@@ -10,11 +10,11 @@ const {
   getCloudflareConfig,
   formatEnvErrorResponse,
   cloudflareError,
-  safeRequestHeaders,
   verifyCloudflareToken,
   uploadToCloudflareImages,
   logCloudflareFailure,
   formatUploadError,
+  buildCloudflareLogPayload,
 } = require('../utils/cloudflareImages');
 const {
   saveBatch,
@@ -22,7 +22,6 @@ const {
   updateBatch,
   pruneExpired,
 } = require('../utils/uploadRetryStore');
-const { sanitizeError } = require('../sanitizeError');
 
 const router = express.Router();
 router.use(express.json({ limit: '10mb' }));
@@ -232,11 +231,11 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
         : 200;
     res.status(httpStatus).json(responsePayload);
   } catch (err) {
-    const sanitized = sanitizeError(err);
-    if (sanitized?.response?.headers) {
-      sanitized.response.headers = safeRequestHeaders(sanitized.response.headers);
-    }
-    console.error('Bulk upload failed:', sanitized);
+    const logPayload = buildCloudflareLogPayload(
+      err,
+      req?.files?.[0]?.originalname || 'bulk-upload',
+    );
+    console.error('Bulk upload failed:', logPayload);
     if (err?.isCloudflareError) {
       const status = err.statusCode || 502;
       return res
@@ -383,11 +382,11 @@ router.post('/bulk-upload/retry', async (req, res) => {
       cloudflareError: responseSummary.cloudflareError,
     });
   } catch (err) {
-    const sanitized = sanitizeError(err);
-    if (sanitized?.response?.headers) {
-      sanitized.response.headers = safeRequestHeaders(sanitized.response.headers);
-    }
-    console.error('Bulk upload retry failed:', sanitized);
+    const logPayload = buildCloudflareLogPayload(
+      err,
+      'bulk-upload-retry',
+    );
+    console.error('Bulk upload retry failed:', logPayload);
     if (err?.isCloudflareError) {
       const status = err.statusCode || 502;
       return res
