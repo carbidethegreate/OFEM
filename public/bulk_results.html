@@ -408,7 +408,7 @@
         <p class="eyebrow">Bulk scheduling</p>
         <h1>Bulk Schedule Results</h1>
         <p class="description">
-          Review items from <code>/api/bulk-schedule</code>, adjust destinations and schedule
+          Review items from <code>/api/schedule-bulk</code>, adjust destinations and schedule
           times, send selected entries to the OnlyFans queue, and inspect delivery logs.
         </p>
       </div>
@@ -556,10 +556,10 @@
 
       async function loadGlobalLogs() {
         try {
-          const res = await fetch('/api/bulk-logs');
+          const res = await fetch('/api/scheduled-items/logs');
           if (!res.ok) throw new Error('Failed to load logs');
           const data = await res.json();
-          state.globalLogs = data.globals || [];
+          state.globalLogs = data.logs || [];
           renderGlobalLogs();
         } catch (err) {
           console.error(err);
@@ -609,9 +609,10 @@
 
           const statuses = document.createElement('div');
           statuses.className = 'status-group';
+          const localStatus = item.status || item.local_status;
           const localBadge = document.createElement('span');
-          localBadge.className = badgeClass('local', item.local_status);
-          localBadge.textContent = `Local: ${item.local_status || 'n/a'}`;
+          localBadge.className = badgeClass('local', localStatus);
+          localBadge.textContent = `Local: ${localStatus || 'n/a'}`;
           const postBadge = document.createElement('span');
           postBadge.className = badgeClass('post', item.post_status);
           postBadge.textContent = `Post: ${item.post_status || '—'}`;
@@ -691,21 +692,27 @@
           const destinationOptions = document.createElement('div');
           destinationOptions.className = 'destination-options';
 
-          const createDestinationOption = (value, labelText, isChecked) => {
+          const createDestinationOption = (value, labelText, isChecked, isDisabled = false) => {
             const label = document.createElement('label');
             label.className = 'destination-option';
             const input = document.createElement('input');
-            input.type = 'checkbox';
+            input.type = 'radio';
+            input.name = `destination-${item.id}`;
             input.value = value;
             input.checked = isChecked;
+            input.disabled = isDisabled;
             const text = document.createElement('span');
             text.textContent = labelText;
             label.appendChild(input);
             label.appendChild(text);
+            if (isDisabled) {
+              label.classList.add('disabled');
+            }
             return { label, input };
           };
 
           const destinationValue = normalizeDestinationValue(item.destination);
+          let bothDisabled = Boolean(item.both_disabled);
           const postOption = createDestinationOption(
             'post',
             'Queue to OF Post',
@@ -720,64 +727,48 @@
             'both',
             'Queue to OF Post and Message',
             destinationValue === 'both',
+            bothDisabled,
           );
 
-          const resolveDestination = () => {
-            if (bothOption.input.checked) return 'both';
-            if (postOption.input.checked && messageOption.input.checked) return 'both';
-            if (postOption.input.checked) return 'post';
-            if (messageOption.input.checked) return 'message';
-            return 'both';
-          };
-
-          const syncCombinedState = () => {
-            const singleSelected = postOption.input.checked || messageOption.input.checked;
-            bothOption.input.disabled = singleSelected;
-            bothOption.label.classList.toggle('disabled', singleSelected);
-            if (singleSelected && bothOption.input.checked) {
+          const setRadioState = (mode) => {
+            postOption.input.checked = mode === 'post';
+            messageOption.input.checked = mode === 'message';
+            bothOption.input.checked = mode === 'both';
+            bothOption.input.disabled = bothDisabled;
+            bothOption.label.classList.toggle('disabled', bothDisabled);
+            if (bothDisabled && bothOption.input.checked) {
               bothOption.input.checked = false;
+              if (!postOption.input.checked && !messageOption.input.checked) {
+                postOption.input.checked = true;
+              }
             }
           };
 
-          const handleSingleChange = async (changed) => {
-            if (bothOption.input.checked) {
-              bothOption.input.checked = false;
-            }
-            if (changed.checked) {
-              const counterpart =
-                changed === postOption.input ? messageOption.input : postOption.input;
-              counterpart.checked = false;
-            }
-            syncCombinedState();
-            const destination = resolveDestination();
-            await updateItem(
-              item.id,
-              { destination },
-              `Destination updated to ${destination}.`,
-            );
-          };
-
-          const handleCombinedChange = async () => {
-            if (bothOption.input.checked) {
+          const handleModeChange = async (nextMode) => {
+            bothDisabled = nextMode !== 'both';
+            if (!bothDisabled) {
               postOption.input.checked = false;
               messageOption.input.checked = false;
             }
-            syncCombinedState();
-            const destination = resolveDestination();
+            setRadioState(nextMode);
+            const scheduleIso = dateInput.value ? new Date(dateInput.value).toISOString() : null;
             await updateItem(
               item.id,
-              { destination },
-              `Destination updated to ${destination}.`,
+              {
+                mode: nextMode,
+                both_disabled: bothDisabled,
+                schedule_time: scheduleIso,
+                timezone: timezoneSelect.value || null,
+              },
+              `Destination updated to ${nextMode}.`,
             );
           };
 
-          postOption.input.addEventListener('change', () => handleSingleChange(postOption.input));
-          messageOption.input.addEventListener('change', () =>
-            handleSingleChange(messageOption.input),
-          );
-          bothOption.input.addEventListener('change', handleCombinedChange);
+          postOption.input.addEventListener('change', () => handleModeChange('post'));
+          messageOption.input.addEventListener('change', () => handleModeChange('message'));
+          bothOption.input.addEventListener('change', () => handleModeChange('both'));
 
-          syncCombinedState();
+          setRadioState(destinationValue);
 
           destinationOptions.appendChild(postOption.label);
           destinationOptions.appendChild(messageOption.label);
@@ -812,27 +803,41 @@
       async function loadSchedule() {
         setBanner('Loading schedule...');
         try {
-          const res = await fetch('/api/bulk-schedule');
-          if (!res.ok) throw new Error('Failed to fetch bulk schedule.');
+          const res = await fetch('/api/scheduled-items');
+          if (!res.ok) throw new Error('Failed to fetch scheduled items.');
           const data = await res.json();
-          state.items = (data.items || []).map((item) => ({
-            ...item,
-            destination: normalizeDestinationValue(item.destination),
-          }));
+          state.items = (data.items || []).map((item) => {
+            const destination = normalizeDestinationValue(item.mode || item.destination);
+            return {
+              ...item,
+              destination,
+              both_disabled: Boolean(item.both_disabled),
+              image_url: item.media_url || item.image_url,
+              local_status: item.status || item.local_status,
+              post_status: item.post_status,
+              message_status: item.message_status,
+            };
+          });
           state.selected.clear();
           renderItems();
           setBanner(`Loaded ${state.items.length} item(s).`, 'success');
         } catch (err) {
           console.error(err);
-          setBanner('Unable to load bulk schedule.', 'error');
+          setBanner('Unable to load scheduled items.', 'error');
         }
       }
 
       async function saveSchedule(id, datetimeValue, timezoneValue, displayEl) {
         const scheduleIso = datetimeValue ? new Date(datetimeValue).toISOString() : null;
+        const current = state.items.find((i) => i.id === id);
         await updateItem(
           id,
-          { schedule_time: scheduleIso, timezone: timezoneValue || null },
+          {
+            schedule_time: scheduleIso,
+            timezone: timezoneValue || null,
+            mode: current ? current.destination : undefined,
+            both_disabled: current ? Boolean(current.both_disabled) : undefined,
+          },
           'Schedule updated.',
           displayEl,
         );
@@ -843,7 +848,7 @@
         if (!card) return;
         const logPanel = card.querySelector('.log-panel');
         try {
-          const res = await fetch(\`/api/bulk-schedule/\${id}\`, {
+          const res = await fetch(\`/api/scheduled-items/\${id}/mode\`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -855,7 +860,18 @@
           const data = await res.json();
           const updated = data.item;
           const idx = state.items.findIndex((i) => i.id === id);
-          if (idx >= 0) state.items[idx] = updated;
+          if (idx >= 0) {
+            state.items[idx] = {
+              ...state.items[idx],
+              ...updated,
+              destination: normalizeDestinationValue(updated.mode || updated.destination),
+              both_disabled: Boolean(updated.both_disabled),
+              image_url: updated.media_url || updated.image_url || state.items[idx].image_url,
+              local_status: updated.status || updated.local_status,
+              post_status: updated.post_status,
+              message_status: updated.message_status,
+            };
+          }
           renderItems();
           if (displayEl) {
             displayEl.textContent = formatDateTime(
@@ -877,14 +893,10 @@
       async function loadItemLogs(itemId, container, summaryEl) {
         container.innerHTML = '<div class="empty">Loading logs...</div>';
         try {
-          const res = await fetch(\`/api/bulk-logs?itemId=\${itemId}\`);
+          const res = await fetch(\`/api/scheduled-items/\${itemId}/logs\`);
           if (!res.ok) throw new Error('Failed to load logs');
           const data = await res.json();
           state.logs[itemId] = data.logs || [];
-          if (data.globals) {
-            state.globalLogs = data.globals;
-            renderGlobalLogs();
-          }
           renderLogList(container, state.logs[itemId]);
           if (summaryEl) summaryEl.textContent = \`Logs (\${state.logs[itemId].length})\`;
         } catch (err) {
@@ -933,7 +945,7 @@
         setBanner('Sending selected items...');
         const ids = Array.from(state.selected);
         try {
-          const res = await fetch('/api/bulk-send', {
+          const res = await fetch('/api/send-to-queue', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ itemIds: ids }),
@@ -947,9 +959,26 @@
           for (const result of results) {
             if (result.item) {
               const idx = state.items.findIndex((i) => i.id === result.item.id);
-              if (idx >= 0) state.items[idx] = result.item;
+              if (idx >= 0) {
+                state.items[idx] = {
+                  ...state.items[idx],
+                  ...result.item,
+                  destination: normalizeDestinationValue(
+                    result.item.mode || result.item.destination,
+                  ),
+                  both_disabled: Boolean(result.item.both_disabled),
+                  image_url:
+                    result.item.media_url ||
+                    result.item.image_url ||
+                    state.items[idx].image_url,
+                  local_status: result.item.status || result.item.local_status,
+                  post_status: result.item.post_status,
+                  message_status: result.item.message_status,
+                };
+              }
             }
-            if (result.status === 'queued' || result.status === 'sent') queued += 1;
+            const statusValue = result.item?.status || result.status;
+            if (statusValue === 'queued' || statusValue === 'sent') queued += 1;
           }
           renderItems();
           for (const result of results) {

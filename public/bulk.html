@@ -99,6 +99,7 @@ let uploadResults = [];
 let uploadErrorMessage = '';
 let batchId = null;
 let itemsFromServer = [];
+let scheduledItems = [];
 let hasUploadFailures = false;
 let lastScheduleSucceeded = false;
 const LOCAL_STORAGE_KEYS = {
@@ -232,6 +233,7 @@ function updateSendButtonState() {
 
 function resetPersistedState() {
   lastScheduleSucceeded = false;
+   scheduledItems = [];
   const items = document.querySelectorAll('#gallery .item');
   items.forEach((item) => {
     delete item.dataset.itemId;
@@ -386,8 +388,8 @@ function renderUploadStatuses(items, fallbackError = '') {
 
 function renderScheduleResults(scheduleResults = []) {
   const itemEls = document.querySelectorAll('#gallery .item');
-  scheduleResults.forEach((result) => {
-    const statusEl = itemEls[result.index]?.querySelector('.upload-status');
+  scheduleResults.forEach((result, idx) => {
+    const statusEl = itemEls[idx]?.querySelector('.upload-status');
     if (!statusEl) return;
     const existing = statusEl.querySelector('.schedule-status');
     if (existing) existing.remove();
@@ -395,11 +397,13 @@ function renderScheduleResults(scheduleResults = []) {
     scheduleStatus.className = 'schedule-status';
     if (result.status === 'scheduled') {
       scheduleStatus.textContent = 'Scheduled successfully';
-    } else if (result.status === 'skipped') {
-      scheduleStatus.textContent = `Skipped: ${result.reason || 'Missing media'}`;
+    } else if (result.status === 'ready') {
+      scheduleStatus.textContent = 'Saved and ready to send';
+    } else if (result.status === 'error') {
+      scheduleStatus.textContent = `Scheduling error: ${result.last_error || result.error || 'Unknown error'}`;
       scheduleStatus.classList.add('error');
     } else {
-      scheduleStatus.textContent = `Scheduling status: ${result.status || 'unknown'}`;
+      scheduleStatus.textContent = `Scheduling status: ${result.status || 'queued'}`;
     }
     statusEl.appendChild(scheduleStatus);
   });
@@ -437,16 +441,20 @@ function renderSendResults(sendResults = []) {
     if (existing) existing.remove();
     const sendStatus = document.createElement('span');
     sendStatus.className = 'send-status';
-    if (result.status === 'queued') {
+    const status = result.item?.status || result.status;
+    const error = result.error || result.item?.last_error;
+    if (status === 'queued') {
       sendStatus.textContent = 'Queued to OnlyFans';
-    } else if (result.status === 'skipped') {
+    } else if (status === 'sent') {
+      sendStatus.textContent = 'Sent to OnlyFans';
+    } else if (status === 'skipped') {
       sendStatus.textContent = `Send skipped: ${result.reason || 'Already sent'}`;
       sendStatus.classList.add('error');
-    } else if (result.status === 'error') {
-      sendStatus.textContent = `Send failed: ${result.error || 'Unknown error'}`;
+    } else if (status === 'error') {
+      sendStatus.textContent = `Send failed: ${error || 'Unknown error'}`;
       sendStatus.classList.add('error');
     } else {
-      sendStatus.textContent = `Send status: ${result.status || 'unknown'}`;
+      sendStatus.textContent = `Send status: ${status || 'unknown'}`;
     }
     statusEl.appendChild(sendStatus);
   });
@@ -705,12 +713,16 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
       const itemFromServer = itemsFromServer[idx] || {};
       const url =
         itemFromServer.imageUrl ||
+        itemFromServer.media_url ||
         itemFromServer.url ||
         (upload && upload.url) ||
         null;
       const captionEl = item.querySelector('.caption-input');
       const scheduleFromApi =
-        scheduleData[idx]?.sendAt || scheduleData[idx]?.schedule_time || null;
+        scheduleData[idx]?.sendAt ||
+        scheduleData[idx]?.schedule_time ||
+        scheduleData[idx]?.scheduled_at_utc ||
+        null;
       const scheduleInput = item.querySelector('.schedule-input');
       const tzSelect = item.querySelector('.timezone-select');
       const destinationGroup = item.querySelector('.destination-group');
@@ -724,101 +736,63 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
       const timezone =
         (tzSelect && tzSelect.value) || defaultTimezoneSelect.value || getDefaultTimezone();
       const destination = destinationGroup ? getDestinationValue(destinationGroup) : 'both';
+      const itemLabel = getItemLabel(idx);
+      const bothDisabled = destination !== 'both';
       return {
-        image_url: url,
+        imageUrl: url,
         caption: captionEl ? captionEl.value : '',
-        schedule_time: scheduleTime || null,
+        scheduledAtUtc: scheduleTime || null,
         timezone,
-        destination,
+        mode: destination,
+        source_filename: itemLabel,
+        both_disabled: bothDisabled,
       };
     });
-    const persistRes = await fetch('/api/scheduled-posts', {
+    const persistRes = await fetch('/api/schedule-bulk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        posts,
-        batchId,
-        retryMissingUploads: true,
+        items: posts,
       })
     });
     if (!persistRes.ok) {
       let errorMessage = `Failed to schedule posts: ${persistRes.status}`;
-      let parsedBody = null;
       try {
         const bodyText = await persistRes.text();
         console.error('schedule posts failed', persistRes.status, bodyText);
-        parsedBody = JSON.parse(bodyText);
+        const parsedBody = JSON.parse(bodyText);
         if (parsedBody?.error) errorMessage = parsedBody.error;
       } catch (e) {
-        console.error('Failed to parse schedule error', e);
-      }
-      const parsedScheduleResults = Array.isArray(parsedBody?.scheduleResults)
-        ? parsedBody.scheduleResults
-        : [];
-      if (parsedScheduleResults.length) {
-        renderScheduleResults(parsedScheduleResults);
-        const skipped = parsedScheduleResults
-          .filter((r) => r.status === 'skipped')
-          .map((r) => `Item ${r.index + 1}: ${r.reason || 'Missing media'}`)
-          .join('; ');
-        if (skipped) errorMessage = `${errorMessage}. Skipped items: ${skipped}`;
+        // ignore parse errors
       }
       setStatusMessage(errorMessage, 'error');
       throw new Error(errorMessage);
     }
     const responseBody = await persistRes.json();
-    if (!responseBody.success) throw new Error(responseBody?.error || 'Failed to schedule posts');
-    const scheduleResults = Array.isArray(responseBody.scheduleResults)
-      ? responseBody.scheduleResults
+    const scheduleResults = Array.isArray(responseBody.items)
+      ? responseBody.items
       : [];
-    const reuploadResults = Array.isArray(responseBody.reuploadResults)
-      ? responseBody.reuploadResults
-      : [];
-    reuploadResults.forEach((result) => {
-      if (result?.status === 'success' && itemsFromServer[result.index]) {
-        itemsFromServer[result.index] = {
-          ...itemsFromServer[result.index],
-          uploadStatus: 'success',
-          imageUrl: result.image_url || itemsFromServer[result.index].imageUrl,
-          url: result.image_url || itemsFromServer[result.index].url,
-          error: null,
-        };
-      } else if (result?.status === 'failed' && itemsFromServer[result.index]) {
-        itemsFromServer[result.index] = {
-          ...itemsFromServer[result.index],
-          uploadStatus: 'failed',
-          error: { message: result.reason || 'Upload failed' },
-        };
-      }
-    });
-    if (itemsFromServer.length) {
-      renderUploadStatuses(itemsFromServer, uploadErrorMessage);
-      updateScheduleControls(itemsFromServer);
-    }
+    scheduledItems = scheduleResults;
     renderScheduleResults(scheduleResults);
-    renderReuploadResults(reuploadResults);
     const itemsEls = document.querySelectorAll('#gallery .item');
-    scheduleResults.forEach((result) => {
-      if (result?.id && itemsEls[result.index]) {
-        itemsEls[result.index].dataset.itemId = result.id;
+    scheduleResults.forEach((result, idx) => {
+      if (result?.id && itemsEls[idx]) {
+        itemsEls[idx].dataset.itemId = result.id;
       }
     });
+    const savedCount = scheduleResults.length;
     const scheduledCount = scheduleResults.filter((r) => r.status === 'scheduled').length;
-    const skippedCount = scheduleResults.filter((r) => r.status === 'skipped').length;
-    lastScheduleSucceeded = scheduledCount > 0;
+    const readyCount = scheduleResults.filter((r) => r.status === 'ready').length;
+    lastScheduleSucceeded = savedCount > 0;
     updateSendButtonState();
-    if (skippedCount) {
-      const skippedDetails = scheduleResults
-        .filter((r) => r.status === 'skipped')
-        .map((r) => `Item ${r.index + 1}: ${r.reason || 'Missing uploads'}`)
-        .join('; ');
-      setStatusMessage(
-        `Posts scheduled with issues. Saved ${scheduledCount} item(s), ${skippedCount} skipped. ${skippedDetails}. Visit bulk_results.html for full details.`,
-        'warning',
-      );
+    if (!savedCount) {
+      setStatusMessage('No items were scheduled. Verify uploads before retrying.', 'error');
     } else {
+      const statusParts = [];
+      if (scheduledCount) statusParts.push(`${scheduledCount} scheduled`);
+      if (readyCount) statusParts.push(`${readyCount} ready to send`);
       setStatusMessage(
-        `Posts scheduled! Saved ${scheduledCount} item(s). Check bulk_results.html for full results and send queue.`,
+        `Posts scheduled! Saved ${savedCount} item(s). ${statusParts.join(', ')}. Check bulk_results.html for full results and send queue.`,
         'success',
       );
     }
@@ -856,7 +830,7 @@ sendSelectedButton.addEventListener('click', async () => {
   setStatusMessage('Sending selected items to OnlyFans queue...', 'info');
   sendSelectedButton.disabled = true;
   try {
-    const res = await fetch('/api/bulk-send', {
+    const res = await fetch('/api/send-to-queue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ itemIds }),
@@ -871,14 +845,18 @@ sendSelectedButton.addEventListener('click', async () => {
       ...result,
       index: idToIndex.has(result.id) ? idToIndex.get(result.id) : -1,
     }));
+    sendResultsWithIndex.forEach((result) => {
+      if (Number.isInteger(result.index) && result.index >= 0 && result.item) {
+        scheduledItems[result.index] = result.item;
+      }
+    });
     renderSendResults(sendResultsWithIndex.filter((r) => r.index >= 0));
-    const queued = results.filter((r) => r.status === 'queued').length;
-    const skipped = results.filter((r) => r.status === 'skipped').length;
-    const failed = results.filter((r) => r.status === 'error').length;
-    if (failed || skipped) {
+    const queued = results.filter((r) => (r.item?.status || r.status) === 'queued').length;
+    const failed = results.filter((r) => (r.item?.status || r.status) === 'error').length;
+    if (failed) {
       setStatusMessage(
-        `Send completed with issues. Queued ${queued}, skipped ${skipped}, failed ${failed}.`,
-        failed ? 'error' : 'warning',
+        `Send completed with issues. Queued ${queued}, failed ${failed}.`,
+        'error',
       );
     } else {
       setStatusMessage(
