@@ -23,7 +23,17 @@ app.use((req, res, next) => {
   res.setHeader('Server', 'OFEM');
   next();
 });
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use((err, req, res, next) => {
+  if (err?.type === 'entity.too.large' || err?.status === 413) {
+    console.error('Payload too large:', err?.message);
+    return res.status(413).json({
+      error:
+        'Request body too large. Please reduce payload size or upload media separately before scheduling.',
+    });
+  }
+  next(err);
+});
 
 // In-memory activity log capturing console output
 const activityLogs = [];
@@ -666,6 +676,7 @@ async function processRecurringPPVs() {
 }
 
 // Serve frontend static files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Import bulk upload route

@@ -1,5 +1,6 @@
 const express = require('express');
 const multer = require('multer');
+const path = require('path');
 const fs = require('fs').promises;
 const { Configuration, OpenAIApi } = require('openai');
 const dayjs = require('dayjs');
@@ -13,10 +14,22 @@ const openai = new OpenAIApi(new Configuration({
 
 router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
   try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
     const captions = [];
+    const uploads = [];
     for (const file of req.files) {
       const imageBuffer = await fs.readFile(file.path);
       const dataUri = `data:${file.mimetype};base64,${imageBuffer.toString('base64')}`;
+      const storedName = path.basename(file.path);
+      uploads.push({
+        filename: file.originalname,
+        url: `/uploads/${storedName}`,
+        storedName,
+        mimetype: file.mimetype,
+      });
 
       const prompt = `I am a professional Classic Bodybuilder, big muscular jock, former USMC Marine, wrestler, and former semi pro football player with a large TikTok following. I am posting an image and need a short, masculine, spicy caption to accompany it. Review the image and write a confident, dominant message addressed directly to the viewer. The tone should be bold, controlled, and self assured. The caption must appeal to both straight women and gay men, so avoid gendered language and avoid words like baby. Keep it suggestive but clean, spicy without being explicit. Do not describe sexual acts. Do not use quotation marks or em dashes.`;
 
@@ -45,7 +58,7 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
       sendAt: now.add((idx + 1) * 5, 'day').toISOString(),
     }));
 
-    res.json({ captions, schedule });
+    res.json({ captions, schedule, uploads });
   } catch (err) {
     console.error(err);
     res.status(500).send('Internal Server Error');
