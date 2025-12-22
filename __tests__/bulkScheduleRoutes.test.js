@@ -96,6 +96,7 @@ async function createApp() {
   const ofApi = { post: jest.fn(), get: jest.fn() };
   const ofApiRequest = jest.fn((fn) => fn());
   const getMissingEnvVars = jest.fn(() => []);
+  const getOFAccountId = jest.fn().mockResolvedValue('acc1');
 
   const routerFactory = require('../routes/bulkSchedule');
   const app = express();
@@ -103,13 +104,13 @@ async function createApp() {
     pool,
     sanitizeError: (err) => err,
     getMissingEnvVars,
-    getOFAccountId: jest.fn(),
+    getOFAccountId,
     ofApiRequest,
     ofApi,
     hasBulkScheduleTables: () => true,
     OF_FETCH_LIMIT: 5,
   }));
-  return { app, pool, ofApi, ofApiRequest, getMissingEnvVars };
+  return { app, pool, ofApi, ofApiRequest, getMissingEnvVars, getOFAccountId };
 }
 
 describe('bulk schedule routes', () => {
@@ -279,7 +280,7 @@ describe('bulk schedule routes', () => {
     const callOrder = [];
     ofApi.post.mockImplementation((url, body) => {
       callOrder.push(url);
-      if (url.includes('upload-media-to-the-only-fans-cdn')) {
+      if (url.includes('/media/upload')) {
         const suffix = body._streams.find((s) => typeof s === 'string' && s.includes('filename='));
         const mediaId = suffix.includes('-message') ? 111 : 222;
         return Promise.resolve({ data: { media: { id: mediaId } } });
@@ -315,9 +316,7 @@ describe('bulk schedule routes', () => {
     expect(result.item.post_status).toBe('sent');
     expect(result.item.message_status).toBe('sent');
 
-    const uploads = ofApi.post.mock.calls.filter(([url]) =>
-      url.includes('upload-media-to-the-only-fans-cdn'),
-    );
+    const uploads = ofApi.post.mock.calls.filter(([url]) => url.includes('/media/upload'));
     expect(uploads).toHaveLength(2);
     const filenames = uploads.map(([, form]) =>
       form._streams.find((s) => typeof s === 'string' && s.includes('filename=')),
@@ -326,10 +325,10 @@ describe('bulk schedule routes', () => {
     expect(filenames[1]).toContain('-post');
 
     expect(callOrder).toEqual([
-      '/v1/media/upload-media-to-the-only-fans-cdn',
+      '/acc1/media/upload',
       '/v1/following/list-active-followings',
       '/v1/mass-messaging/send-mass-message',
-      '/v1/media/upload-media-to-the-only-fans-cdn',
+      '/acc1/media/upload',
       '/v1/posts/send-post',
       '/v1/queue/list-queue-items',
     ]);
@@ -350,7 +349,7 @@ describe('bulk schedule routes', () => {
     });
 
     ofApi.post.mockImplementation((url) => {
-      if (url.includes('upload-media-to-the-only-fans-cdn')) {
+      if (url.includes('/media/upload')) {
         return Promise.resolve({ data: { media: { id: 123 } } });
       }
       if (url.includes('send-mass-message')) {
@@ -369,7 +368,7 @@ describe('bulk schedule routes', () => {
 
     const result = res.body.results[0];
     expect(result.status).toBe('error');
-    expect(ofApi.post.mock.calls.filter(([url]) => url.includes('upload-media')).length).toBe(1);
+    expect(ofApi.post.mock.calls.filter(([url]) => url.includes('/media/upload')).length).toBe(1);
 
     const row = await pool.query(
       'SELECT local_status, post_status, message_status FROM bulk_schedule_items WHERE id=$1',
