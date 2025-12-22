@@ -13,6 +13,12 @@ body { font-family: Arial, sans-serif; margin: 20px; }
 .schedule-input { width: 200px; }
 .upload-status { font-size: 12px; color: #444; margin-top: 6px; }
 .upload-status .error { color: #c00; font-weight: 600; }
+.upload-status .schedule-status { margin-top: 4px; display: block; }
+.status-banner { margin-top: 10px; padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; background: #f7f7f7; }
+.status-info { border-color: #ccc; color: #333; background: #f7f7f7; }
+.status-success { border-color: #5cb85c; color: #2f6627; background: #edf7ed; }
+.status-warning { border-color: #f0ad4e; color: #8a6d3b; background: #fdf7e3; }
+.status-error { border-color: #d9534f; color: #a94442; background: #f9e2e2; }
 .hidden { display: none; }
 </style>
 </head>
@@ -45,6 +51,11 @@ let uploadErrorMessage = '';
 let batchId = null;
 let itemsFromServer = [];
 let hasUploadFailures = false;
+
+function setStatusMessage(message, tone = 'info') {
+  statusMessage.textContent = message;
+  statusMessage.className = `status-banner status-${tone}`;
+}
 
 fileSelect.addEventListener('click', () => fileElem.click());
 
@@ -82,13 +93,44 @@ function handleFiles(event) {
 
 let scheduleData = [];
 
-function renderUploadStatuses(items) {
+function getItemLabel(idx) {
+  const name =
+    itemsFromServer[idx]?.filename ||
+    filesToUpload[idx]?.name ||
+    `Item ${idx + 1}`;
+  return name;
+}
+
+function collectUploadFailures(items, fallbackError = '') {
+  const failures = [];
+  items.forEach((item, idx) => {
+    const uploadStatus = item?.uploadStatus;
+    const hasUrl = Boolean(item?.imageUrl || item?.url);
+    let reason = '';
+    if (uploadStatus === 'failed') {
+      reason = item?.error?.message || fallbackError || 'Upload failed';
+    } else if (!hasUrl) {
+      reason =
+        uploadStatus === 'success'
+          ? 'Missing upload URL'
+          : fallbackError || 'Upload pending or missing media';
+    }
+    if (reason) {
+      failures.push({ index: idx, label: getItemLabel(idx), reason });
+    }
+  });
+  return failures;
+}
+
+function renderUploadStatuses(items, fallbackError = '') {
   const itemEls = document.querySelectorAll('#gallery .item');
   items.forEach((item, idx) => {
     const statusEl = itemEls[idx]?.querySelector('.upload-status');
     if (!statusEl) return;
     statusEl.innerHTML = '';
-    if (item.uploadStatus === 'success' && (item.imageUrl || item.url)) {
+    const uploadStatus = item?.uploadStatus;
+    const hasUrl = item?.imageUrl || item?.url;
+    if (uploadStatus === 'success' && hasUrl) {
       statusEl.append('Upload successful: ');
       const link = document.createElement('a');
       link.href = item.imageUrl || item.url;
@@ -96,10 +138,10 @@ function renderUploadStatuses(items) {
       link.rel = 'noopener noreferrer';
       link.textContent = 'Preview';
       statusEl.appendChild(link);
-    } else if (item.uploadStatus === 'failed') {
+    } else if (uploadStatus === 'failed' || fallbackError) {
       const err = document.createElement('span');
       err.className = 'error';
-      err.textContent = `Upload failed: ${item?.error?.message || 'Unknown error'}`;
+      err.textContent = `Upload failed: ${item?.error?.message || fallbackError || 'Unknown error'}`;
       statusEl.appendChild(err);
     } else {
       statusEl.textContent = 'Upload pending...';
@@ -107,13 +149,33 @@ function renderUploadStatuses(items) {
   });
 }
 
+function renderScheduleResults(scheduleResults = []) {
+  const itemEls = document.querySelectorAll('#gallery .item');
+  scheduleResults.forEach((result) => {
+    const statusEl = itemEls[result.index]?.querySelector('.upload-status');
+    if (!statusEl) return;
+    const existing = statusEl.querySelector('.schedule-status');
+    if (existing) existing.remove();
+    const scheduleStatus = document.createElement('span');
+    scheduleStatus.className = 'schedule-status';
+    if (result.status === 'scheduled') {
+      scheduleStatus.textContent = 'Scheduled successfully';
+    } else if (result.status === 'skipped') {
+      scheduleStatus.textContent = `Skipped: ${result.reason || 'Missing media'}`;
+      scheduleStatus.classList.add('error');
+    } else {
+      scheduleStatus.textContent = `Scheduling status: ${result.status || 'unknown'}`;
+    }
+    statusEl.appendChild(scheduleStatus);
+  });
+}
+
 function updateScheduleControls(items) {
-  hasUploadFailures = items.some(
-    (item) => !item || item.uploadStatus === 'failed' || !item.imageUrl,
-  );
+  const failures = collectUploadFailures(items, uploadErrorMessage);
+  hasUploadFailures = failures.length > 0;
   scheduleButton.disabled = hasUploadFailures;
   retryUploadsButton.classList.toggle('hidden', !hasUploadFailures);
-  retryUploadsButton.disabled = !batchId;
+  retryUploadsButton.disabled = !batchId || !hasUploadFailures;
 }
 
 document.getElementById('generateCaptions').addEventListener('click', async () => {
@@ -121,7 +183,7 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
     alert('Please select images first.');
     return;
   }
-  statusMessage.textContent = 'Generating captions...';
+  setStatusMessage('Generating captions...', 'info');
   uploadResults = [];
   const formData = new FormData();
   filesToUpload.forEach((file) => formData.append('images', file));
@@ -162,6 +224,11 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
     itemsFromServer = items;
     uploadResults = uploads;
     scheduleData = items.length ? items : schedule;
+    const uploadErrors = Array.isArray(data.uploadErrors)
+      ? data.uploadErrors.filter(Boolean)
+      : [];
+    const cloudflareError = data.cloudflareError || uploadErrors[0] || null;
+    uploadErrorMessage = cloudflareError?.message || uploadErrorMessage;
     const scheduleToRender = items.length ? items : schedule;
     scheduleToRender.forEach((s, idx) => {
       if (scheduleInputs[idx] && s.sendAt) {
@@ -170,33 +237,38 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
       }
     });
     if (items && items.length) {
-      renderUploadStatuses(items);
+      renderUploadStatuses(items, uploadErrorMessage);
       updateScheduleControls(items);
     }
-    const uploadErrors = Array.isArray(data.uploadErrors)
-      ? data.uploadErrors.filter(Boolean)
-      : [];
-    const cloudflareError = data.cloudflareError || uploadErrors[0] || null;
-    uploadErrorMessage = cloudflareError?.message || '';
     if (cloudflareError) {
-      statusMessage.textContent = `Captions generated, but uploads failed: ${uploadErrorMessage}`;
+      setStatusMessage(`Captions generated, but uploads failed: ${uploadErrorMessage}`, 'error');
     } else {
       const successes = items.filter((i) => i.uploadStatus === 'success').length;
       const failures = items.filter((i) => i.uploadStatus === 'failed').length;
-      statusMessage.textContent = `Captions generated. ${successes} upload(s) ready${failures ? `, ${failures} failed` : ''}.`;
+      if (failures) {
+        const failureList = collectUploadFailures(items, uploadErrorMessage)
+          .map((f) => `${f.label}: ${f.reason}`)
+          .join('; ');
+        setStatusMessage(
+          `Captions generated with partial failures. ${successes} upload(s) ready, ${failures} failed. Issues: ${failureList}`,
+          'warning',
+        );
+      } else {
+        setStatusMessage('Captions generated. All uploads ready to schedule.', 'success');
+      }
     }
   } catch (err) {
     console.error(err);
-    statusMessage.textContent = err?.message || 'Failed to generate captions.';
+    setStatusMessage(err?.message || 'Failed to generate captions.', 'error');
   }
 });
 
 retryUploadsButton.addEventListener('click', async () => {
   if (!batchId) {
-    statusMessage.textContent = 'No batch to retry. Please generate captions again.';
+    setStatusMessage('No batch to retry. Please generate captions again.', 'warning');
     return;
   }
-  statusMessage.textContent = 'Retrying failed uploads...';
+  setStatusMessage('Retrying failed uploads...', 'info');
   try {
     const res = await fetch('/api/bulk-upload/retry', {
       method: 'POST',
@@ -212,17 +284,23 @@ retryUploadsButton.addEventListener('click', async () => {
     itemsFromServer = Array.isArray(data.items) ? data.items : itemsFromServer;
     uploadResults = Array.isArray(data.uploads) ? data.uploads : uploadResults;
     scheduleData = Array.isArray(data.schedule) ? data.schedule : scheduleData;
-    renderUploadStatuses(itemsFromServer);
+    renderUploadStatuses(itemsFromServer, uploadErrorMessage);
     updateScheduleControls(itemsFromServer);
     const remainingFailures = itemsFromServer.filter((i) => i.uploadStatus === 'failed').length;
     if (remainingFailures) {
-      statusMessage.textContent = `Retry completed. ${remainingFailures} upload(s) still failing.`;
+      const failureList = collectUploadFailures(itemsFromServer, uploadErrorMessage)
+        .map((f) => `${f.label}: ${f.reason}`)
+        .join('; ');
+      setStatusMessage(
+        `Retry completed. ${remainingFailures} upload(s) still failing: ${failureList}`,
+        'warning',
+      );
     } else {
-      statusMessage.textContent = 'Retry successful. All uploads ready to schedule.';
+      setStatusMessage('Retry successful. All uploads ready to schedule.', 'success');
     }
   } catch (err) {
     console.error(err);
-    statusMessage.textContent = err?.message || 'Retry failed.';
+    setStatusMessage(err?.message || 'Retry failed.', 'error');
   }
 });
 
@@ -236,10 +314,17 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
     return;
   }
   if (hasUploadFailures) {
-    statusMessage.textContent = 'Retry failed uploads before scheduling.';
+    const failures = collectUploadFailures(itemsFromServer, uploadErrorMessage);
+    const reasons = failures
+      .map((f) => `${f.label}: ${f.reason}`)
+      .join('; ');
+    setStatusMessage(
+      `Scheduling blocked. Resolve failed uploads before scheduling. Issues: ${reasons}`,
+      'error',
+    );
     return;
   }
-  statusMessage.textContent = 'Scheduling posts...';
+  setStatusMessage('Scheduling posts...', 'info');
   try {
     const items = Array.from(document.querySelectorAll('#gallery .item'));
     const posts = items.map((item, idx) => {
@@ -269,14 +354,27 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
     });
     if (!persistRes.ok) {
       let errorMessage = `Failed to schedule posts: ${persistRes.status}`;
+      let parsedBody = null;
       try {
         const bodyText = await persistRes.text();
         console.error('schedule posts failed', persistRes.status, bodyText);
-        const parsed = JSON.parse(bodyText);
-        if (parsed?.error) errorMessage = parsed.error;
+        parsedBody = JSON.parse(bodyText);
+        if (parsedBody?.error) errorMessage = parsedBody.error;
       } catch (e) {
         console.error('Failed to parse schedule error', e);
       }
+      const parsedScheduleResults = Array.isArray(parsedBody?.scheduleResults)
+        ? parsedBody.scheduleResults
+        : [];
+      if (parsedScheduleResults.length) {
+        renderScheduleResults(parsedScheduleResults);
+        const skipped = parsedScheduleResults
+          .filter((r) => r.status === 'skipped')
+          .map((r) => `Item ${r.index + 1}: ${r.reason || 'Missing media'}`)
+          .join('; ');
+        if (skipped) errorMessage = `${errorMessage}. Skipped items: ${skipped}`;
+      }
+      setStatusMessage(errorMessage, 'error');
       throw new Error(errorMessage);
     }
     const responseBody = await persistRes.json();
@@ -284,12 +382,49 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
     const scheduleResults = Array.isArray(responseBody.scheduleResults)
       ? responseBody.scheduleResults
       : [];
+    const reuploadResults = Array.isArray(responseBody.reuploadResults)
+      ? responseBody.reuploadResults
+      : [];
+    reuploadResults.forEach((result) => {
+      if (result?.status === 'success' && itemsFromServer[result.index]) {
+        itemsFromServer[result.index] = {
+          ...itemsFromServer[result.index],
+          uploadStatus: 'success',
+          imageUrl: result.image_url || itemsFromServer[result.index].imageUrl,
+          url: result.image_url || itemsFromServer[result.index].url,
+          error: null,
+        };
+      } else if (result?.status === 'failed' && itemsFromServer[result.index]) {
+        itemsFromServer[result.index] = {
+          ...itemsFromServer[result.index],
+          uploadStatus: 'failed',
+          error: { message: result.reason || 'Upload failed' },
+        };
+      }
+    });
+    if (itemsFromServer.length) {
+      renderUploadStatuses(itemsFromServer, uploadErrorMessage);
+      updateScheduleControls(itemsFromServer);
+    }
+    renderScheduleResults(scheduleResults);
     const scheduledCount = scheduleResults.filter((r) => r.status === 'scheduled').length;
     const skippedCount = scheduleResults.filter((r) => r.status === 'skipped').length;
-    statusMessage.textContent = `Posts scheduled! Saved ${scheduledCount} item(s)${skippedCount ? `, ${skippedCount} skipped due to missing uploads` : ''}.`;
+    if (skippedCount) {
+      const skippedDetails = scheduleResults
+        .filter((r) => r.status === 'skipped')
+        .map((r) => `Item ${r.index + 1}: ${r.reason || 'Missing uploads'}`)
+        .join('; ');
+      setStatusMessage(
+        `Posts scheduled with issues. Saved ${scheduledCount} item(s), ${skippedCount} skipped. ${skippedDetails}`,
+        'warning',
+      );
+    } else {
+      setStatusMessage(`Posts scheduled! Saved ${scheduledCount} item(s).`, 'success');
+    }
   } catch (err) {
     console.error(err);
-    statusMessage.textContent = 'Failed to schedule posts.';
+    const fallbackMessage = err?.message || 'Failed to schedule posts.';
+    setStatusMessage(fallbackMessage, 'error');
   }
 });
 </script>
