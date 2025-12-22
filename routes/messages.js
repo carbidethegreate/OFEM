@@ -12,9 +12,19 @@ module.exports = function ({
   sanitizeError,
   sendMessageToFan,
   getMissingEnvVars,
+  hasScheduledPostsTable = () => true,
 }) {
   const router = express.Router();
   const upload = multer();
+
+  function ensureScheduledPostsAvailable(res) {
+    if (hasScheduledPostsTable()) return true;
+    res.status(503).json({
+      error:
+        'scheduled_posts table missing; run migrations to enable scheduled posts',
+    });
+    return false;
+  }
 
   router.post('/vault-media', upload.array('media'), async (req, res) => {
     try {
@@ -190,6 +200,7 @@ module.exports = function ({
   });
 
   router.post('/scheduled-posts', async (req, res) => {
+    if (!ensureScheduledPostsAvailable(res)) return;
     const posts = Array.isArray(req.body) ? req.body : [];
     if (posts.length === 0) {
       return res.status(400).json({ error: 'No posts provided' });
@@ -250,6 +261,7 @@ module.exports = function ({
   });
 
   router.get('/scheduled-posts', async (req, res) => {
+    if (!ensureScheduledPostsAvailable(res)) return;
     try {
       const { rows } = await pool.query(
         'SELECT id, image_url, caption, schedule_time, status FROM scheduled_posts ORDER BY schedule_time NULLS LAST, id DESC',
