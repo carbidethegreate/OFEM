@@ -129,9 +129,9 @@ module.exports = function ({
 
   function normalizeDestination(destination) {
     const allowed = ['post', 'message', 'both'];
-    if (typeof destination !== 'string') return 'post';
+    if (typeof destination !== 'string') return 'both';
     const normalized = destination.toLowerCase();
-    return allowed.includes(normalized) ? normalized : 'post';
+    return allowed.includes(normalized) ? normalized : 'both';
   }
 
   function formatItem(row) {
@@ -139,6 +139,7 @@ module.exports = function ({
     const scheduleIso = row.schedule_time
       ? new Date(row.schedule_time).toISOString()
       : null;
+    const destination = normalizeDestination(row.destination);
     return {
       id: row.id,
       batch_id: row.batch_id,
@@ -148,7 +149,7 @@ module.exports = function ({
       caption: row.caption,
       schedule_time: scheduleIso,
       timezone: row.timezone,
-      destination: row.destination,
+      destination,
       status: row.local_status,
       local_status: row.local_status,
       post_status: row.post_status,

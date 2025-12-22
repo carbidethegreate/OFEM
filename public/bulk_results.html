@@ -515,6 +515,13 @@
         return ['UTC'];
       }
 
+      const allowedDestinations = ['post', 'message', 'both'];
+      function normalizeDestinationValue(value) {
+        if (typeof value !== 'string') return 'both';
+        const normalized = value.toLowerCase();
+        return allowedDestinations.includes(normalized) ? normalized : 'both';
+      }
+
       function renderGlobalLogs() {
         globalLogList.innerHTML = '';
         if (!state.globalLogs.length) {
@@ -698,7 +705,7 @@
             return { label, input };
           };
 
-          const destinationValue = (item.destination || 'both').toLowerCase();
+          const destinationValue = normalizeDestinationValue(item.destination);
           const postOption = createDestinationOption(
             'post',
             'Queue to OF Post',
@@ -808,7 +815,10 @@
           const res = await fetch('/api/bulk-schedule');
           if (!res.ok) throw new Error('Failed to fetch bulk schedule.');
           const data = await res.json();
-          state.items = data.items || [];
+          state.items = (data.items || []).map((item) => ({
+            ...item,
+            destination: normalizeDestinationValue(item.destination),
+          }));
           state.selected.clear();
           renderItems();
           setBanner(`Loaded ${state.items.length} item(s).`, 'success');
