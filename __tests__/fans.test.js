@@ -72,6 +72,7 @@ async function runParkerUpdate() {
 
 beforeAll(async () => {
   process.env.ONLYFANS_API_KEY = 'test';
+  process.env.ONLYFANS_ACCOUNT_ID = 'acc1';
   process.env.OPENAI_API_KEY = 'test';
   await pool.query(createTableQuery);
   app = require('../server');

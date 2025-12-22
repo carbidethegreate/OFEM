@@ -44,6 +44,16 @@ async function main() {
         'ONLYFANS_API_KEY is required to make OnlyFans API requests.',
       );
   }
+  let onlyfansAccountId = '';
+  while (!onlyfansAccountId) {
+    onlyfansAccountId = await prompt(
+      'Enter your OnlyFans Account ID/username (required): ',
+    );
+    if (!onlyfansAccountId)
+      console.log(
+        'ONLYFANS_ACCOUNT_ID is required to target the correct OnlyFans account.',
+      );
+  }
   let openaiKey = '';
   while (!openaiKey) {
     openaiKey = await prompt('Enter your OpenAI API Key (required): ');
@@ -98,6 +108,7 @@ async function main() {
 
   const requiredVars = {
     ONLYFANS_API_KEY: onlyfansKey,
+    ONLYFANS_ACCOUNT_ID: onlyfansAccountId,
     OPENAI_API_KEY: openaiKey,
   };
   for (const [key, value] of Object.entries(requiredVars)) {
@@ -118,6 +129,7 @@ async function main() {
   };
 
   setEnv('ONLYFANS_API_KEY', onlyfansKey);
+  setEnv('ONLYFANS_ACCOUNT_ID', onlyfansAccountId);
   setEnv('OPENAI_API_KEY', openaiKey);
   if (dbName) {
     setEnv('DB_NAME', dbName);

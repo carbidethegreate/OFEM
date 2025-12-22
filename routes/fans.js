@@ -33,6 +33,7 @@ module.exports = function ({
   router.post('/refreshFans', async (req, res) => {
     const missing = [];
     if (!process.env.ONLYFANS_API_KEY) missing.push('ONLYFANS_API_KEY');
+    if (!process.env.ONLYFANS_ACCOUNT_ID) missing.push('ONLYFANS_ACCOUNT_ID');
     if (missing.length) {
       return res.status(400).json({
         error: `Missing environment variable(s): ${missing.join(', ')}`,

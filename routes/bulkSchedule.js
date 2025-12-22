@@ -151,7 +151,10 @@ module.exports = function ({
   }
 
   function requireOnlyfansEnv(res) {
-    const missing = getMissingEnvVars(['ONLYFANS_API_KEY']);
+    const missing = getMissingEnvVars([
+      'ONLYFANS_API_KEY',
+      'ONLYFANS_ACCOUNT_ID',
+    ]);
     if (missing.length) {
       res.status(400).json({
         error: `Missing environment variable(s): ${missing.join(', ')}`,
