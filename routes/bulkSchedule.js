@@ -487,7 +487,6 @@ module.exports = function ({
         layer.queue ||
         layer.queueItem ||
         layer.queue_item ||
-        layer.item ||
         layer.queueItemData ||
         layer.queue_item_data ||
         layer.data?.queue ||
@@ -496,37 +495,36 @@ module.exports = function ({
       queueId =
         queueId ??
         coalesceId(
-          layer.queueId,
           layer.queue_id,
-          layer.queueItemId,
+          layer.queueId,
           layer.queue_item_id,
-          queueItem?.queueId,
+          layer.queueItemId,
           queueItem?.queue_id,
+          queueItem?.queueId,
+          queueItem?.queue_item_id,
+          queueItem?.queueItemId,
           queueItem?.id,
-          queueItem?.itemId,
-          queueItem?.item_id,
         );
       postId =
         postId ??
         coalesceId(
-          layer.postId,
           layer.post_id,
+          layer.postId,
           layer.id,
           layer.post?.id,
-          layer?.post?.postId,
-          queueItem?.postId,
           queueItem?.post_id,
+          queueItem?.postId,
           queueItem?.post?.id,
         );
       status =
         status ??
         normalizeQueueStatus(
           layer.status ||
-            layer.queueStatus ||
             layer.queue_status ||
+            layer.queueStatus ||
             queueItem?.status ||
-            queueItem?.queueStatus ||
-            queueItem?.queue_status,
+            queueItem?.queue_status ||
+            queueItem?.queueStatus,
         );
     }
     return { queueId, postId, status };
@@ -538,8 +536,18 @@ module.exports = function ({
     const requester = rateLimiter?.call
       ? (fn) => rateLimiter.call(fn)
       : (fn) => ofApiRequest(fn);
+    const payload = { ...postPayload };
+    if (payload.mediaIds && !payload.mediaFiles) {
+      payload.mediaFiles = payload.mediaIds;
+      delete payload.mediaIds;
+    }
+    if (payload.scheduleTime && !payload.scheduledDate) {
+      payload.scheduledDate = payload.scheduleTime;
+      delete payload.scheduleTime;
+    }
+    payload.saveForLater = true;
     const resp = await requester(() =>
-      ofApi.post(`/${accountId}/queue`, { type: 'post', ...postPayload }),
+      ofApi.post(`/${accountId}/posts`, payload),
     );
     const parsed = parseQueueResult(resp?.data);
     const queueId = parsed.queueId;
@@ -1035,6 +1043,7 @@ module.exports = function ({
           .filter((v) => Number.isFinite(v))
       : [];
     const force = req.body?.force === true;
+    const publish = req.body?.publish === true;
 
     if (!itemIds.length) {
       return res.status(400).json({ error: 'itemIds array is required' });
@@ -1205,20 +1214,29 @@ module.exports = function ({
               postId = coalesceId(postId, queueCreation.postId);
               postStatus = queueCreation.status || postStatus;
 
-              const publishResult = await publishQueueItem({
-                itemId: item.id,
-                queueId: postQueueId,
-                rateLimiter,
-              });
-              postQueueId = publishResult.queueId || postQueueId;
-              postId = coalesceId(postId, publishResult.postId);
-              postStatus =
-                publishResult.status || postStatus || (postQueueId ? 'queued' : 'sent');
-              await logStep(item.id, 'send:post', 'end', 'Post submission completed', {
-                postId,
-                postQueueId,
-                schedule_time: scheduleTimeUtc,
-              });
+              if (publish) {
+                const publishResult = await publishQueueItem({
+                  itemId: item.id,
+                  queueId: postQueueId,
+                  rateLimiter,
+                });
+                postQueueId = publishResult.queueId || postQueueId;
+                postId = coalesceId(postId, publishResult.postId);
+                postStatus =
+                  publishResult.status || postStatus || (postQueueId ? 'queued' : 'sent');
+              }
+              await logStep(
+                item.id,
+                'send:post',
+                'end',
+                publish ? 'Post submission completed' : 'Post queued for later publishing',
+                {
+                  postId,
+                  postQueueId,
+                  schedule_time: scheduleTimeUtc,
+                  publish_requested: publish,
+                },
+              );
             } catch (postErr) {
               const sanitizedPostErr = sanitizeErrorFn(postErr);
               await logStep(
