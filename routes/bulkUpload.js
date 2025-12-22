@@ -1,221 +1,70 @@
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
-const axios = require('axios');
-const FormData = require('form-data');
 const { Configuration, OpenAIApi } = require('openai');
 const dayjs = require('dayjs');
 const crypto = require('crypto');
+const {
+  CF_IMAGES_VARIANT,
+  tokenFingerprint,
+  getCloudflareConfig,
+  formatEnvErrorResponse,
+  cloudflareError,
+  safeRequestHeaders,
+  verifyCloudflareToken,
+  uploadToCloudflareImages,
+  logCloudflareFailure,
+  formatUploadError,
+} = require('../utils/cloudflareImages');
+const {
+  saveBatch,
+  getBatch,
+  updateBatch,
+  pruneExpired,
+} = require('../utils/uploadRetryStore');
 const { sanitizeError } = require('../sanitizeError');
 
 const router = express.Router();
+router.use(express.json({ limit: '10mb' }));
 const upload = multer({ dest: 'uploads/' }); // temporary storage
 const fsPromises = fs.promises;
-
-// Cloudflare Images configuration (set in Render env vars/secrets)
-const CF_IMAGES_VARIANT = process.env.CF_IMAGES_VARIANT || 'public';
-
-function tokenFingerprint(token) {
-  if (!token) return null;
-  return crypto.createHash('sha256').update(token).digest('hex').slice(0, 8);
-}
-
-function getCloudflareConfig() {
-  const accountId = process.env.CF_IMAGES_ACCOUNT_ID;
-  const token = process.env.CF_IMAGES_TOKEN;
-  const deliveryHash =
-    process.env.CF_IMAGES_DELIVERY_HASH || process.env.CF_IMAGES_ACCOUNT_HASH;
-  const variant = CF_IMAGES_VARIANT || 'public';
-
-  const missing = [];
-  if (!accountId) missing.push('CF_IMAGES_ACCOUNT_ID');
-  if (!token) missing.push('CF_IMAGES_TOKEN');
-  if (!deliveryHash) missing.push('CF_IMAGES_DELIVERY_HASH/CF_IMAGES_ACCOUNT_HASH');
-
-  if (missing.length) {
-    const err = new Error('Cloudflare Images environment variables missing');
-    err.statusCode = 400;
-    err.isConfigError = true;
-    err.missing = missing;
-    throw err;
-  }
-
-  return { accountId, token, deliveryHash, variant };
-}
-
-function formatEnvErrorResponse(err) {
-  if (!err?.isConfigError) return null;
-  const status = err.statusCode || 400;
-  return { status, payload: { error: err.message, cloudflareStatus: null } };
-}
-
-function cloudflareError(message, statusCode, cloudflareStatus) {
-  const err = new Error(message || 'Cloudflare upload failed');
-  err.isCloudflareError = true;
-  err.statusCode = statusCode || 502;
-  err.cloudflareStatus = cloudflareStatus ?? null;
-  return err;
-}
-
-function getCloudflareDeliveryUrl(deliveryHash, variant, imageId) {
-  if (!deliveryHash || !imageId) return null;
-  return `https://imagedelivery.net/${deliveryHash}/${imageId}/${variant || 'public'}`;
-}
-
-function safeRequestHeaders(headers) {
-  if (!headers || typeof headers !== 'object') return {};
-  const allowed = ['cf-ray', 'cf-request-id'];
-  return allowed.reduce((acc, key) => {
-    if (headers[key]) acc[key] = headers[key];
-    return acc;
-  }, {});
-}
-
-function extractRequestId(err, sanitized) {
-  const safeHeaders =
-    safeRequestHeaders(sanitized?.response?.headers) ||
-    safeRequestHeaders(err?.response?.headers);
-  return safeHeaders['cf-ray'] || safeHeaders['cf-request-id'] || null;
-}
-
-async function verifyCloudflareToken({ token }) {
-  try {
-    await axios.get('https://api.cloudflare.com/client/v4/user/tokens/verify', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  } catch (err) {
-    const status = err?.response?.status;
-    const statusCode = status ? (status >= 500 ? 502 : 401) : 502;
-    const cfErr = cloudflareError('Cloudflare token verification failed', statusCode, status);
-    cfErr.responseErrors = err?.response?.data?.errors || null;
-    cfErr.requestId =
-      err?.response?.headers?.['cf-ray'] ||
-      err?.response?.headers?.['cf-request-id'] ||
-      null;
-    cfErr.isVerificationError = true;
-    throw cfErr;
-  }
-}
-
-async function uploadToCloudflareImages(filePath, filename, mimetype, config) {
-  const form = new FormData();
-  form.append('file', fs.createReadStream(filePath), {
-    filename,
-    contentType: mimetype,
-  });
-
-  let res;
-  try {
-    res = await axios.post(
-      `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/images/v1`,
-      form,
-      {
-        headers: {
-          ...form.getHeaders(),
-          Authorization: `Bearer ${config.token}`,
-        },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-        timeout: 60000,
-      },
-    );
-  } catch (err) {
-    if (err?.isCloudflareError) throw err;
-    const status = err?.response?.status;
-    const errMsg =
-      err?.response?.data?.errors?.[0]?.message ||
-      err?.response?.data?.error ||
-      err?.message;
-    const statusCode = status ? (status >= 500 ? 502 : 400) : 502;
-    const sanitized = sanitizeError(err);
-    const cfErr = cloudflareError(errMsg, statusCode, status);
-    cfErr.responseData = sanitized?.response?.data ?? err?.response?.data ?? null;
-    cfErr.requestId =
-      sanitized?.response?.headers?.['cf-ray'] ||
-      sanitized?.response?.headers?.['cf-request-id'] ||
-      err?.response?.headers?.['cf-ray'] ||
-      err?.response?.headers?.['cf-request-id'] ||
-      null;
-    throw cfErr;
-  }
-
-  if (!res.data?.success) {
-    const msg = res.data?.errors?.[0]?.message || 'Cloudflare upload failed';
-    const cfErr = cloudflareError(msg, 502, res.status);
-    cfErr.responseData = res.data;
-    throw cfErr;
-  }
-
-  const imageId = res.data?.result?.id;
-  const variantUrl =
-    getCloudflareDeliveryUrl(config.deliveryHash, config.variant, imageId) ||
-    (Array.isArray(res.data?.result?.variants) && res.data.result.variants[0]) ||
-    null;
-
-  return { imageId, url: variantUrl };
-}
-
-function logCloudflareFailure(err, filename) {
-  const sanitized = sanitizeError(err);
-  const responseStatus =
-    err?.cloudflareStatus ??
-    err?.statusCode ??
-    sanitized?.response?.status ??
-    err?.response?.status ??
-    null;
-  const cloudflareErrors =
-    sanitized?.response?.data?.errors ??
-    err?.responseErrors ??
-    err?.responseData?.errors ??
-    err?.response?.data?.errors ??
-    null;
-  const cloudflareStatus =
-    err?.cloudflareStatus ??
-    sanitized?.response?.status ??
-    err?.statusCode ??
-    err?.response?.status ??
-    null;
-  const requestId =
-    err?.requestId ||
-    extractRequestId(err, sanitized);
-
-  const response =
-    cloudflareErrors && Array.isArray(cloudflareErrors)
-      ? { errors: cloudflareErrors }
-      : undefined;
-
-  console.error('Cloudflare upload failed:', {
-    filename,
-    status: responseStatus,
-    cloudflareStatus,
-    cloudflareErrors,
-    response,
-    requestId,
-  });
-}
-
-function formatUploadError(err) {
-  const sanitized = sanitizeError(err);
-  const fallbackStatus = err?.response?.status ?? sanitized?.response?.status;
-  const derivedStatusCode =
-    fallbackStatus != null
-      ? fallbackStatus >= 500
-        ? 502
-        : 400
-      : 502;
-  return {
-    message: err?.message || 'Cloudflare upload failed',
-    statusCode: err?.statusCode || derivedStatusCode,
-    cloudflareStatus: err?.cloudflareStatus ?? fallbackStatus ?? null,
-    requestId: err?.requestId || extractRequestId(err, sanitized),
-  };
-}
 
 const openai = new OpenAIApi(new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
 }));
+
+function buildUploadResponse(items) {
+  const uploadErrors = [];
+  const uploads = items.map((item) => {
+    const uploadError = item.error || null;
+    uploadErrors.push(uploadError);
+    return {
+      filename: item.filename,
+      imageId: item.imageId || null,
+      url: item.url || item.imageUrl || null,
+      mimetype: item.mimetype,
+      uploadStatus: item.uploadStatus,
+    };
+  });
+
+  const hasFailures = items.some((item) => item.uploadStatus === 'failed');
+  const firstUploadError = uploadErrors.find(Boolean) || null;
+
+  return {
+    uploads,
+    uploadErrors,
+    hasFailures,
+    uploadStatus: hasFailures ? 'partial-failure' : 'ok',
+    cloudflareError: firstUploadError
+      ? {
+          message: firstUploadError.message,
+          statusCode: firstUploadError.statusCode,
+          cloudflareStatus: firstUploadError.cloudflareStatus,
+          requestId: firstUploadError.requestId || null,
+        }
+      : null,
+  };
+}
 
 router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
   try {
@@ -252,12 +101,16 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
       return res.status(status).json({ error: message });
     }
 
+    pruneExpired();
     const failOnCloudflareError = req.query?.failOnCloudflareError === 'true';
     const captions = [];
-    const uploads = [];
-    const uploadErrors = [];
-    const items = [];
+    const responseItems = [];
+    const storedItems = [];
     const startTime = dayjs();
+
+    const batchId = crypto.randomUUID
+      ? crypto.randomUUID()
+      : crypto.randomBytes(16).toString('hex');
 
     for (const file of req.files) {
       const imageBuffer = await fsPromises.readFile(file.path);
@@ -306,7 +159,7 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
 
       const caption = completion.data.choices[0].message.content.trim();
       const uploadStatus = uploadError ? 'failed' : 'success';
-      const sendAt = startTime.add((items.length + 1) * 5, 'day').toISOString();
+      const sendAt = startTime.add((responseItems.length + 1) * 5, 'day').toISOString();
 
       const item = {
         filename: file.originalname,
@@ -321,51 +174,58 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
       };
 
       captions.push({ filename: file.originalname, caption });
-      uploadErrors.push(uploadError);
-      uploads.push({
-        filename: file.originalname,
-        imageId: cloudflareUpload?.imageId || null,
-        url: cloudflareUpload?.url || null,
-        mimetype: file.mimetype,
-        uploadStatus,
+      responseItems.push(item);
+      storedItems.push({
+        ...item,
+        retryData: {
+          buffer: imageBuffer,
+          mimetype: file.mimetype,
+          filename: file.originalname,
+        },
       });
-      items.push(item);
 
       if (uploadError && failOnCloudflareError) {
         break;
       }
     }
 
-    const schedule = items.map((item) => ({
+    const schedule = responseItems.map((item) => ({
       filename: item.filename,
       caption: item.caption,
       sendAt: item.sendAt,
     }));
 
-    const firstUploadError = uploadErrors.find(Boolean) || null;
-    const hasFailures = items.some((item) => item.uploadStatus === 'failed');
+    const { hasFailures, uploadStatus, cloudflareError, uploadErrors: normalizedUploadErrors, uploads: normalizedUploads } = buildUploadResponse(responseItems);
+
+    saveBatch(batchId, {
+      items: storedItems,
+      variant: CF_IMAGES_VARIANT,
+      createdAt: Date.now(),
+      lastResponse: {
+        captions,
+        schedule,
+        uploads: normalizedUploads,
+        items: responseItems,
+        uploadErrors: normalizedUploadErrors,
+        uploadStatus,
+        hasFailures,
+        cloudflareError,
+      },
+    });
+
     const responsePayload = {
+      batchId,
       captions,
       schedule,
-      uploads,
-      items,
-      uploadErrors,
-      uploadStatus: hasFailures
-        ? failOnCloudflareError
-          ? 'failed'
-          : 'partial-failure'
-        : 'ok',
+      uploads: normalizedUploads,
+      items: responseItems,
+      uploadErrors: normalizedUploadErrors,
+      uploadStatus,
       hasFailures,
-      cloudflareError: firstUploadError
-        ? {
-            message: firstUploadError.message,
-            statusCode: firstUploadError.statusCode,
-            cloudflareStatus: firstUploadError.cloudflareStatus,
-            requestId: firstUploadError.requestId || null,
-          }
-        : null,
+      cloudflareError,
     };
 
+    const firstUploadError = normalizedUploadErrors.find(Boolean) || null;
     const httpStatus =
       firstUploadError && failOnCloudflareError
         ? firstUploadError.statusCode
@@ -377,6 +237,157 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
       sanitized.response.headers = safeRequestHeaders(sanitized.response.headers);
     }
     console.error('Bulk upload failed:', sanitized);
+    if (err?.isCloudflareError) {
+      const status = err.statusCode || 502;
+      return res
+        .status(status)
+        .json({ error: err.message, cloudflareStatus: err.cloudflareStatus ?? null });
+    }
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.post('/bulk-upload/retry', async (req, res) => {
+  try {
+    pruneExpired();
+    const batchId = req.body?.batchId;
+    if (!batchId) {
+      return res.status(400).json({ error: 'batchId is required' });
+    }
+    const batch = getBatch(batchId);
+    if (!batch?.items?.length) {
+      return res.status(404).json({ error: 'Batch not found or expired' });
+    }
+
+    let cloudflareConfig;
+    try {
+      cloudflareConfig = getCloudflareConfig();
+    } catch (configErr) {
+      const envError = formatEnvErrorResponse(configErr);
+      if (envError) {
+        return res.status(envError.status).json(envError.payload);
+      }
+      throw configErr;
+    }
+
+    try {
+      console.info('Verifying Cloudflare token fingerprint (retry)', {
+        tokenFingerprint: tokenFingerprint(cloudflareConfig.token),
+      });
+      await verifyCloudflareToken(cloudflareConfig);
+    } catch (verifyErr) {
+      const status =
+        verifyErr?.statusCode ||
+        verifyErr?.cloudflareStatus ||
+        verifyErr?.response?.status ||
+        401;
+      const message = verifyErr?.isVerificationError
+        ? 'Invalid Cloudflare configuration: CF_IMAGES_TOKEN'
+        : 'Cloudflare token verification failed';
+      logCloudflareFailure(verifyErr, 'token-verification');
+      return res.status(status).json({ error: message });
+    }
+
+    const updatedItems = [];
+    const now = Date.now();
+
+    for (let i = 0; i < batch.items.length; i++) {
+      const item = batch.items[i];
+      const needsRetry =
+        !item?.url ||
+        !item?.imageUrl ||
+        item?.uploadStatus === 'failed' ||
+        item?.error;
+      if (!needsRetry) {
+        updatedItems.push(item);
+        continue;
+      }
+
+      const retrySource = item?.retryData;
+      if (!retrySource?.buffer) {
+        const fallbackItem = {
+          ...item,
+          uploadStatus: 'failed',
+          error: {
+            message: 'Missing retry data; please reupload the file.',
+            statusCode: 400,
+          },
+        };
+        updatedItems.push(fallbackItem);
+        continue;
+      }
+
+      try {
+        const uploadResult = await uploadToCloudflareImages(
+          { buffer: retrySource.buffer, mimetype: retrySource.mimetype },
+          retrySource.filename,
+          retrySource.mimetype,
+          cloudflareConfig,
+        );
+        updatedItems.push({
+          ...item,
+          uploadStatus: 'success',
+          error: null,
+          url: uploadResult?.url || null,
+          imageUrl: uploadResult?.url || null,
+          imageId: uploadResult?.imageId || null,
+        });
+      } catch (uploadErr) {
+        const cfErr =
+          uploadErr?.isCloudflareError ||
+          uploadErr?.isAxiosError ||
+          uploadErr?.response
+            ? uploadErr
+            : cloudflareError(uploadErr?.message, 502);
+        logCloudflareFailure(cfErr, item?.filename || `item-${i + 1}`);
+        updatedItems.push({
+          ...item,
+          uploadStatus: 'failed',
+          error: formatUploadError(cfErr),
+        });
+      }
+    }
+
+    const responseSummary = buildUploadResponse(updatedItems);
+    const schedule = updatedItems.map((item) => ({
+      filename: item.filename,
+      caption: item.caption,
+      sendAt: item.sendAt,
+    }));
+
+    saveBatch(batchId, {
+      ...batch,
+      items: updatedItems,
+      lastResponse: {
+        captions: batch?.lastResponse?.captions || [],
+        schedule,
+        uploads: responseSummary.uploads,
+        items: updatedItems,
+        uploadErrors: responseSummary.uploadErrors,
+        uploadStatus: responseSummary.uploadStatus,
+        hasFailures: responseSummary.hasFailures,
+        cloudflareError: responseSummary.cloudflareError,
+      },
+      createdAt: batch.createdAt || now,
+    });
+
+    res.status(200).json({
+      batchId,
+      captions: batch?.lastResponse?.captions || [],
+      schedule,
+      uploads: responseSummary.uploads,
+      items: updatedItems,
+      uploadErrors: responseSummary.uploadErrors,
+      uploadStatus: responseSummary.uploadStatus,
+      hasFailures: responseSummary.hasFailures,
+      cloudflareError: responseSummary.cloudflareError,
+    });
+  } catch (err) {
+    const sanitized = sanitizeError(err);
+    if (sanitized?.response?.headers) {
+      sanitized.response.headers = safeRequestHeaders(sanitized.response.headers);
+    }
+    console.error('Bulk upload retry failed:', sanitized);
     if (err?.isCloudflareError) {
       const status = err.statusCode || 502;
       return res
