@@ -11,8 +11,17 @@
     if (!container) return;
     const html = logs
       .map(
-        (l) =>
-          `<div class="log-entry log-${escapeHtml(l.level)}"><span class="log-time">${escapeHtml(l.time)}</span> [${escapeHtml(l.level)}] ${escapeHtml(l.msg)}</div>`,
+        (l) => {
+          const level = l.level || 'info';
+          const time = l.created_at || l.time || l.timestamp || '';
+          const message = l.message || l.msg || '';
+          const event = l.event ? `[${l.event}] ` : '';
+          const meta =
+            l.meta && Object.keys(l.meta).length
+              ? ` ${escapeHtml(JSON.stringify(l.meta))}`
+              : '';
+          return `<div class="log-entry log-${escapeHtml(level)}"><span class="log-time">${escapeHtml(time)}</span> [${escapeHtml(level)}] ${escapeHtml(event)}${escapeHtml(message)}${meta}</div>`;
+        },
       )
       .join('');
     container.innerHTML = html || '<p>No logs yet.</p>';

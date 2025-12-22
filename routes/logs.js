@@ -1,10 +1,30 @@
 const express = require('express');
+const { createBulkLogger } = require('../utils/bulkLogs');
 
-module.exports = function ({ activityLogs }) {
+module.exports = function ({ pool, hasBulkScheduleTables = () => true }) {
   const router = express.Router();
+  const { fetchLogs } = createBulkLogger({ pool });
 
-  router.get('/logs', (req, res) => {
-    res.json({ logs: activityLogs });
+  router.get('/logs', async (req, res) => {
+    if (!hasBulkScheduleTables()) {
+      return res.status(503).json({
+        error:
+          'bulk_schedule_items/bulk_logs tables missing; run migrations to enable bulk scheduling',
+      });
+    }
+
+    try {
+      const parsedItemId =
+        req.query.itemId !== undefined ? parseInt(req.query.itemId, 10) : null;
+      const itemId = Number.isNaN(parsedItemId) ? null : parsedItemId;
+      const level = req.query.level;
+      const page = req.query.page;
+      const pageSize = req.query.pageSize;
+      const data = await fetchLogs({ itemId, level, page, pageSize });
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch logs' });
+    }
   });
 
   return router;

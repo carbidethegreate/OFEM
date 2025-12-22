@@ -620,7 +620,10 @@ const webhookRoutes = require('./routes/webhooks')({
   openaiAxios,
   openaiRequest,
 });
-const logsRoutes = require('./routes/logs')({ activityLogs });
+const logsRoutes = require('./routes/logs')({
+  pool,
+  hasBulkScheduleTables: () => hasBulkScheduleTables,
+});
 const bulkScheduleRoutes = require('./routes/bulkSchedule')({
   pool,
   sanitizeError,
