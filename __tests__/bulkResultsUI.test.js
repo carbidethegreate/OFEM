@@ -74,29 +74,32 @@ describe('bulk_results UI', () => {
     const cards = document.querySelectorAll('.card');
     expect(cards.length).toBe(1);
 
-    const activePills = cards[0].querySelectorAll('.destination-pill.active');
-    expect(activePills.length).toBe(1);
-    expect(activePills[0].textContent.toLowerCase()).toContain('post');
+    const postOption = cards[0].querySelector('input[value="post"]');
+    const messageOption = cards[0].querySelector('input[value="message"]');
+    const bothOption = cards[0].querySelector('input[value="both"]');
 
-    const messagePill = Array.from(cards[0].querySelectorAll('.destination-pill')).find((pill) =>
-      pill.textContent.toLowerCase().includes('message'),
-    );
-    messagePill.click();
+    expect(postOption).toBeTruthy();
+    expect(messageOption).toBeTruthy();
+    expect(bothOption).toBeTruthy();
+
+    expect(postOption.checked).toBe(true);
+    expect(messageOption.checked).toBe(false);
+    expect(bothOption.checked).toBe(false);
+    expect(bothOption.disabled).toBe(true);
+
+    messageOption.click();
     await nextTick();
     await nextTick();
 
     const refreshedCard = document.querySelector('.card');
-    const pillStates = Array.from(refreshedCard.querySelectorAll('.destination-pill')).map(
-      (pill) => ({
-        text: pill.textContent.trim(),
-        active: pill.classList.contains('active'),
-      }),
-    );
+    const refreshedPost = refreshedCard.querySelector('input[value="post"]');
+    const refreshedMessage = refreshedCard.querySelector('input[value="message"]');
+    const refreshedBoth = refreshedCard.querySelector('input[value="both"]');
 
-    expect(pillStates.filter((pill) => pill.active).length).toBe(1);
-    expect(pillStates.find((pill) => pill.text.toLowerCase().includes('message')).active).toBe(
-      true,
-    );
+    expect(refreshedPost.checked).toBe(false);
+    expect(refreshedMessage.checked).toBe(true);
+    expect(refreshedBoth.checked).toBe(false);
+    expect(refreshedBoth.disabled).toBe(true);
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/bulk-schedule/1'))).toBe(
       true,
     );
