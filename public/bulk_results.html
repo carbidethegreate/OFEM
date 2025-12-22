@@ -1,96 +1,870 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Bulk Results</title>
-  <style>
-    .post { border: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
-    .actions button { margin-right: 5px; }
-  </style>
-</head>
-<body>
-  <h1>Scheduled Posts</h1>
-  <div id="message"></div>
-  <div id="posts"></div>
-  <script>
-    const postsDiv = document.getElementById('posts');
-    const messageDiv = document.getElementById('message');
-    let posts = [];
-
-    async function loadPosts() {
-      try {
-        messageDiv.textContent = 'Loading posts...';
-        const res = await fetch('https://ofem.onrender.com/api/scheduled-posts');
-        if (!res.ok) throw new Error('Failed to load scheduled posts');
-        const data = await res.json();
-        posts = Array.isArray(data.posts) ? data.posts.map((p) => ({
-          image: p.image_url || '',
-          caption: p.caption || '',
-          date: p.schedule_time ? new Date(p.schedule_time).toLocaleString() : '',
-          status: p.status || 'pending'
-        })) : [];
-        messageDiv.textContent = `Loaded ${posts.length} scheduled post(s).`;
-        renderPosts();
-      } catch (err) {
-        console.error(err);
-        messageDiv.textContent = 'Unable to load posts from server.';
-        posts = [];
-        postsDiv.innerHTML = '';
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bulk Schedule Results</title>
+    <style>
+      :root {
+        --blue-600: #0d6efd;
+        --blue-700: #0a58ca;
+        --gray-50: #f8fafc;
+        --gray-100: #f1f5f9;
+        --gray-200: #e2e8f0;
+        --gray-600: #475569;
+        --gray-700: #334155;
+        --gray-800: #1e293b;
+        --success-50: #ecfdf3;
+        --success-600: #16a34a;
+        --warning-50: #fffbeb;
+        --warning-600: #d97706;
+        --danger-50: #fef2f2;
+        --danger-600: #dc2626;
       }
-    }
 
-    function renderPosts() {
-      postsDiv.innerHTML = '';
-      if (posts.length === 0) {
-        postsDiv.innerHTML = '<p>No scheduled posts.</p>';
-        return;
+      * {
+        box-sizing: border-box;
       }
-      posts.forEach((post, index) => {
-        const div = document.createElement('div');
-        div.className = 'post';
-        div.innerHTML = `
-          <img src="${post.image}" alt="image" style="max-width:200px;"><br>
-          <strong>Caption:</strong> ${post.caption}<br>
-          <strong>Scheduled for:</strong> <span id="date-${index}">${post.date}</span><br>
-          <strong>Status:</strong> ${post.status || 'pending'}<br>
-          <div class="actions">
-            <button onclick="editDate(${index})">Edit Date/Time</button>
-            <button onclick="deletePost(${index})">Delete</button>
-            <button onclick="sendNow(${index})">Send Now</button>
-          </div>
-        `;
-        postsDiv.appendChild(div);
-      });
-    }
 
-    function editDate(index) {
-      const newDate = prompt('Enter new date and time:', posts[index].date);
-      if (newDate) {
-        posts[index].date = newDate;
-        renderPosts();
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: var(--gray-50);
+        color: var(--gray-800);
       }
-    }
 
-    function deletePost(index) {
-      if (confirm('Delete this post?')) {
-        posts.splice(index, 1);
-        renderPosts();
+      h1 {
+        margin: 4px 0;
       }
-    }
 
-    async function sendNow(index) {
-      try {
-        messageDiv.textContent = 'Sending...';
-        // Placeholder for sending logic
-        posts.splice(index, 1);
-        renderPosts();
-        messageDiv.textContent = 'Post sent successfully!';
-      } catch (err) {
-        messageDiv.textContent = 'Error sending post.';
+      h2 {
+        margin: 0;
+        font-size: 18px;
       }
-    }
 
-    loadPosts();
-  </script>
-</body>
+      p {
+        margin: 0;
+      }
+
+      .page-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .eyebrow {
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 12px;
+        color: var(--gray-600);
+        margin: 0 0 4px;
+      }
+
+      .description {
+        color: var(--gray-700);
+        max-width: 720px;
+      }
+
+      .btn {
+        border: 1px solid var(--gray-200);
+        background: white;
+        color: var(--gray-800);
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.15s ease;
+      }
+
+      .btn:hover {
+        border-color: var(--gray-600);
+      }
+
+      .btn.primary {
+        background: var(--blue-600);
+        color: white;
+        border-color: var(--blue-700);
+      }
+
+      .btn.primary:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .btn.secondary {
+        background: var(--gray-100);
+        border-color: var(--gray-200);
+      }
+
+      .btn-text {
+        background: transparent;
+        border: none;
+        color: var(--blue-700);
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      .banner {
+        margin-bottom: 16px;
+        padding: 12px 14px;
+        border-radius: 8px;
+        background: var(--gray-100);
+        border: 1px solid var(--gray-200);
+        color: var(--gray-700);
+        min-height: 22px;
+      }
+
+      .banner.success {
+        background: var(--success-50);
+        border-color: var(--success-600);
+        color: var(--success-600);
+      }
+
+      .banner.error {
+        background: var(--danger-50);
+        border-color: var(--danger-600);
+        color: var(--danger-600);
+      }
+
+      .panel {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 16px;
+      }
+
+      .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+
+      .log-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 6px;
+      }
+
+      .log-entry {
+        display: grid;
+        grid-template-columns: 170px 80px 1fr;
+        gap: 10px;
+        padding: 8px 10px;
+        background: var(--gray-50);
+        border: 1px solid var(--gray-200);
+        border-radius: 8px;
+      }
+
+      .log-entry strong {
+        color: var(--gray-800);
+      }
+
+      .log-level {
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 11px;
+      }
+
+      .log-level.info {
+        color: var(--blue-700);
+      }
+
+      .log-level.error {
+        color: var(--danger-600);
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 10px;
+        padding: 12px;
+        display: flex;
+        gap: 12px;
+        flex-direction: column;
+      }
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .meta {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        color: var(--gray-700);
+      }
+
+      .status-group {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        border: 1px solid var(--gray-200);
+        background: var(--gray-100);
+        color: var(--gray-700);
+      }
+
+      .badge.local {
+        background: #eff6ff;
+        border-color: #bfdbfe;
+        color: #1d4ed8;
+      }
+
+      .badge.post {
+        background: #ecfdf3;
+        border-color: #bbf7d0;
+        color: #15803d;
+      }
+
+      .badge.message {
+        background: #fff7ed;
+        border-color: #fed7aa;
+        color: #c2410c;
+      }
+
+      .badge.error {
+        background: var(--danger-50);
+        border-color: #fecaca;
+        color: var(--danger-600);
+      }
+
+      .media {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .media img {
+        width: 140px;
+        height: 140px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid var(--gray-200);
+        background: var(--gray-100);
+      }
+
+      .media .placeholder {
+        width: 140px;
+        height: 140px;
+        display: grid;
+        place-items: center;
+        background: var(--gray-100);
+        color: var(--gray-600);
+        border-radius: 8px;
+        border: 1px solid var(--gray-200);
+      }
+
+      .caption {
+        white-space: pre-wrap;
+        color: var(--gray-700);
+        margin: 0 0 6px;
+      }
+
+      .field {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+      }
+
+      .field label {
+        font-weight: 600;
+        color: var(--gray-700);
+      }
+
+      .field input,
+      .field select {
+        padding: 8px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--gray-200);
+      }
+
+      .field .help {
+        color: var(--gray-600);
+        font-size: 12px;
+      }
+
+      .controls {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+      }
+
+      .destination-pills {
+        display: inline-flex;
+        gap: 6px;
+        padding: 6px;
+        background: var(--gray-100);
+        border: 1px solid var(--gray-200);
+        border-radius: 999px;
+      }
+
+      .destination-pill {
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        font-weight: 600;
+        color: var(--gray-700);
+      }
+
+      .destination-pill.active {
+        background: var(--blue-600);
+        color: white;
+        border-color: var(--blue-700);
+      }
+
+      details summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: var(--gray-700);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .log-panel {
+        background: var(--gray-50);
+        border: 1px solid var(--gray-200);
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-top: 6px;
+      }
+
+      .empty {
+        color: var(--gray-600);
+        font-style: italic;
+        padding: 8px 0;
+      }
+
+      .time-label {
+        color: var(--gray-600);
+        font-size: 12px;
+      }
+
+      .checkbox {
+        width: 18px;
+        height: 18px;
+      }
+
+      .flex-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">Bulk scheduling</p>
+        <h1>Bulk Schedule Results</h1>
+        <p class="description">
+          Review items from <code>/api/bulk-schedule</code>, adjust destinations and schedule
+          times, send selected entries to the OnlyFans queue, and inspect delivery logs.
+        </p>
+      </div>
+      <div class="controls">
+        <button id="refreshButton" class="btn">Refresh</button>
+        <button id="sendSelectedButton" class="btn primary" disabled>
+          Send selected to OnlyFans queue
+        </button>
+      </div>
+    </header>
+
+    <div id="message" class="banner" role="status" aria-live="polite"></div>
+
+    <section class="panel" aria-label="Global activity log">
+      <div class="panel-header">
+        <h2>Global Logs</h2>
+        <div class="controls">
+          <button id="refreshLogsButton" class="btn secondary">Refresh logs</button>
+        </div>
+      </div>
+      <ul id="globalLogList" class="log-list"></ul>
+    </section>
+
+    <section aria-label="Bulk schedule items">
+      <div id="posts" class="cards"></div>
+    </section>
+
+    <script>
+      const messageEl = document.getElementById('message');
+      const postsEl = document.getElementById('posts');
+      const sendSelectedButton = document.getElementById('sendSelectedButton');
+      const refreshButton = document.getElementById('refreshButton');
+      const refreshLogsButton = document.getElementById('refreshLogsButton');
+      const globalLogList = document.getElementById('globalLogList');
+
+      const state = {
+        items: [],
+        selected: new Set(),
+        logs: {},
+        globalLogs: [],
+        isSending: false,
+      };
+
+      function setBanner(message, tone = 'info') {
+        messageEl.textContent = message || '';
+        messageEl.className = 'banner';
+        if (tone === 'success') messageEl.classList.add('success');
+        if (tone === 'error') messageEl.classList.add('error');
+      }
+
+      function toDateTimeLocalValue(dateInput) {
+        if (!dateInput) return '';
+        const parsed = new Date(dateInput);
+        if (Number.isNaN(parsed.getTime())) return '';
+        const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+        return local.toISOString().slice(0, 16);
+      }
+
+      function formatDateTime(dateInput, timezone) {
+        if (!dateInput) return 'Not scheduled';
+        try {
+          const options = {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          };
+          const locale = timezone
+            ? new Date(dateInput).toLocaleString([], { ...options, timeZone: timezone })
+            : new Date(dateInput).toLocaleString([], options);
+          return `${locale}${timezone ? ` (${timezone})` : ''}`;
+        } catch (err) {
+          return `${new Date(dateInput).toLocaleString()}${timezone ? ` (${timezone})` : ''}`;
+        }
+      }
+
+      function statusTone(status) {
+        if (!status) return 'default';
+        const normalized = status.toLowerCase();
+        if (['error', 'failed', 'fail'].includes(normalized)) return 'error';
+        if (['queued', 'sent', 'success'].includes(normalized)) return 'success';
+        if (['pending', 'draft', 'processing'].includes(normalized)) return 'muted';
+        return 'default';
+      }
+
+      function badgeClass(type, status) {
+        const tone = statusTone(status);
+        if (tone === 'error') return 'badge error';
+        if (type === 'local') return 'badge local';
+        if (type === 'post') return 'badge post';
+        if (type === 'message') return 'badge message';
+        return 'badge';
+      }
+
+      function timezoneOptions() {
+        try {
+          if (typeof Intl.supportedValuesOf === 'function') {
+            return Intl.supportedValuesOf('timeZone');
+          }
+        } catch (err) {
+          // ignore
+        }
+        return ['UTC'];
+      }
+
+      function renderGlobalLogs() {
+        globalLogList.innerHTML = '';
+        if (!state.globalLogs.length) {
+          const li = document.createElement('li');
+          li.className = 'empty';
+          li.textContent = 'No global log entries yet.';
+          globalLogList.appendChild(li);
+          return;
+        }
+
+        state.globalLogs.forEach((log) => {
+          const li = document.createElement('li');
+          li.className = 'log-entry';
+
+          const time = document.createElement('span');
+          time.textContent = log.created_at
+            ? new Date(log.created_at).toLocaleString()
+            : 'Unknown time';
+          const level = document.createElement('span');
+          level.textContent = log.level || 'info';
+          level.className = `log-level ${log.level || 'info'}`;
+          const message = document.createElement('span');
+          const event = log.event ? `[${log.event}] ` : '';
+          message.textContent = `${event}${log.message || ''}`;
+
+          li.appendChild(time);
+          li.appendChild(level);
+          li.appendChild(message);
+          globalLogList.appendChild(li);
+        });
+      }
+
+      async function loadGlobalLogs() {
+        try {
+          const res = await fetch('/api/bulk-logs');
+          if (!res.ok) throw new Error('Failed to load logs');
+          const data = await res.json();
+          state.globalLogs = data.globals || [];
+          renderGlobalLogs();
+        } catch (err) {
+          console.error(err);
+          setBanner('Unable to load global logs.', 'error');
+        }
+      }
+
+      function renderItems() {
+        postsEl.innerHTML = '';
+        sendSelectedButton.disabled = state.selected.size === 0 || state.isSending;
+
+        if (!state.items.length) {
+          const empty = document.createElement('div');
+          empty.className = 'panel';
+          empty.innerHTML =
+            '<strong>No bulk schedule items.</strong><p class="description">Upload items via the bulk uploader to manage them here.</p>';
+          postsEl.appendChild(empty);
+          return;
+        }
+
+        state.items.forEach((item) => {
+          const card = document.createElement('article');
+          card.className = 'card';
+          card.dataset.id = item.id;
+
+          const header = document.createElement('div');
+          header.className = 'card-header';
+
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.className = 'checkbox';
+          checkbox.checked = state.selected.has(item.id);
+          checkbox.addEventListener('change', () => {
+            if (checkbox.checked) state.selected.add(item.id);
+            else state.selected.delete(item.id);
+            sendSelectedButton.disabled = state.selected.size === 0 || state.isSending;
+          });
+
+          const idLabel = document.createElement('span');
+          idLabel.textContent = `Item #${item.id}`;
+
+          const destinationPills = document.createElement('div');
+          destinationPills.className = 'destination-pills';
+          ['post', 'message', 'both'].forEach((value) => {
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            pill.className = 'destination-pill';
+            pill.textContent = value === 'both' ? 'Post + Message' : value[0].toUpperCase() + value.slice(1);
+            if ((item.destination || 'post').toLowerCase() === value) pill.classList.add('active');
+            pill.addEventListener('click', async () => {
+              if (pill.classList.contains('active')) return;
+              await updateItem(item.id, { destination: value }, `Destination updated to ${value}.`);
+            });
+            destinationPills.appendChild(pill);
+          });
+
+          meta.appendChild(checkbox);
+          meta.appendChild(idLabel);
+          meta.appendChild(destinationPills);
+
+          const statuses = document.createElement('div');
+          statuses.className = 'status-group';
+          const localBadge = document.createElement('span');
+          localBadge.className = badgeClass('local', item.local_status);
+          localBadge.textContent = `Local: ${item.local_status || 'n/a'}`;
+          const postBadge = document.createElement('span');
+          postBadge.className = badgeClass('post', item.post_status);
+          postBadge.textContent = `Post: ${item.post_status || '—'}`;
+          const messageBadge = document.createElement('span');
+          messageBadge.className = badgeClass('message', item.message_status);
+          messageBadge.textContent = `Message: ${item.message_status || '—'}`;
+          statuses.appendChild(localBadge);
+          statuses.appendChild(postBadge);
+          statuses.appendChild(messageBadge);
+
+          header.appendChild(meta);
+          header.appendChild(statuses);
+
+          const media = document.createElement('div');
+          media.className = 'media';
+          if (item.image_url) {
+            const img = document.createElement('img');
+            img.src = item.image_url;
+            img.alt = `Preview for item ${item.id}`;
+            media.appendChild(img);
+          } else {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'placeholder';
+            placeholder.textContent = 'No preview';
+            media.appendChild(placeholder);
+          }
+
+          const info = document.createElement('div');
+          const caption = document.createElement('p');
+          caption.className = 'caption';
+          caption.textContent = item.caption || 'No caption';
+          info.appendChild(caption);
+
+          const scheduleRow = document.createElement('div');
+          scheduleRow.className = 'field';
+          const scheduleLabel = document.createElement('label');
+          scheduleLabel.textContent = 'Scheduled';
+          const dateInput = document.createElement('input');
+          dateInput.type = 'datetime-local';
+          dateInput.value = toDateTimeLocalValue(item.schedule_time);
+          dateInput.dataset.itemId = item.id;
+          const timezoneSelect = document.createElement('select');
+          timezoneSelect.dataset.itemId = item.id;
+          timezoneOptions().forEach((tz) => {
+            const opt = document.createElement('option');
+            opt.value = tz;
+            opt.textContent = tz;
+            timezoneSelect.appendChild(opt);
+          });
+          timezoneSelect.value =
+            item.timezone && timezoneOptions().includes(item.timezone)
+              ? item.timezone
+              : Intl?.DateTimeFormat?.().resolvedOptions?.().timeZone || 'UTC';
+          const display = document.createElement('span');
+          display.className = 'help time-label';
+          display.textContent = formatDateTime(item.schedule_time, item.timezone);
+          const saveScheduleBtn = document.createElement('button');
+          saveScheduleBtn.type = 'button';
+          saveScheduleBtn.className = 'btn secondary';
+          saveScheduleBtn.textContent = 'Save time';
+          saveScheduleBtn.addEventListener('click', async () => {
+            await saveSchedule(item.id, dateInput.value, timezoneSelect.value, display);
+          });
+
+          scheduleRow.appendChild(scheduleLabel);
+          scheduleRow.appendChild(dateInput);
+          scheduleRow.appendChild(timezoneSelect);
+          scheduleRow.appendChild(saveScheduleBtn);
+          scheduleRow.appendChild(display);
+
+          info.appendChild(scheduleRow);
+          media.appendChild(info);
+
+          const logDetails = document.createElement('details');
+          const summary = document.createElement('summary');
+          summary.textContent = 'Logs';
+          const logPanel = document.createElement('div');
+          logPanel.className = 'log-panel';
+          logPanel.innerHTML = '<div class="empty">Expand to load logs.</div>';
+          logDetails.appendChild(summary);
+          logDetails.appendChild(logPanel);
+          logDetails.addEventListener('toggle', () => {
+            if (logDetails.open) {
+              loadItemLogs(item.id, logPanel, summary);
+            }
+          });
+
+          card.appendChild(header);
+          card.appendChild(media);
+          card.appendChild(logDetails);
+          postsEl.appendChild(card);
+        });
+      }
+
+      async function loadSchedule() {
+        setBanner('Loading schedule...');
+        try {
+          const res = await fetch('/api/bulk-schedule');
+          if (!res.ok) throw new Error('Failed to fetch bulk schedule.');
+          const data = await res.json();
+          state.items = data.items || [];
+          state.selected.clear();
+          renderItems();
+          setBanner(`Loaded ${state.items.length} item(s).`, 'success');
+        } catch (err) {
+          console.error(err);
+          setBanner('Unable to load bulk schedule.', 'error');
+        }
+      }
+
+      async function saveSchedule(id, datetimeValue, timezoneValue, displayEl) {
+        const scheduleIso = datetimeValue ? new Date(datetimeValue).toISOString() : null;
+        await updateItem(
+          id,
+          { schedule_time: scheduleIso, timezone: timezoneValue || null },
+          'Schedule updated.',
+          displayEl,
+        );
+      }
+
+      async function updateItem(id, payload, successMessage, displayEl) {
+        const card = postsEl.querySelector(\`[data-id="\${id}"]\`);
+        if (!card) return;
+        const logPanel = card.querySelector('.log-panel');
+        try {
+          const res = await fetch(\`/api/bulk-schedule/\${id}\`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Update failed');
+          }
+          const data = await res.json();
+          const updated = data.item;
+          const idx = state.items.findIndex((i) => i.id === id);
+          if (idx >= 0) state.items[idx] = updated;
+          renderItems();
+          if (displayEl) {
+            displayEl.textContent = formatDateTime(
+              updated.schedule_time,
+              updated.timezone,
+            );
+          }
+          setBanner(successMessage || 'Item updated.', 'success');
+          loadGlobalLogs();
+        } catch (err) {
+          console.error(err);
+          setBanner(err.message || 'Failed to update item.', 'error');
+          if (logPanel) {
+            logPanel.innerHTML = '<div class="empty">Failed to refresh logs.</div>';
+          }
+        }
+      }
+
+      async function loadItemLogs(itemId, container, summaryEl) {
+        container.innerHTML = '<div class="empty">Loading logs...</div>';
+        try {
+          const res = await fetch(\`/api/bulk-logs?itemId=\${itemId}\`);
+          if (!res.ok) throw new Error('Failed to load logs');
+          const data = await res.json();
+          state.logs[itemId] = data.logs || [];
+          if (data.globals) {
+            state.globalLogs = data.globals;
+            renderGlobalLogs();
+          }
+          renderLogList(container, state.logs[itemId]);
+          if (summaryEl) summaryEl.textContent = \`Logs (\${state.logs[itemId].length})\`;
+        } catch (err) {
+          console.error(err);
+          container.innerHTML =
+            '<div class="empty">Could not load logs. Please try again.</div>';
+        }
+      }
+
+      function renderLogList(container, logs) {
+        container.innerHTML = '';
+        if (!logs.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = 'No log entries for this item yet.';
+          container.appendChild(empty);
+          return;
+        }
+        const ul = document.createElement('ul');
+        ul.className = 'log-list';
+        logs.forEach((log) => {
+          const li = document.createElement('li');
+          li.className = 'log-entry';
+          const time = document.createElement('span');
+          time.textContent = log.created_at
+            ? new Date(log.created_at).toLocaleString()
+            : 'Unknown time';
+          const level = document.createElement('span');
+          level.textContent = log.level || 'info';
+          level.className = \`log-level \${log.level || 'info'}\`;
+          const message = document.createElement('span');
+          const event = log.event ? \`[\${log.event}] \` : '';
+          message.textContent = \`\${event}\${log.message || ''}\`;
+          li.appendChild(time);
+          li.appendChild(level);
+          li.appendChild(message);
+          ul.appendChild(li);
+        });
+        container.appendChild(ul);
+      }
+
+      async function sendSelected() {
+        if (state.isSending || state.selected.size === 0) return;
+        state.isSending = true;
+        sendSelectedButton.disabled = true;
+        setBanner('Sending selected items...');
+        const ids = Array.from(state.selected);
+        try {
+          const res = await fetch('/api/bulk-send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: ids }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || 'Send failed.');
+          }
+          const results = data.results || [];
+          let queued = 0;
+          for (const result of results) {
+            if (result.item) {
+              const idx = state.items.findIndex((i) => i.id === result.item.id);
+              if (idx >= 0) state.items[idx] = result.item;
+            }
+            if (result.status === 'queued' || result.status === 'sent') queued += 1;
+          }
+          renderItems();
+          for (const result of results) {
+            const card = postsEl.querySelector(\`[data-id="\${result.id}"]\`);
+            const logPanel = card?.querySelector('.log-panel');
+            const summary = card?.querySelector('summary');
+            if (logPanel && summary) {
+              await loadItemLogs(result.id, logPanel, summary);
+            }
+          }
+          setBanner(
+            \`Processed \${results.length} item(s). Queued/Sent: \${queued}.\`,
+            'success',
+          );
+          await loadGlobalLogs();
+        } catch (err) {
+          console.error(err);
+          setBanner(err.message || 'Failed to send selected items.', 'error');
+        } finally {
+          state.isSending = false;
+          sendSelectedButton.disabled = state.selected.size === 0;
+        }
+      }
+
+      refreshButton.addEventListener('click', loadSchedule);
+      refreshLogsButton.addEventListener('click', loadGlobalLogs);
+      sendSelectedButton.addEventListener('click', sendSelected);
+
+      loadSchedule();
+      loadGlobalLogs();
+    </script>
+  </body>
 </html>
