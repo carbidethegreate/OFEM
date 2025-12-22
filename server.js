@@ -307,9 +307,23 @@ async function verifyOnlyFansToken() {
 }
 const MAX_OF_BACKOFF_MS = 32000;
 let ofBackoffDelayMs = 1000;
+function parseRetryAfterMs(headers) {
+  if (!headers || typeof headers !== 'object') return null;
+  const raw =
+    headers['retry-after'] ||
+    headers['Retry-After'] ||
+    headers['Retry-after'] ||
+    headers['RETRY-AFTER'];
+  if (!raw) return null;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const dateMs = Date.parse(raw);
+  if (!Number.isNaN(dateMs)) return Math.max(0, dateMs - Date.now());
+  return null;
+}
 /**
  * Perform an OnlyFans API request with exponential backoff for rate limiting.
- * Retries on HTTP 429 responses up to maxRetries attempts.
+ * Retries on HTTP 429/5xx responses up to maxRetries attempts.
  * @param {Function} requestFn async function that performs the request
  * @param {number} [maxRetries=5] number of retries after the initial attempt
  * @returns {Promise<import('axios').AxiosResponse>} Resolves with the API response
@@ -317,6 +331,7 @@ let ofBackoffDelayMs = 1000;
  */
 async function ofApiRequest(requestFn, maxRetries = 5) {
   maxRetries++; // include initial attempt
+  let delay = ofBackoffDelayMs;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const res = await requestFn();
@@ -330,21 +345,25 @@ async function ofApiRequest(requestFn, maxRetries = 5) {
         throw timeoutErr;
       }
       const status = err.response?.status;
-      if (status !== 429) throw err;
+      const retriable =
+        status === 429 || (typeof status === 'number' && status >= 500 && status < 600);
+      if (!retriable) throw err;
       if (attempt === maxRetries - 1) {
-        const rateErr = new Error('OnlyFans API rate limit exceeded');
-        rateErr.status = 429;
-        throw rateErr;
+        if (status === 429) {
+          const rateErr = new Error('OnlyFans API rate limit exceeded');
+          rateErr.status = 429;
+          throw rateErr;
+        }
+        throw err;
       }
-      const wait = ofBackoffDelayMs;
+      const retryAfter = parseRetryAfterMs(err.response?.headers);
+      const wait = Math.max(delay, retryAfter || 0);
       console.warn(
-        `OnlyFans API rate limit. Retry ${attempt + 1} in ${wait / 1000}s`,
+        `OnlyFans API rate limit/server error (${status}). Retry ${attempt + 1} in ${wait / 1000}s`,
       );
       await new Promise((r) => setTimeout(r, wait));
-      ofBackoffDelayMs = Math.min(
-        ofBackoffDelayMs * 2,
-        MAX_OF_BACKOFF_MS,
-      );
+      delay = Math.min(delay * 2, MAX_OF_BACKOFF_MS);
+      ofBackoffDelayMs = delay;
     }
   }
 }
