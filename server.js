@@ -86,6 +86,7 @@ const OF_FETCH_LIMIT =
   parseInt(process.env.OF_FETCH_LIMIT, 10) || DEFAULT_OF_FETCH_LIMIT;
 const ENABLE_BULK_SCHEDULE =
   process.env.ENABLE_BULK_SCHEDULE === 'false' ? false : true;
+const USE_V1_MEDIA_UPLOAD = process.env.OF_USE_V1_MEDIA_UPLOAD === 'true';
 
 // Flags indicating availability of background-task tables
 let hasScheduledMessagesTable = true;
@@ -651,6 +652,7 @@ const bulkScheduleRoutes = require('./routes/bulkSchedule')({
   ofApi,
   hasBulkScheduleTables: () => hasBulkScheduleTables && ENABLE_BULK_SCHEDULE,
   OF_FETCH_LIMIT,
+  useV1MediaUpload: USE_V1_MEDIA_UPLOAD,
 });
 app.use('/api', fansRoutes);
 app.use('/api', ppvRoutes);

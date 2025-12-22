@@ -28,6 +28,7 @@ module.exports = function ({
   ofApi,
   hasBulkScheduleTables = () => true,
   OF_FETCH_LIMIT = 1000,
+  useV1MediaUpload = process.env.OF_USE_V1_MEDIA_UPLOAD === 'true',
 }) {
   const router = express.Router();
   router.use(express.json({ limit: '10mb' }));
@@ -68,6 +69,39 @@ module.exports = function ({
   function delay(ms) {
     if (!ms || ms <= 0) return Promise.resolve();
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+  function normalizeAccountId(accountId) {
+    const raw = typeof accountId === 'string' ? accountId.trim() : '';
+    if (!raw) throw new Error('OnlyFans account ID is missing for upload');
+    const trimmed = raw.replace(/^\/+|\/+$/g, '');
+    const firstSegment = trimmed.split('/').filter(Boolean)[0];
+    if (!firstSegment) throw new Error('OnlyFans account ID is invalid for upload');
+    if (firstSegment !== trimmed) {
+      console.warn('Normalizing OnlyFans account ID for upload', {
+        accountId,
+        normalized: firstSegment,
+      });
+    }
+    return firstSegment;
+  }
+  function resolveUploadTarget(accountId) {
+    const normalizedAccountId = normalizeAccountId(accountId);
+    if (useV1MediaUpload) {
+      return {
+        uploadUrl: '/v1/media/upload-media-to-the-only-fans-cdn',
+        accountId: normalizedAccountId,
+        useV1: true,
+      };
+    }
+    const uploadUrl = `/${normalizedAccountId}/media/upload`;
+    if (!/^\/[^/]+\/media\/upload$/.test(uploadUrl)) {
+      throw new Error(`Resolved upload URL is invalid: ${uploadUrl}`);
+    }
+    return {
+      uploadUrl,
+      accountId: normalizedAccountId,
+      useV1: false,
+    };
   }
   function createRateLimiter() {
     let nextAllowedTime = 0;
@@ -241,11 +275,31 @@ module.exports = function ({
       const form = new FormData();
       form.append('file', buffer, { filename, contentType });
       const accountId = await getOFAccountId();
+      const uploadTarget = resolveUploadTarget(accountId);
+      await logStep(
+        itemId,
+        `upload:${destination}`,
+        'info',
+        'Resolved upload endpoint',
+        {
+          filename: filenameHint,
+          accountId: uploadTarget.accountId,
+          uploadUrl: uploadTarget.uploadUrl,
+          useV1Upload: uploadTarget.useV1,
+        },
+      );
+      console.info('Bulk upload target', {
+        itemId,
+        destination,
+        accountId: uploadTarget.accountId,
+        uploadUrl: uploadTarget.uploadUrl,
+        useV1Upload: uploadTarget.useV1,
+      });
       const requester = rateLimiter?.call
         ? (fn) => rateLimiter.call(fn)
         : (fn) => ofApiRequest(fn);
       const resp = await requester(() =>
-        ofApi.post(`/${accountId}/media/upload`, form, {
+        ofApi.post(uploadTarget.uploadUrl, form, {
           headers: form.getHeaders(),
         }),
       );
