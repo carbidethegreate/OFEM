@@ -5,6 +5,7 @@ const axios = require('axios');
 const FormData = require('form-data');
 const { Configuration, OpenAIApi } = require('openai');
 const dayjs = require('dayjs');
+const { sanitizeError } = require('../sanitizeError');
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' }); // temporary storage
@@ -63,12 +64,17 @@ async function uploadToCloudflareImages(filePath, filename, mimetype) {
       err?.response?.data?.error ||
       err?.message;
     const statusCode = status ? (status >= 500 ? 502 : 400) : 502;
-    throw cloudflareError(errMsg, statusCode, status);
+    const sanitized = sanitizeError(err);
+    const cfErr = cloudflareError(errMsg, statusCode, status);
+    cfErr.responseData = sanitized?.response?.data ?? err?.response?.data ?? null;
+    throw cfErr;
   }
 
   if (!res.data?.success) {
     const msg = res.data?.errors?.[0]?.message || 'Cloudflare upload failed';
-    throw cloudflareError(msg, 502, res.status);
+    const cfErr = cloudflareError(msg, 502, res.status);
+    cfErr.responseData = res.data;
+    throw cfErr;
   }
 
   const imageId = res.data?.result?.id;
@@ -78,6 +84,28 @@ async function uploadToCloudflareImages(filePath, filename, mimetype) {
     null;
 
   return { imageId, url: variantUrl };
+}
+
+function logCloudflareFailure(err, filename) {
+  const sanitized = sanitizeError(err);
+  const responseStatus =
+    err?.cloudflareStatus ??
+    err?.statusCode ??
+    sanitized?.response?.status ??
+    err?.response?.status ??
+    null;
+  const responseData =
+    sanitized?.response?.data ??
+    err?.responseData ??
+    err?.response?.data ??
+    null;
+  console.error('Cloudflare upload failed:', {
+    filename,
+    message: sanitized?.message || err?.message || 'Cloudflare upload failed',
+    status: responseStatus,
+    cloudflareStatus: responseStatus,
+    response: responseData,
+  });
 }
 
 const openai = new OpenAIApi(new Configuration({
@@ -113,7 +141,7 @@ router.post('/bulk-upload', upload.array('images', 50), async (req, res) => {
             || uploadErr?.response
             ? uploadErr
             : cloudflareError(uploadErr?.message, 502);
-        console.error('Cloudflare upload failed:', cfErr?.message || cfErr);
+        logCloudflareFailure(cfErr, file.originalname);
         const fallbackStatus = cfErr?.response?.status;
         const derivedStatusCode =
           fallbackStatus != null

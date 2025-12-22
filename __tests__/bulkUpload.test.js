@@ -102,6 +102,51 @@ describe('POST /api/bulk-upload', () => {
     expect(res.body.captions[0].caption).toBe('Test caption');
   });
 
+  test('sanitizes Cloudflare error logs to avoid sensitive headers', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const { app, axiosMock } = createAppWithEnv();
+      axiosMock.post.mockRejectedValue({
+        response: {
+          status: 403,
+          data: { errors: [{ message: 'forbidden' }] },
+        },
+        config: {
+          headers: {
+            Authorization: 'Bearer top-secret',
+            'X-Auth-Token': 'another-secret',
+          },
+        },
+        message: 'Request failed',
+      });
+
+      await request(app)
+        .post('/api/bulk-upload')
+        .attach('images', Buffer.from('filedata'), {
+          filename: 'photo.jpg',
+          contentType: 'image/jpeg',
+        })
+        .expect(200);
+
+      const logCall = consoleSpy.mock.calls.find(
+        (call) => call[0] === 'Cloudflare upload failed:',
+      );
+      expect(logCall).toBeDefined();
+      const loggedPayload = logCall[1];
+      expect(loggedPayload).toMatchObject({
+        filename: 'photo.jpg',
+        status: 403,
+        cloudflareStatus: 403,
+        response: { errors: [{ message: 'forbidden' }] },
+      });
+      const serialized = JSON.stringify(loggedPayload);
+      expect(serialized).not.toMatch(/Authorization/i);
+      expect(serialized).not.toMatch(/top-secret/);
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
   test('returns explicit Cloudflare error when uploads are required', async () => {
     const { app, axiosMock } = createAppWithEnv({
       CF_IMAGES_ACCOUNT_ID: undefined,
