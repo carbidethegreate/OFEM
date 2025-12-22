@@ -1043,6 +1043,7 @@ module.exports = function ({
           .filter((v) => Number.isFinite(v))
       : [];
     const force = req.body?.force === true;
+    const publish = req.body?.publish === true;
 
     if (!itemIds.length) {
       return res.status(400).json({ error: 'itemIds array is required' });
@@ -1213,20 +1214,29 @@ module.exports = function ({
               postId = coalesceId(postId, queueCreation.postId);
               postStatus = queueCreation.status || postStatus;
 
-              const publishResult = await publishQueueItem({
-                itemId: item.id,
-                queueId: postQueueId,
-                rateLimiter,
-              });
-              postQueueId = publishResult.queueId || postQueueId;
-              postId = coalesceId(postId, publishResult.postId);
-              postStatus =
-                publishResult.status || postStatus || (postQueueId ? 'queued' : 'sent');
-              await logStep(item.id, 'send:post', 'end', 'Post submission completed', {
-                postId,
-                postQueueId,
-                schedule_time: scheduleTimeUtc,
-              });
+              if (publish) {
+                const publishResult = await publishQueueItem({
+                  itemId: item.id,
+                  queueId: postQueueId,
+                  rateLimiter,
+                });
+                postQueueId = publishResult.queueId || postQueueId;
+                postId = coalesceId(postId, publishResult.postId);
+                postStatus =
+                  publishResult.status || postStatus || (postQueueId ? 'queued' : 'sent');
+              }
+              await logStep(
+                item.id,
+                'send:post',
+                'end',
+                publish ? 'Post submission completed' : 'Post queued for later publishing',
+                {
+                  postId,
+                  postQueueId,
+                  schedule_time: scheduleTimeUtc,
+                  publish_requested: publish,
+                },
+              );
             } catch (postErr) {
               const sanitizedPostErr = sanitizeErrorFn(postErr);
               await logStep(

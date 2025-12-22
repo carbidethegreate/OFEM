@@ -265,7 +265,7 @@ describe('bulk schedule routes', () => {
     expect(logs.rowCount).toBe(1);
   });
 
-  test('POST /api/bulk-send uploads single-use media per destination and marks sent on success', async () => {
+  test('POST /api/bulk-send uploads single-use media per destination and leaves items queued by default', async () => {
     const { app, pool, ofApi } = await createApp();
     const insertRes = await pool.query(
       `INSERT INTO bulk_schedule_items (image_url_cf, destination, local_status, caption, source_filename)
@@ -310,8 +310,8 @@ describe('bulk schedule routes', () => {
           data: {
             data: {
               queueItems: [
-                { queue_item_id: 401, status: 'sent' },
-                { queue_item: { id: 301, queue_status: 'sent' } },
+                { queue_item_id: 401, status: 'queued' },
+                { queue_item: { id: 301, queue_status: 'queued' } },
               ],
             },
           },
@@ -319,15 +319,7 @@ describe('bulk schedule routes', () => {
       }
       return Promise.reject(new Error(`Unexpected GET ${url}`));
     });
-    ofApi.put.mockImplementation((url) => {
-      callOrder.push(url);
-      if (url === '/acc1/queue/401/publish') {
-        return Promise.resolve({
-          data: { data: { queue: { id: 401, postId: 400, status: 'queued' } } },
-        });
-      }
-      return Promise.reject(new Error(`Unexpected PUT ${url}`));
-    });
+    ofApi.put.mockImplementation(() => Promise.reject(new Error('PUT should not be called')));
 
     const res = await request(app)
       .post('/api/bulk-send')
@@ -335,9 +327,9 @@ describe('bulk schedule routes', () => {
       .expect(200);
 
     const result = res.body.results[0];
-    expect(result.status).toBe('sent');
-    expect(result.item.post_status).toBe('sent');
-    expect(result.item.message_status).toBe('sent');
+    expect(result.status).toBe('queued');
+    expect(result.item.post_status).toBe('queued');
+    expect(result.item.message_status).toBe('queued');
 
     const uploads = ofApi.post.mock.calls.filter(([url]) => url.includes('/media/upload'));
     expect(uploads).toHaveLength(2);
@@ -353,8 +345,74 @@ describe('bulk schedule routes', () => {
       '/acc1/mass-messaging',
       '/acc1/media/upload',
       '/acc1/posts',
-      '/acc1/queue/401/publish',
       ['/acc1/queue', { queueItemIds: [401, 301] }],
+    ]);
+  });
+
+  test('POST /api/bulk-send optionally publishes queue items when requested', async () => {
+    const { app, pool, ofApi } = await createApp();
+    const insertRes = await pool.query(
+      `INSERT INTO bulk_schedule_items (image_url_cf, destination, local_status, caption, source_filename)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      ['https://cdn.example/file.jpg', 'post', 'scheduled', 'caption', 'upload'],
+    );
+    const itemId = insertRes.rows[0].id;
+
+    axios.get.mockResolvedValue({
+      data: Buffer.from('filedata'),
+      headers: { 'content-type': 'image/jpeg' },
+    });
+
+    const callOrder = [];
+    ofApi.post.mockImplementation((url, body) => {
+      callOrder.push(url);
+      if (url.includes('/media/upload')) {
+        return Promise.resolve({ data: { media: { id: 222 } } });
+      }
+      if (url === '/acc1/posts') {
+        return Promise.resolve({
+          data: { queue_id: 401, post_id: 400, status: 'draft' },
+        });
+      }
+      return Promise.reject(new Error(`Unexpected POST ${url}`));
+    });
+    ofApi.put.mockImplementation((url) => {
+      callOrder.push(url);
+      if (url === '/acc1/queue/401/publish') {
+        return Promise.resolve({
+          data: { data: { queue: { id: 401, postId: 400, status: 'queued' } } },
+        });
+      }
+      return Promise.reject(new Error(`Unexpected PUT ${url}`));
+    });
+    ofApi.get.mockImplementation((url, config = {}) => {
+      if (url === '/acc1/queue') {
+        callOrder.push([url, config.params]);
+        expect(config.params).toEqual({ queueItemIds: [401] });
+        return Promise.resolve({
+          data: {
+            data: {
+              queueItems: [{ queue_item_id: 401, status: 'sent' }],
+            },
+          },
+        });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+
+    const res = await request(app)
+      .post('/api/bulk-send')
+      .send({ itemIds: [itemId], publish: true })
+      .expect(200);
+
+    const result = res.body.results[0];
+    expect(result.status).toBe('sent');
+    expect(result.item.post_status).toBe('sent');
+    expect(callOrder).toEqual([
+      '/acc1/media/upload',
+      '/acc1/posts',
+      '/acc1/queue/401/publish',
+      ['/acc1/queue', { queueItemIds: [401] }],
     ]);
   });
 
@@ -383,18 +441,11 @@ describe('bulk schedule routes', () => {
       }
       return Promise.reject(new Error(`Unexpected POST ${url}`));
     });
-    ofApi.put.mockImplementation((url) => {
-      if (url === '/acc1/queue/778/publish') {
-        return Promise.resolve({
-          data: { data: { queueItem: { id: 778, post_id: 777, status: 'queued' } } },
-        });
-      }
-      return Promise.reject(new Error(`Unexpected PUT ${url}`));
-    });
+    ofApi.put.mockImplementation(() => Promise.reject(new Error('Unexpected PUT')));
     ofApi.get.mockImplementation((url, config = {}) => {
       if (url === '/acc1/queue') {
         expect(config.params.queueItemIds).toEqual([778]);
-        return Promise.resolve({ data: { queue: [{ queue_item_id: 778, state: 'sent' }] } });
+        return Promise.resolve({ data: { queue: [{ queue_item_id: 778, state: 'queued' }] } });
       }
       return Promise.reject(new Error(`Unexpected GET ${url}`));
     });
@@ -404,7 +455,7 @@ describe('bulk schedule routes', () => {
       .send({ itemIds: [itemId] })
       .expect(200);
 
-    expect(res.body.results[0].status).toBe('sent');
+    expect(res.body.results[0].status).toBe('queued');
     const uploadCalls = ofApi.post.mock.calls.filter(([url]) =>
       url.includes('upload-media-to-the-only-fans-cdn'),
     );
