@@ -7,19 +7,41 @@
 body { font-family: Arial, sans-serif; margin: 20px; }
 #drop-area { border: 2px dashed #ccc; border-radius: 10px; padding: 30px; text-align: center; color: #666; }
 #gallery { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
-.item { display: flex; align-items: flex-start; border: 1px solid #ddd; padding: 10px; gap: 10px; }
-.item img { max-width: 200px; height: auto; }
-.caption-input { flex: 1; height: 100px; }
-.schedule-input { width: 200px; }
+.item { display: grid; grid-template-columns: 24px 200px 1fr; align-items: flex-start; border: 1px solid #ddd; padding: 10px; gap: 10px; border-radius: 6px; }
+.item img { max-width: 200px; height: auto; border-radius: 4px; }
+.item .checkbox-cell { display: flex; align-items: center; justify-content: center; padding-top: 6px; }
+.caption-input { width: 100%; height: 100px; resize: vertical; }
+.schedule-input { width: 210px; }
+.schedule-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 6px; }
+.destination-group { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.destination-pill { border: 1px solid #ccc; padding: 6px 10px; border-radius: 999px; cursor: pointer; background: #f9f9f9; display: inline-flex; align-items: center; gap: 6px; }
+.destination-pill input { display: none; }
+.destination-pill.active { border-color: #007bff; background: #e7f1ff; color: #004085; font-weight: 600; }
 .upload-status { font-size: 12px; color: #444; margin-top: 6px; }
 .upload-status .error { color: #c00; font-weight: 600; }
 .upload-status .schedule-status { margin-top: 4px; display: block; }
+.upload-status .reupload-status { display: block; margin-top: 2px; }
+.upload-status .send-status { display: block; margin-top: 2px; }
 .status-banner { margin-top: 10px; padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; background: #f7f7f7; }
 .status-info { border-color: #ccc; color: #333; background: #f7f7f7; }
 .status-success { border-color: #5cb85c; color: #2f6627; background: #edf7ed; }
 .status-warning { border-color: #f0ad4e; color: #8a6d3b; background: #fdf7e3; }
 .status-error { border-color: #d9534f; color: #a94442; background: #f9e2e2; }
 .hidden { display: none; }
+.toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; align-items: center; }
+.toolbar .spacer { flex: 1; min-width: 10px; }
+.schedule-tools { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.schedule-tools label { font-size: 14px; color: #333; }
+.schedule-tools input[type="number"],
+.schedule-tools select { padding: 6px 8px; border-radius: 4px; border: 1px solid #ccc; }
+.timezone-select { min-width: 200px; }
+.helper-text { font-size: 12px; color: #666; }
+.item-body { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.badge { display: inline-block; padding: 2px 6px; border-radius: 4px; background: #eef2ff; color: #334155; font-size: 11px; margin-left: 4px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.send-button { background: #0d6efd; color: #fff; border: 1px solid #0a58ca; padding: 8px 10px; border-radius: 4px; cursor: pointer; }
+.send-button:disabled { opacity: 0.6; cursor: not-allowed; }
+.pill-note { font-size: 12px; color: #555; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -30,10 +52,32 @@ body { font-family: Arial, sans-serif; margin: 20px; }
   <p>Drag & Drop Files Here</p>
   <button id="fileSelect">Select Files</button>
 </div>
+<div class="toolbar">
+  <div class="schedule-tools">
+    <label>
+      Start
+      <input type="datetime-local" id="staggerStart">
+    </label>
+    <label>
+      Interval (minutes)
+      <input type="number" id="staggerInterval" min="1" value="15">
+    </label>
+    <label>
+      Timezone
+      <select id="defaultTimezone" class="timezone-select"></select>
+    </label>
+    <button id="applyStagger">Auto-stagger</button>
+    <div class="helper-text">Fills empty times using the interval; manual times stay untouched.</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="actions">
+    <button id="generateCaptions">Generate Captions</button>
+    <button id="retryUploads" class="hidden">Retry Failed Uploads</button>
+    <button id="schedulePosts">Schedule</button>
+    <button id="sendSelected" class="send-button" disabled>Send selected to OnlyFans queue</button>
+  </div>
+</div>
 <div id="gallery"></div>
-<button id="generateCaptions">Generate Captions</button>
-<button id="retryUploads" class="hidden">Retry Failed Uploads</button>
-<button id="schedulePosts">Schedule Posts</button>
 <div id="statusMessage" role="status"></div>
 
 <script>
@@ -45,16 +89,154 @@ const gallery = document.getElementById('gallery');
 const statusMessage = document.getElementById('statusMessage');
 const retryUploadsButton = document.getElementById('retryUploads');
 const scheduleButton = document.getElementById('schedulePosts');
+const sendSelectedButton = document.getElementById('sendSelected');
+const staggerStartInput = document.getElementById('staggerStart');
+const staggerIntervalInput = document.getElementById('staggerInterval');
+const defaultTimezoneSelect = document.getElementById('defaultTimezone');
+const applyStaggerButton = document.getElementById('applyStagger');
 let filesToUpload = [];
 let uploadResults = [];
 let uploadErrorMessage = '';
 let batchId = null;
 let itemsFromServer = [];
 let hasUploadFailures = false;
+let lastScheduleSucceeded = false;
+const LOCAL_STORAGE_KEYS = {
+  timezone: 'ofem.bulk.timezone',
+  intervalMinutes: 'ofem.bulk.staggerMinutes',
+};
 
 function setStatusMessage(message, tone = 'info') {
   statusMessage.textContent = message;
   statusMessage.className = `status-banner status-${tone}`;
+}
+
+function getSavedTimezone() {
+  return localStorage.getItem(LOCAL_STORAGE_KEYS.timezone) || null;
+}
+
+function getDefaultTimezone() {
+  return (
+    getSavedTimezone() ||
+    (Intl?.DateTimeFormat?.().resolvedOptions?.().timeZone || 'UTC')
+  );
+}
+
+function saveTimezone(tz) {
+  if (tz) {
+    localStorage.setItem(LOCAL_STORAGE_KEYS.timezone, tz);
+  }
+}
+
+function saveInterval(minutes) {
+  if (Number.isFinite(minutes) && minutes > 0) {
+    localStorage.setItem(LOCAL_STORAGE_KEYS.intervalMinutes, String(minutes));
+  }
+}
+
+function getSavedInterval() {
+  const value = parseInt(localStorage.getItem(LOCAL_STORAGE_KEYS.intervalMinutes), 10);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function getTimezoneOptions() {
+  try {
+    if (typeof Intl.supportedValuesOf === 'function') {
+      return Intl.supportedValuesOf('timeZone');
+    }
+  } catch (err) {
+    // ignore
+  }
+  return [getDefaultTimezone()];
+}
+
+function buildTimezoneSelect() {
+  const select = document.createElement('select');
+  select.className = 'timezone-select';
+  const tzs = getTimezoneOptions();
+  tzs.forEach((tz) => {
+    const opt = document.createElement('option');
+    opt.value = tz;
+    opt.textContent = tz;
+    select.appendChild(opt);
+  });
+  select.value = getDefaultTimezone();
+  return select;
+}
+
+function toDateTimeLocalValue(dateInput) {
+  if (!dateInput) return '';
+  const parsed = new Date(dateInput);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function createDestinationPills(name, defaultValue = 'both') {
+  const container = document.createElement('div');
+  container.className = 'destination-group';
+  const options = [
+    { label: 'Post', value: 'post' },
+    { label: 'Message', value: 'message' },
+    { label: 'Post + Message', value: 'both' },
+  ];
+
+  options.forEach((opt) => {
+    const pill = document.createElement('label');
+    pill.className = 'destination-pill';
+    pill.dataset.value = opt.value;
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = name;
+    input.value = opt.value;
+    if (opt.value === defaultValue) {
+      input.checked = true;
+      pill.classList.add('active');
+    }
+    pill.appendChild(input);
+    pill.appendChild(document.createTextNode(opt.label));
+    pill.addEventListener('click', (e) => {
+      e.preventDefault();
+      setDestinationValue(container, opt.value);
+    });
+    container.appendChild(pill);
+  });
+  return container;
+}
+
+function setDestinationValue(container, value) {
+  const pills = container.querySelectorAll('.destination-pill');
+  pills.forEach((pill) => {
+    const isActive = pill.dataset.value === value;
+    pill.classList.toggle('active', isActive);
+    const input = pill.querySelector('input');
+    if (input) input.checked = isActive;
+  });
+}
+
+function getDestinationValue(container) {
+  const active = container.querySelector('.destination-pill.active');
+  if (active?.dataset?.value) return active.dataset.value;
+  const checked = container.querySelector('input[type="radio"]:checked');
+  return checked?.value || 'both';
+}
+
+function updateSendButtonState() {
+  const items = Array.from(document.querySelectorAll('#gallery .item'));
+  const hasSelectable = items.some((item) => {
+    const checkbox = item.querySelector('.select-item');
+    return checkbox?.checked && item.dataset.itemId;
+  });
+  sendSelectedButton.disabled = !hasSelectable || !lastScheduleSucceeded;
+}
+
+function resetPersistedState() {
+  lastScheduleSucceeded = false;
+  const items = document.querySelectorAll('#gallery .item');
+  items.forEach((item) => {
+    delete item.dataset.itemId;
+  });
+  updateSendButtonState();
 }
 
 fileSelect.addEventListener('click', () => fileElem.click());
@@ -73,20 +255,73 @@ dropArea.addEventListener('drop', (e) => {
 
 function handleFiles(event) {
   const files = event.target.files;
+  if (!files || !files.length) return;
+  resetPersistedState();
+  scheduleData = [];
+  itemsFromServer = [];
+  uploadResults = [];
+  hasUploadFailures = false;
   for (const file of files) {
     if (!file.type.startsWith('image/')) continue;
     filesToUpload.push(file);
     const previewUrl = URL.createObjectURL(file);
     const div = document.createElement('div');
     div.className = 'item';
-    div.innerHTML = `
-      <img src="${previewUrl}" alt="${file.name}">
-      <textarea class="caption-input" placeholder="Caption for ${file.name}"></textarea>
-      <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
-        <input class="schedule-input" placeholder="Schedule date/time" disabled>
-        <div class="upload-status" aria-live="polite"></div>
-      </div>
-    `;
+    const checkboxCell = document.createElement('div');
+    checkboxCell.className = 'checkbox-cell';
+    const selectCheckbox = document.createElement('input');
+    selectCheckbox.type = 'checkbox';
+    selectCheckbox.className = 'select-item';
+    selectCheckbox.addEventListener('change', updateSendButtonState);
+    checkboxCell.appendChild(selectCheckbox);
+
+    const img = document.createElement('img');
+    img.src = previewUrl;
+    img.alt = file.name;
+
+    const body = document.createElement('div');
+    body.className = 'item-body';
+
+    const destGroup = createDestinationPills(
+      `destination-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      'both',
+    );
+    body.appendChild(destGroup);
+    const destNote = document.createElement('div');
+    destNote.className = 'pill-note';
+    destNote.textContent = 'Destination applies when sending to OnlyFans.';
+    body.appendChild(destNote);
+
+    const caption = document.createElement('textarea');
+    caption.className = 'caption-input';
+    caption.placeholder = `Caption for ${file.name}`;
+    body.appendChild(caption);
+
+    const scheduleRow = document.createElement('div');
+    scheduleRow.className = 'schedule-row';
+    const scheduleLabel = document.createElement('label');
+    scheduleLabel.textContent = 'Send at';
+    const scheduleInput = document.createElement('input');
+    scheduleInput.type = 'datetime-local';
+    scheduleInput.className = 'schedule-input';
+    scheduleLabel.appendChild(scheduleInput);
+    const tzLabel = document.createElement('label');
+    tzLabel.textContent = 'Timezone';
+    const tzSelect = buildTimezoneSelect();
+    tzSelect.value = defaultTimezoneSelect.value || getDefaultTimezone();
+    tzLabel.appendChild(tzSelect);
+    scheduleRow.appendChild(scheduleLabel);
+    scheduleRow.appendChild(tzLabel);
+    body.appendChild(scheduleRow);
+
+    const status = document.createElement('div');
+    status.className = 'upload-status';
+    status.setAttribute('aria-live', 'polite');
+    body.appendChild(status);
+
+    div.appendChild(checkboxCell);
+    div.appendChild(img);
+    div.appendChild(body);
     gallery.appendChild(div);
   }
 }
@@ -170,13 +405,81 @@ function renderScheduleResults(scheduleResults = []) {
   });
 }
 
+function renderReuploadResults(reuploadResults = []) {
+  const itemEls = document.querySelectorAll('#gallery .item');
+  reuploadResults.forEach((result) => {
+    const statusEl = itemEls[result.index]?.querySelector('.upload-status');
+    if (!statusEl) return;
+    const existing = statusEl.querySelector('.reupload-status');
+    if (existing) existing.remove();
+    const reuploadStatus = document.createElement('span');
+    reuploadStatus.className = 'reupload-status';
+    if (result.status === 'success') {
+      reuploadStatus.textContent = 'Reupload succeeded';
+    } else if (result.status === 'failed') {
+      reuploadStatus.textContent = `Reupload failed: ${result.reason || 'Upload failed'}`;
+      reuploadStatus.classList.add('error');
+    } else {
+      reuploadStatus.textContent = `Reupload status: ${result.status || 'unknown'}`;
+    }
+    statusEl.appendChild(reuploadStatus);
+  });
+}
+
+function renderSendResults(sendResults = []) {
+  const itemEls = document.querySelectorAll('#gallery .item');
+  sendResults.forEach((result) => {
+    const itemEl = itemEls[result.index];
+    const statusEl =
+      itemEl?.querySelector('.upload-status') || itemEl?.querySelector('.status');
+    if (!statusEl) return;
+    const existing = statusEl.querySelector('.send-status');
+    if (existing) existing.remove();
+    const sendStatus = document.createElement('span');
+    sendStatus.className = 'send-status';
+    if (result.status === 'queued') {
+      sendStatus.textContent = 'Queued to OnlyFans';
+    } else if (result.status === 'skipped') {
+      sendStatus.textContent = `Send skipped: ${result.reason || 'Already sent'}`;
+      sendStatus.classList.add('error');
+    } else if (result.status === 'error') {
+      sendStatus.textContent = `Send failed: ${result.error || 'Unknown error'}`;
+      sendStatus.classList.add('error');
+    } else {
+      sendStatus.textContent = `Send status: ${result.status || 'unknown'}`;
+    }
+    statusEl.appendChild(sendStatus);
+  });
+}
+
 function updateScheduleControls(items) {
   const failures = collectUploadFailures(items, uploadErrorMessage);
   hasUploadFailures = failures.length > 0;
   scheduleButton.disabled = hasUploadFailures;
   retryUploadsButton.classList.toggle('hidden', !hasUploadFailures);
   retryUploadsButton.disabled = !batchId || !hasUploadFailures;
+  updateSendButtonState();
 }
+
+function populateDefaultTimezoneSelect() {
+  defaultTimezoneSelect.innerHTML = '';
+  const tzs = getTimezoneOptions();
+  tzs.forEach((tz) => {
+    const opt = document.createElement('option');
+    opt.value = tz;
+    opt.textContent = tz;
+    defaultTimezoneSelect.appendChild(opt);
+  });
+  defaultTimezoneSelect.value = getDefaultTimezone();
+}
+
+populateDefaultTimezoneSelect();
+
+const savedInterval = getSavedInterval();
+if (savedInterval) {
+  staggerIntervalInput.value = savedInterval;
+}
+staggerStartInput.value = toDateTimeLocalValue(new Date());
 
 document.getElementById('generateCaptions').addEventListener('click', async () => {
   if (filesToUpload.length === 0) {
@@ -215,6 +518,8 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
     }
     const captionInputs = document.querySelectorAll('.caption-input');
     const scheduleInputs = document.querySelectorAll('.schedule-input');
+    const timezoneSelects = document.querySelectorAll('.timezone-select');
+    const destinationGroups = document.querySelectorAll('.destination-group');
     // Prefer the richer items array (includes imageUrl)
     const sourceArray = items.length ? items : data.captions || [];
     sourceArray.forEach((c, idx) => {
@@ -231,9 +536,15 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
     uploadErrorMessage = cloudflareError?.message || uploadErrorMessage;
     const scheduleToRender = items.length ? items : schedule;
     scheduleToRender.forEach((s, idx) => {
-      if (scheduleInputs[idx] && s.sendAt) {
-        const dateObj = new Date(s.sendAt);
-        scheduleInputs[idx].value = dateObj.toLocaleString();
+      const scheduleValue = s.sendAt || s.schedule_time;
+      if (scheduleInputs[idx] && scheduleValue) {
+        scheduleInputs[idx].value = toDateTimeLocalValue(scheduleValue);
+      }
+      if (timezoneSelects[idx] && s.timezone) {
+        timezoneSelects[idx].value = s.timezone;
+      }
+      if (destinationGroups[idx] && s.destination) {
+        setDestinationValue(destinationGroups[idx], s.destination);
       }
     });
     if (items && items.length) {
@@ -304,6 +615,67 @@ retryUploadsButton.addEventListener('click', async () => {
   }
 });
 
+defaultTimezoneSelect.addEventListener('change', () => {
+  const tz = defaultTimezoneSelect.value;
+  if (tz) {
+    saveTimezone(tz);
+    document.querySelectorAll('#gallery .timezone-select').forEach((select) => {
+      select.value = tz;
+    });
+  }
+});
+
+staggerIntervalInput.addEventListener('change', () => {
+  const minutes = parseInt(staggerIntervalInput.value, 10);
+  if (Number.isFinite(minutes) && minutes > 0) {
+    saveInterval(minutes);
+  }
+});
+
+applyStaggerButton.addEventListener('click', () => {
+  const items = Array.from(document.querySelectorAll('#gallery .item'));
+  if (!items.length) {
+    alert('Add items before applying a staggered schedule.');
+    return;
+  }
+  const startValue = staggerStartInput.value;
+  if (!startValue) {
+    alert('Provide a start time for auto-stagger.');
+    return;
+  }
+  const startDate = new Date(startValue);
+  if (Number.isNaN(startDate.getTime())) {
+    alert('Start time is invalid.');
+    return;
+  }
+  const minutes = parseInt(staggerIntervalInput.value, 10);
+  if (!Number.isFinite(minutes) || minutes <= 0) {
+    alert('Interval must be a positive number of minutes.');
+    return;
+  }
+  saveInterval(minutes);
+  const tz = defaultTimezoneSelect.value || getDefaultTimezone();
+  saveTimezone(tz);
+  let cursor = startDate;
+  items.forEach((item) => {
+    const scheduleInput = item.querySelector('.schedule-input');
+    const tzSelect = item.querySelector('.timezone-select');
+    if (tzSelect) tzSelect.value = tz;
+    if (!scheduleInput) return;
+    const manualValue = scheduleInput.value;
+    if (manualValue) {
+      const manualDate = new Date(manualValue);
+      if (!Number.isNaN(manualDate.getTime())) {
+        cursor = new Date(manualDate.getTime() + minutes * 60000);
+        return;
+      }
+    }
+    scheduleInput.value = toDateTimeLocalValue(cursor);
+    cursor = new Date(cursor.getTime() + minutes * 60000);
+  });
+  setStatusMessage('Auto-stagger applied. Manual entries were preserved.', 'info');
+});
+
 document.getElementById('schedulePosts').addEventListener('click', async () => {
   if (!scheduleData || scheduleData.length === 0) {
     alert('Please generate captions first.');
@@ -325,6 +697,7 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
     return;
   }
   setStatusMessage('Scheduling posts...', 'info');
+  lastScheduleSucceeded = false;
   try {
     const items = Array.from(document.querySelectorAll('#gallery .item'));
     const posts = items.map((item, idx) => {
@@ -336,11 +709,27 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
         (upload && upload.url) ||
         null;
       const captionEl = item.querySelector('.caption-input');
-      const scheduleFromApi = scheduleData[idx] && scheduleData[idx].sendAt;
+      const scheduleFromApi =
+        scheduleData[idx]?.sendAt || scheduleData[idx]?.schedule_time || null;
+      const scheduleInput = item.querySelector('.schedule-input');
+      const tzSelect = item.querySelector('.timezone-select');
+      const destinationGroup = item.querySelector('.destination-group');
+      let scheduleTime = scheduleFromApi;
+      if (scheduleInput && scheduleInput.value) {
+        const parsed = new Date(scheduleInput.value);
+        if (!Number.isNaN(parsed.getTime())) {
+          scheduleTime = parsed.toISOString();
+        }
+      }
+      const timezone =
+        (tzSelect && tzSelect.value) || defaultTimezoneSelect.value || getDefaultTimezone();
+      const destination = destinationGroup ? getDestinationValue(destinationGroup) : 'both';
       return {
         image_url: url,
         caption: captionEl ? captionEl.value : '',
-        schedule_time: scheduleFromApi || null
+        schedule_time: scheduleTime || null,
+        timezone,
+        destination,
       };
     });
     const persistRes = await fetch('/api/scheduled-posts', {
@@ -407,24 +796,101 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
       updateScheduleControls(itemsFromServer);
     }
     renderScheduleResults(scheduleResults);
+    renderReuploadResults(reuploadResults);
+    const itemsEls = document.querySelectorAll('#gallery .item');
+    scheduleResults.forEach((result) => {
+      if (result?.id && itemsEls[result.index]) {
+        itemsEls[result.index].dataset.itemId = result.id;
+      }
+    });
     const scheduledCount = scheduleResults.filter((r) => r.status === 'scheduled').length;
     const skippedCount = scheduleResults.filter((r) => r.status === 'skipped').length;
+    lastScheduleSucceeded = scheduledCount > 0;
+    updateSendButtonState();
     if (skippedCount) {
       const skippedDetails = scheduleResults
         .filter((r) => r.status === 'skipped')
         .map((r) => `Item ${r.index + 1}: ${r.reason || 'Missing uploads'}`)
         .join('; ');
       setStatusMessage(
-        `Posts scheduled with issues. Saved ${scheduledCount} item(s), ${skippedCount} skipped. ${skippedDetails}`,
+        `Posts scheduled with issues. Saved ${scheduledCount} item(s), ${skippedCount} skipped. ${skippedDetails}. Visit bulk_results.html for full details.`,
         'warning',
       );
     } else {
-      setStatusMessage(`Posts scheduled! Saved ${scheduledCount} item(s).`, 'success');
+      setStatusMessage(
+        `Posts scheduled! Saved ${scheduledCount} item(s). Check bulk_results.html for full results and send queue.`,
+        'success',
+      );
     }
   } catch (err) {
     console.error(err);
+    lastScheduleSucceeded = false;
+    updateSendButtonState();
     const fallbackMessage = err?.message || 'Failed to schedule posts.';
     setStatusMessage(fallbackMessage, 'error');
+  }
+});
+
+sendSelectedButton.addEventListener('click', async () => {
+  const items = Array.from(document.querySelectorAll('#gallery .item'));
+  const selected = items
+    .map((item, idx) => ({
+      id: item.dataset.itemId ? Number(item.dataset.itemId) : null,
+      checked: item.querySelector('.select-item')?.checked,
+      index: idx,
+    }))
+    .filter((entry) => entry.checked && Number.isFinite(entry.id));
+
+  if (!selected.length) {
+    alert('Select at least one scheduled item to send.');
+    return;
+  }
+  if (!lastScheduleSucceeded) {
+    alert('Please schedule items first.');
+    return;
+  }
+
+  const itemIds = selected.map((entry) => entry.id);
+  const idToIndex = new Map(selected.map((entry) => [entry.id, entry.index]));
+
+  setStatusMessage('Sending selected items to OnlyFans queue...', 'info');
+  sendSelectedButton.disabled = true;
+  try {
+    const res = await fetch('/api/bulk-send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemIds }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Failed to send: ${res.status} - ${body}`);
+    }
+    const payload = await res.json();
+    const results = Array.isArray(payload.results) ? payload.results : [];
+    const sendResultsWithIndex = results.map((result) => ({
+      ...result,
+      index: idToIndex.has(result.id) ? idToIndex.get(result.id) : -1,
+    }));
+    renderSendResults(sendResultsWithIndex.filter((r) => r.index >= 0));
+    const queued = results.filter((r) => r.status === 'queued').length;
+    const skipped = results.filter((r) => r.status === 'skipped').length;
+    const failed = results.filter((r) => r.status === 'error').length;
+    if (failed || skipped) {
+      setStatusMessage(
+        `Send completed with issues. Queued ${queued}, skipped ${skipped}, failed ${failed}.`,
+        failed ? 'error' : 'warning',
+      );
+    } else {
+      setStatusMessage(
+        `Send successful. Queued ${queued} item(s) to OnlyFans. View logs in bulk_results.html.`,
+        'success',
+      );
+    }
+  } catch (err) {
+    console.error(err);
+    setStatusMessage(err?.message || 'Failed to send selected items.', 'error');
+  } finally {
+    updateSendButtonState();
   }
 });
 </script>
