@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS scheduled_items (
   caption TEXT,
   message_body TEXT,
   schedule_time TIMESTAMPTZ,
+  scheduled_at_utc TIMESTAMPTZ,
   timezone TEXT,
   mode TEXT DEFAULT 'both',
   status TEXT DEFAULT 'ready',
@@ -40,6 +41,7 @@ ALTER TABLE scheduled_items
   ADD COLUMN IF NOT EXISTS caption TEXT,
   ADD COLUMN IF NOT EXISTS message_body TEXT,
   ADD COLUMN IF NOT EXISTS schedule_time TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS scheduled_at_utc TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS timezone TEXT,
   ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'both',
   ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ready',
@@ -133,12 +135,20 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_item_logs_item_id_created_at
   ON scheduled_item_logs (scheduled_item_id, created_at);
 `;
 
+const scheduledUtcBackfill = `
+UPDATE scheduled_items
+SET scheduled_at_utc = schedule_time
+WHERE scheduled_at_utc IS NULL
+  AND schedule_time IS NOT NULL;
+`;
+
 (async () => {
   try {
     await pool.query(createScheduledItemsTable);
     await pool.query(alterScheduledItemsTable);
     await pool.query(modeConstraint);
     await pool.query(statusConstraint);
+    await pool.query(scheduledUtcBackfill);
     console.log("✅ 'scheduled_items' table created/updated.");
 
     await pool.query(createScheduledItemLogsTable);

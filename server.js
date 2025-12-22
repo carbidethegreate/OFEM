@@ -264,6 +264,7 @@ CREATE TABLE IF NOT EXISTS scheduled_items (
   caption TEXT,
   message_body TEXT,
   schedule_time TIMESTAMPTZ,
+  scheduled_at_utc TIMESTAMPTZ,
   timezone TEXT,
   mode TEXT DEFAULT 'both',
   status TEXT DEFAULT 'ready',
@@ -288,6 +289,7 @@ ALTER TABLE scheduled_items
   ADD COLUMN IF NOT EXISTS caption TEXT,
   ADD COLUMN IF NOT EXISTS message_body TEXT,
   ADD COLUMN IF NOT EXISTS schedule_time TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS scheduled_at_utc TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS timezone TEXT,
   ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'both',
   ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ready',
@@ -358,6 +360,13 @@ ALTER TABLE scheduled_item_logs
   ADD COLUMN IF NOT EXISTS message TEXT,
   ADD COLUMN IF NOT EXISTS meta JSONB DEFAULT '{}'::jsonb,
   ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+`;
+
+const scheduledUtcBackfill = `
+UPDATE scheduled_items
+SET scheduled_at_utc = schedule_time
+WHERE scheduled_at_utc IS NULL
+  AND schedule_time IS NOT NULL;
 `;
 
 const scheduledLogLevelConstraint = `
@@ -453,6 +462,7 @@ async function ensureScheduledItemsTables() {
     await pool.query(alterScheduledItemLogsTable);
     await pool.query(scheduledLogLevelConstraint);
     await pool.query(scheduledLogsIndex);
+    await pool.query(scheduledUtcBackfill);
     hasScheduledItemsTables = true;
   } catch (err) {
     hasScheduledItemsTables = false;
@@ -1154,6 +1164,9 @@ if (require.main === module) {
     await ensureBulkScheduleTables();
     await ensureScheduledItemsTables();
     await verifyOnlyFansToken();
+    if (scheduledItemsRoutes.startWorker) {
+      scheduledItemsRoutes.startWorker();
+    }
     app.listen(port, () => {
       console.log(`OFEM server listening on http://localhost:${port}`);
     });

@@ -235,6 +235,11 @@ module.exports = function ({
     return null;
   }
 
+  function toNumericId(value) {
+    const num = typeof value === 'string' ? parseInt(value, 10) : value;
+    return Number.isFinite(num) ? num : null;
+  }
+
   function pickFilename(base, fallback = 'upload') {
     if (base && typeof base === 'string') return base;
     return fallback;
@@ -1190,50 +1195,50 @@ module.exports = function ({
             }
 
             const messagePayload = {
-              userIds: recipientIds,
+              recipientIds,
               mediaIds: [messageMediaId],
               text: caption,
             };
-            if (scheduleTimeUtc) messagePayload.scheduleTime = scheduleTimeUtc;
 
             try {
-              await logStep(item.id, 'send:message', 'start', 'Submitting mass message', {
+              await logStep(item.id, 'send:message', 'start', 'Submitting messages', {
                 recipients: recipientIds.length,
-                schedule_time: scheduleTimeUtc,
+                media_id: messageMediaId,
               });
               const accountId = normalizeAccountId(await getOFAccountId());
-              const messageEndpoint = `/${accountId}/mass-messaging`;
+              const messageEndpoint = `/${accountId}/messages`;
               const messageResp = await rateLimiter.call(() =>
                 ofApi.post(messageEndpoint, messagePayload),
               );
-              messageId = coalesceId(
+              const messageBatchId = coalesceId(
+                messageResp.data?.message_batch_id,
+                messageResp.data?.messageBatchId,
+                messageResp.data?.batch_id,
+                messageResp.data?.batchId,
+              );
+              const rawMessageId = coalesceId(
                 messageResp.data?.id,
                 messageResp.data?.messageId,
                 messageResp.data?.message_id,
                 messageResp.data?.data?.id,
                 messageResp.data?.data?.messageId,
-                messageResp.data?.massMessageId,
-                messageResp.data?.mass_message_id,
+                messageBatchId,
               );
-              messageQueueId = coalesceId(
-                messageResp.data?.queueId,
-                messageResp.data?.queue_id,
-                messageResp.data?.queueItemId,
-                messageResp.data?.queue_item_id,
-                messageResp.data?.data?.queue_id,
-                messageResp.data?.data?.queueId,
-              );
+              messageId = toNumericId(rawMessageId);
+              messageQueueId = null;
               messageStatus =
                 normalizeQueueStatus(
                   messageResp.data?.status ||
                     messageResp.data?.queueStatus ||
-                    messageResp.data?.queue_status,
-                ) || (messageQueueId ? 'queued' : 'sent');
-              await logStep(item.id, 'send:message', 'end', 'Mass message submitted', {
+                    messageResp.data?.queue_status ||
+                    messageResp.data?.messageStatus ||
+                    messageResp.data?.message_status,
+                ) || 'sent';
+              await logStep(item.id, 'send:message', 'end', 'Messages submitted', {
                 messageId,
                 messageQueueId,
                 recipients: recipientIds.length,
-                schedule_time: scheduleTimeUtc,
+                message_batch_id: messageBatchId,
               });
             } catch (messageErr) {
               const sanitizedMessageErr = sanitizeErrorFn(messageErr);

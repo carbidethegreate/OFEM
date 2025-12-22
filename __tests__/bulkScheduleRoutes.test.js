@@ -312,8 +312,10 @@ describe('bulk schedule routes', () => {
         const mediaId = suffix.includes('-message') ? 111 : 222;
         return Promise.resolve({ data: { media: { id: mediaId } } });
       }
-      if (url.includes('/mass-messaging')) {
-        return Promise.resolve({ data: { messageId: 300, queue_id: 301, status: 'queued' } });
+      if (url.includes('/messages')) {
+        return Promise.resolve({
+          data: { message_batch_id: 'mb-1', status: 'sent' },
+        });
       }
       if (url === '/acc1/posts') {
         return Promise.resolve({
@@ -376,7 +378,7 @@ describe('bulk schedule routes', () => {
     const result = res.body.results[0];
     expect(result.status).toBe('queued');
     expect(result.item.post_status).toBe('queued');
-    expect(result.item.message_status).toBe('queued');
+    expect(result.item.message_status).toBe('sent');
 
     const uploads = ofApi.post.mock.calls.filter(([url]) => url.includes('/media/upload'));
     expect(uploads).toHaveLength(2);
@@ -389,7 +391,7 @@ describe('bulk schedule routes', () => {
     expect(callOrder).toEqual([
       '/acc1/media/upload',
       ['/acc1/following/active', { limit: 5, offset: 0 }],
-      '/acc1/mass-messaging',
+      '/acc1/messages',
       '/acc1/media/upload',
       '/acc1/posts',
       [
@@ -604,7 +606,7 @@ describe('bulk schedule routes', () => {
       if (url.includes('/media/upload')) {
         return Promise.resolve({ data: { media: { id: 123 } } });
       }
-      if (url.includes('/mass-messaging')) {
+      if (url.includes('/messages')) {
         const err = new Error('message failed');
         err.response = { status: 500, data: { error: 'boom' } };
         return Promise.reject(err);
