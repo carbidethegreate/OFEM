@@ -287,7 +287,7 @@ describe('bulk schedule routes', () => {
         const mediaId = suffix.includes('-message') ? 111 : 222;
         return Promise.resolve({ data: { media: { id: mediaId } } });
       }
-      if (url.includes('send-mass-message')) {
+      if (url.includes('/mass-messaging')) {
         return Promise.resolve({ data: { messageId: 300, queue_id: 301, status: 'queued' } });
       }
       if (url.includes('publish-queue-item')) {
@@ -333,7 +333,7 @@ describe('bulk schedule routes', () => {
     expect(callOrder).toEqual([
       '/acc1/media/upload',
       ['/acc1/following/active', { limit: 5, offset: 0 }],
-      '/v1/mass-messaging/send-mass-message',
+      '/acc1/mass-messaging',
       '/acc1/media/upload',
       '/v1/queue/publish-queue-item',
       '/v1/queue/list-queue-items',
@@ -403,7 +403,7 @@ describe('bulk schedule routes', () => {
       if (url.includes('/media/upload')) {
         return Promise.resolve({ data: { media: { id: 123 } } });
       }
-      if (url.includes('send-mass-message')) {
+      if (url.includes('/mass-messaging')) {
         const err = new Error('message failed');
         err.response = { status: 500, data: { error: 'boom' } };
         return Promise.reject(err);

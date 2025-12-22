@@ -990,8 +990,10 @@ module.exports = function ({
                 recipients: recipientIds.length,
                 schedule_time: scheduleTimeUtc,
               });
+              const accountId = normalizeAccountId(await getOFAccountId());
+              const messageEndpoint = `/${accountId}/mass-messaging`;
               const messageResp = await rateLimiter.call(() =>
-                ofApi.post('/v1/mass-messaging/send-mass-message', messagePayload),
+                ofApi.post(messageEndpoint, messagePayload),
               );
               messageId = coalesceId(
                 messageResp.data?.id,
