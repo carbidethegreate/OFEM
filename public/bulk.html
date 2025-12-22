@@ -11,6 +11,9 @@ body { font-family: Arial, sans-serif; margin: 20px; }
 .item img { max-width: 200px; height: auto; }
 .caption-input { flex: 1; height: 100px; }
 .schedule-input { width: 200px; }
+.upload-status { font-size: 12px; color: #444; margin-top: 6px; }
+.upload-status .error { color: #c00; font-weight: 600; }
+.hidden { display: none; }
 </style>
 </head>
 <body>
@@ -23,6 +26,7 @@ body { font-family: Arial, sans-serif; margin: 20px; }
 </div>
 <div id="gallery"></div>
 <button id="generateCaptions">Generate Captions</button>
+<button id="retryUploads" class="hidden">Retry Failed Uploads</button>
 <button id="schedulePosts">Schedule Posts</button>
 <div id="statusMessage" role="status"></div>
 
@@ -33,9 +37,14 @@ const fileElem = document.getElementById('fileElem');
 const fileSelect = document.getElementById('fileSelect');
 const gallery = document.getElementById('gallery');
 const statusMessage = document.getElementById('statusMessage');
+const retryUploadsButton = document.getElementById('retryUploads');
+const scheduleButton = document.getElementById('schedulePosts');
 let filesToUpload = [];
 let uploadResults = [];
 let uploadErrorMessage = '';
+let batchId = null;
+let itemsFromServer = [];
+let hasUploadFailures = false;
 
 fileSelect.addEventListener('click', () => fileElem.click());
 
@@ -62,13 +71,50 @@ function handleFiles(event) {
     div.innerHTML = `
       <img src="${previewUrl}" alt="${file.name}">
       <textarea class="caption-input" placeholder="Caption for ${file.name}"></textarea>
-      <input class="schedule-input" placeholder="Schedule date/time" disabled>
+      <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
+        <input class="schedule-input" placeholder="Schedule date/time" disabled>
+        <div class="upload-status" aria-live="polite"></div>
+      </div>
     `;
     gallery.appendChild(div);
   }
 }
 
 let scheduleData = [];
+
+function renderUploadStatuses(items) {
+  const itemEls = document.querySelectorAll('#gallery .item');
+  items.forEach((item, idx) => {
+    const statusEl = itemEls[idx]?.querySelector('.upload-status');
+    if (!statusEl) return;
+    statusEl.innerHTML = '';
+    if (item.uploadStatus === 'success' && (item.imageUrl || item.url)) {
+      statusEl.append('Upload successful: ');
+      const link = document.createElement('a');
+      link.href = item.imageUrl || item.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Preview';
+      statusEl.appendChild(link);
+    } else if (item.uploadStatus === 'failed') {
+      const err = document.createElement('span');
+      err.className = 'error';
+      err.textContent = `Upload failed: ${item?.error?.message || 'Unknown error'}`;
+      statusEl.appendChild(err);
+    } else {
+      statusEl.textContent = 'Upload pending...';
+    }
+  });
+}
+
+function updateScheduleControls(items) {
+  hasUploadFailures = items.some(
+    (item) => !item || item.uploadStatus === 'failed' || !item.imageUrl,
+  );
+  scheduleButton.disabled = hasUploadFailures;
+  retryUploadsButton.classList.toggle('hidden', !hasUploadFailures);
+  retryUploadsButton.disabled = !batchId;
+}
 
 document.getElementById('generateCaptions').addEventListener('click', async () => {
   if (filesToUpload.length === 0) {
@@ -112,6 +158,8 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
     sourceArray.forEach((c, idx) => {
       if (captionInputs[idx]) captionInputs[idx].value = c.caption;
     });
+    batchId = data.batchId || null;
+    itemsFromServer = items;
     uploadResults = uploads;
     scheduleData = items.length ? items : schedule;
     const scheduleToRender = items.length ? items : schedule;
@@ -121,6 +169,10 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
         scheduleInputs[idx].value = dateObj.toLocaleString();
       }
     });
+    if (items && items.length) {
+      renderUploadStatuses(items);
+      updateScheduleControls(items);
+    }
     const uploadErrors = Array.isArray(data.uploadErrors)
       ? data.uploadErrors.filter(Boolean)
       : [];
@@ -129,11 +181,48 @@ document.getElementById('generateCaptions').addEventListener('click', async () =
     if (cloudflareError) {
       statusMessage.textContent = `Captions generated, but uploads failed: ${uploadErrorMessage}`;
     } else {
-      statusMessage.textContent = 'Captions generated.';
+      const successes = items.filter((i) => i.uploadStatus === 'success').length;
+      const failures = items.filter((i) => i.uploadStatus === 'failed').length;
+      statusMessage.textContent = `Captions generated. ${successes} upload(s) ready${failures ? `, ${failures} failed` : ''}.`;
     }
   } catch (err) {
     console.error(err);
     statusMessage.textContent = err?.message || 'Failed to generate captions.';
+  }
+});
+
+retryUploadsButton.addEventListener('click', async () => {
+  if (!batchId) {
+    statusMessage.textContent = 'No batch to retry. Please generate captions again.';
+    return;
+  }
+  statusMessage.textContent = 'Retrying failed uploads...';
+  try {
+    const res = await fetch('/api/bulk-upload/retry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batchId }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Retry failed: ${res.status} - ${text}`);
+    }
+    const data = await res.json();
+    batchId = data.batchId || batchId;
+    itemsFromServer = Array.isArray(data.items) ? data.items : itemsFromServer;
+    uploadResults = Array.isArray(data.uploads) ? data.uploads : uploadResults;
+    scheduleData = Array.isArray(data.schedule) ? data.schedule : scheduleData;
+    renderUploadStatuses(itemsFromServer);
+    updateScheduleControls(itemsFromServer);
+    const remainingFailures = itemsFromServer.filter((i) => i.uploadStatus === 'failed').length;
+    if (remainingFailures) {
+      statusMessage.textContent = `Retry completed. ${remainingFailures} upload(s) still failing.`;
+    } else {
+      statusMessage.textContent = 'Retry successful. All uploads ready to schedule.';
+    }
+  } catch (err) {
+    console.error(err);
+    statusMessage.textContent = err?.message || 'Retry failed.';
   }
 });
 
@@ -146,29 +235,25 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
     alert('Uploads missing. Please regenerate captions to refresh uploads.');
     return;
   }
+  if (hasUploadFailures) {
+    statusMessage.textContent = 'Retry failed uploads before scheduling.';
+    return;
+  }
   statusMessage.textContent = 'Scheduling posts...';
   try {
     const items = Array.from(document.querySelectorAll('#gallery .item'));
-    const hasMissingUploads =
-      !uploadResults ||
-      uploadResults.some((u) => !u || !u.url);
-    if (hasMissingUploads) {
-      const reason = uploadErrorMessage
-        ? `Cannot schedule posts because uploads failed: ${uploadErrorMessage}`
-        : 'Cannot schedule posts because uploads are missing. Please retry uploads.';
-      statusMessage.textContent = reason;
-      return;
-    }
     const posts = items.map((item, idx) => {
       const upload = uploadResults[idx];
-      if (!upload || !upload.url) {
-        throw new Error(`Missing uploaded media for item ${idx + 1}`);
-      }
+      const itemFromServer = itemsFromServer[idx] || {};
+      const url =
+        itemFromServer.imageUrl ||
+        itemFromServer.url ||
+        (upload && upload.url) ||
+        null;
       const captionEl = item.querySelector('.caption-input');
       const scheduleFromApi = scheduleData[idx] && scheduleData[idx].sendAt;
-      const cloudflareUrl = scheduleData[idx] && scheduleData[idx].imageUrl;
       return {
-        image_url: cloudflareUrl || upload.url,
+        image_url: url,
         caption: captionEl ? captionEl.value : '',
         schedule_time: scheduleFromApi || null
       };
@@ -176,7 +261,11 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
     const persistRes = await fetch('/api/scheduled-posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(posts)
+      body: JSON.stringify({
+        posts,
+        batchId,
+        retryMissingUploads: true,
+      })
     });
     if (!persistRes.ok) {
       let errorMessage = `Failed to schedule posts: ${persistRes.status}`;
@@ -192,18 +281,12 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
     }
     const responseBody = await persistRes.json();
     if (!responseBody.success) throw new Error(responseBody?.error || 'Failed to schedule posts');
-    const savedPosts = Array.isArray(responseBody.posts)
-      ? responseBody.posts
+    const scheduleResults = Array.isArray(responseBody.scheduleResults)
+      ? responseBody.scheduleResults
       : [];
-    const scheduled = savedPosts.map((post) => ({
-      image: post.image_url || '',
-      caption: post.caption || '',
-      date: post.schedule_time
-        ? new Date(post.schedule_time).toLocaleString()
-        : '',
-      status: post.status || 'pending'
-    }));
-    statusMessage.textContent = `Posts scheduled! Saved ${scheduled.length} item(s).`;
+    const scheduledCount = scheduleResults.filter((r) => r.status === 'scheduled').length;
+    const skippedCount = scheduleResults.filter((r) => r.status === 'skipped').length;
+    statusMessage.textContent = `Posts scheduled! Saved ${scheduledCount} item(s)${skippedCount ? `, ${skippedCount} skipped due to missing uploads` : ''}.`;
   } catch (err) {
     console.error(err);
     statusMessage.textContent = 'Failed to schedule posts.';

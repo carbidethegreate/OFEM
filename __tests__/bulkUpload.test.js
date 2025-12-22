@@ -34,6 +34,7 @@ function createAppWithEnv(envOverrides = {}) {
 
   const axiosMock = require('axios');
   axiosMock.post.mockReset();
+  axiosMock.get = jest.fn().mockResolvedValue({ data: { success: true } });
 
   mockCreateChatCompletion.mockResolvedValue({
     data: { choices: [{ message: { content: 'Test caption' } }] },
@@ -67,6 +68,7 @@ describe('POST /api/bulk-upload', () => {
       .expect(200);
 
     expect(mockCreateChatCompletion).toHaveBeenCalledTimes(1);
+    expect(res.body.batchId).toBeDefined();
     expect(res.body.uploadStatus).toBe('ok');
     expect(res.body.uploads[0]).toMatchObject({
       imageId: 'img123',
@@ -92,6 +94,7 @@ describe('POST /api/bulk-upload', () => {
       })
       .expect(200);
 
+    expect(res.body.batchId).toBeDefined();
     expect(res.body.uploadStatus).toBe('partial-failure');
     expect(res.body.cloudflareError).toMatchObject({
       message: 'bad request',
@@ -122,11 +125,11 @@ describe('POST /api/bulk-upload', () => {
 
       await request(app)
         .post('/api/bulk-upload')
-        .attach('images', Buffer.from('filedata'), {
-          filename: 'photo.jpg',
-          contentType: 'image/jpeg',
-        })
-        .expect(200);
+      .attach('images', Buffer.from('filedata'), {
+        filename: 'photo.jpg',
+        contentType: 'image/jpeg',
+      })
+      .expect(200);
 
       const logCall = consoleSpy.mock.calls.find(
         (call) => call[0] === 'Cloudflare upload failed:',
@@ -167,5 +170,47 @@ describe('POST /api/bulk-upload', () => {
       cloudflareStatus: null,
     });
     expect(axiosMock.post).not.toHaveBeenCalled();
+  });
+
+  test('retries failed uploads when retry endpoint is used', async () => {
+    const { app, axiosMock } = createAppWithEnv();
+    axiosMock.post
+      .mockRejectedValueOnce({
+        response: {
+          status: 400,
+          data: { errors: [{ message: 'bad request' }] },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          success: true,
+          result: {
+            id: 'img-retry',
+            variants: ['https://example.com/img-retry/public'],
+          },
+        },
+      });
+
+    const firstRes = await request(app)
+      .post('/api/bulk-upload')
+      .attach('images', Buffer.from('filedata'), {
+        filename: 'photo.jpg',
+        contentType: 'image/jpeg',
+      })
+      .expect(200);
+
+    expect(firstRes.body.hasFailures).toBe(true);
+    expect(firstRes.body.batchId).toBeDefined();
+
+    const retryRes = await request(app)
+      .post('/api/bulk-upload/retry')
+      .send({ batchId: firstRes.body.batchId })
+      .expect(200);
+
+    expect(retryRes.body.uploadStatus).toBe('ok');
+    expect(retryRes.body.items[0]).toMatchObject({
+      uploadStatus: 'success',
+      imageUrl: 'https://imagedelivery.net/delivery-hash/img-retry/public',
+    });
   });
 });
