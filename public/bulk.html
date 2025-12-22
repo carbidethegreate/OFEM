@@ -74,7 +74,7 @@ body { font-family: Arial, sans-serif; margin: 20px; }
     <button id="generateCaptions">Generate Captions</button>
     <button id="retryUploads" class="hidden">Retry Failed Uploads</button>
     <button id="schedulePosts">Schedule</button>
-    <button id="sendSelected" class="send-button" disabled>Send selected to OnlyFans queue</button>
+    <button id="sendSelected" class="send-button" disabled>Queue selected on OnlyFans</button>
   </div>
 </div>
 <div id="gallery"></div>
@@ -853,7 +853,7 @@ sendSelectedButton.addEventListener('click', async () => {
   const itemIds = selected.map((entry) => entry.id);
   const idToIndex = new Map(selected.map((entry) => [entry.id, entry.index]));
 
-  setStatusMessage('Sending selected items to OnlyFans queue...', 'info');
+  setStatusMessage('Queuing selected items on OnlyFans...', 'info');
   sendSelectedButton.disabled = true;
   try {
     const res = await fetch('/api/bulk-send', {
@@ -877,12 +877,12 @@ sendSelectedButton.addEventListener('click', async () => {
     const failed = results.filter((r) => r.status === 'error').length;
     if (failed || skipped) {
       setStatusMessage(
-        `Send completed with issues. Queued ${queued}, skipped ${skipped}, failed ${failed}.`,
+        `Queueing completed with issues. Queued ${queued}, skipped ${skipped}, failed ${failed}.`,
         failed ? 'error' : 'warning',
       );
     } else {
       setStatusMessage(
-        `Send successful. Queued ${queued} item(s) to OnlyFans. View logs in bulk_results.html.`,
+        `Queueing successful. Queued ${queued} item(s) to OnlyFans. Publish from OnlyFans when ready. View logs in bulk_results.html.`,
         'success',
       );
     }

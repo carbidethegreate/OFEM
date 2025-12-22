@@ -213,9 +213,15 @@ module.exports = function ({
       return 'sent';
     }
     if (
-      ['queued', 'pending', 'scheduled', 'processing', 'in_queue', 'waiting'].includes(
-        normalized,
-      )
+      [
+        'queued',
+        'pending',
+        'scheduled',
+        'processing',
+        'in_queue',
+        'waiting',
+        'draft',
+      ].includes(normalized)
     ) {
       return 'queued';
     }
@@ -544,7 +550,7 @@ module.exports = function ({
     const parsed = parseQueueResult(resp?.data);
     const queueId = parsed.queueId;
     const postId = parsed.postId;
-    const status = parsed.status;
+    const status = parsed.status || 'queued';
     if (!queueId) {
       throw new Error('Queue creation succeeded but queue ID is missing');
     }
@@ -1035,6 +1041,7 @@ module.exports = function ({
           .filter((v) => Number.isFinite(v))
       : [];
     const force = req.body?.force === true;
+    const publish = req.body?.publish === true || req.body?.publishNow === true;
 
     if (!itemIds.length) {
       return res.status(400).json({ error: 'itemIds array is required' });
@@ -1203,22 +1210,31 @@ module.exports = function ({
               });
               postQueueId = queueCreation.queueId || postQueueId;
               postId = coalesceId(postId, queueCreation.postId);
-              postStatus = queueCreation.status || postStatus;
+              postStatus = queueCreation.status || postStatus || 'queued';
 
-              const publishResult = await publishQueueItem({
-                itemId: item.id,
-                queueId: postQueueId,
-                rateLimiter,
-              });
-              postQueueId = publishResult.queueId || postQueueId;
-              postId = coalesceId(postId, publishResult.postId);
-              postStatus =
-                publishResult.status || postStatus || (postQueueId ? 'queued' : 'sent');
-              await logStep(item.id, 'send:post', 'end', 'Post submission completed', {
-                postId,
-                postQueueId,
-                schedule_time: scheduleTimeUtc,
-              });
+              if (publish) {
+                const publishResult = await publishQueueItem({
+                  itemId: item.id,
+                  queueId: postQueueId,
+                  rateLimiter,
+                });
+                postQueueId = publishResult.queueId || postQueueId;
+                postId = coalesceId(postId, publishResult.postId);
+                postStatus =
+                  publishResult.status || postStatus || (postQueueId ? 'queued' : 'sent');
+                await logStep(item.id, 'send:post', 'end', 'Post submission completed', {
+                  postId,
+                  postQueueId,
+                  schedule_time: scheduleTimeUtc,
+                });
+              } else {
+                postStatus = postStatus || 'queued';
+                await logStep(item.id, 'send:post', 'end', 'Post queued (publish skipped)', {
+                  postId,
+                  postQueueId,
+                  schedule_time: scheduleTimeUtc,
+                });
+              }
             } catch (postErr) {
               const sanitizedPostErr = sanitizeErrorFn(postErr);
               await logStep(
