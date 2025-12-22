@@ -268,9 +268,17 @@ describe('bulk schedule routes', () => {
   test('POST /api/bulk-send uploads single-use media per destination and leaves items queued by default', async () => {
     const { app, pool, ofApi } = await createApp();
     const insertRes = await pool.query(
-      `INSERT INTO bulk_schedule_items (image_url_cf, destination, local_status, caption, source_filename)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      ['https://cdn.example/file.jpg', 'both', 'scheduled', 'caption', 'upload'],
+      `INSERT INTO bulk_schedule_items (image_url_cf, destination, local_status, caption, source_filename, schedule_time, timezone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [
+        'https://cdn.example/file.jpg',
+        'both',
+        'scheduled',
+        'caption',
+        'upload',
+        '2025-01-02T12:00:00Z',
+        'UTC',
+      ],
     );
     const itemId = insertRes.rows[0].id;
 
@@ -303,16 +311,38 @@ describe('bulk schedule routes', () => {
         expect(config.params).toEqual({ limit: 5, offset: 0 });
         return Promise.resolve({ data: { data: { list: [{ id: 1 }, { id: 2 }], hasMore: false } } });
       }
-      if (url === '/acc1/queue') {
+      if (url === '/acc1/queue/counts') {
         callOrder.push([url, config.params]);
-        expect(config.params).toEqual({ queueItemIds: [401, 301] });
+        expect(config.params).toEqual({
+          publishDateStart: '2025-01-02',
+          publishDateEnd: '2025-01-02',
+          timezone: 'UTC',
+        });
         return Promise.resolve({
           data: {
             data: {
-              queueItems: [
-                { queue_item_id: 401, status: 'queued' },
-                { queue_item: { id: 301, queue_status: 'queued' } },
+              list: { '2025-01-02': { post: 1, chat: 1 } },
+              syncInProcess: false,
+            },
+          },
+        });
+      }
+      if (url === '/acc1/queue') {
+        callOrder.push([url, config.params]);
+        expect(config.params).toEqual({
+          publishDateStart: '2025-01-02',
+          publishDateEnd: '2025-01-02',
+          timezone: 'UTC',
+          limit: 20,
+        });
+        return Promise.resolve({
+          data: {
+            data: {
+              list: [
+                { id: 401, type: 'post', entity: { queueId: 401 } },
+                { id: 301, type: 'chat', entity: { queueId: 301 } },
               ],
+              syncInProcess: false,
             },
           },
         });
@@ -345,16 +375,36 @@ describe('bulk schedule routes', () => {
       '/acc1/mass-messaging',
       '/acc1/media/upload',
       '/acc1/posts',
-      ['/acc1/queue', { queueItemIds: [401, 301] }],
+      [
+        '/acc1/queue/counts',
+        { publishDateStart: '2025-01-02', publishDateEnd: '2025-01-02', timezone: 'UTC' },
+      ],
+      [
+        '/acc1/queue',
+        {
+          publishDateStart: '2025-01-02',
+          publishDateEnd: '2025-01-02',
+          timezone: 'UTC',
+          limit: 20,
+        },
+      ],
     ]);
   });
 
   test('POST /api/bulk-send optionally publishes queue items when requested', async () => {
     const { app, pool, ofApi } = await createApp();
     const insertRes = await pool.query(
-      `INSERT INTO bulk_schedule_items (image_url_cf, destination, local_status, caption, source_filename)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      ['https://cdn.example/file.jpg', 'post', 'scheduled', 'caption', 'upload'],
+      `INSERT INTO bulk_schedule_items (image_url_cf, destination, local_status, caption, source_filename, schedule_time, timezone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [
+        'https://cdn.example/file.jpg',
+        'post',
+        'scheduled',
+        'caption',
+        'upload',
+        '2025-01-02T12:00:00Z',
+        'UTC',
+      ],
     );
     const itemId = insertRes.rows[0].id;
 
@@ -386,13 +436,32 @@ describe('bulk schedule routes', () => {
       return Promise.reject(new Error(`Unexpected PUT ${url}`));
     });
     ofApi.get.mockImplementation((url, config = {}) => {
+      if (url === '/acc1/queue/counts') {
+        callOrder.push([url, config.params]);
+        expect(config.params).toEqual({
+          publishDateStart: '2025-01-02',
+          publishDateEnd: '2025-01-02',
+          timezone: 'UTC',
+        });
+        return Promise.resolve({
+          data: {
+            data: { list: { '2025-01-02': { post: 1 } }, syncInProcess: false },
+          },
+        });
+      }
       if (url === '/acc1/queue') {
         callOrder.push([url, config.params]);
-        expect(config.params).toEqual({ queueItemIds: [401] });
+        expect(config.params).toEqual({
+          publishDateStart: '2025-01-02',
+          publishDateEnd: '2025-01-02',
+          timezone: 'UTC',
+          limit: 20,
+        });
         return Promise.resolve({
           data: {
             data: {
-              queueItems: [{ queue_item_id: 401, status: 'sent' }],
+              list: [],
+              syncInProcess: false,
             },
           },
         });
@@ -412,16 +481,36 @@ describe('bulk schedule routes', () => {
       '/acc1/media/upload',
       '/acc1/posts',
       '/acc1/queue/401/publish',
-      ['/acc1/queue', { queueItemIds: [401] }],
+      [
+        '/acc1/queue/counts',
+        { publishDateStart: '2025-01-02', publishDateEnd: '2025-01-02', timezone: 'UTC' },
+      ],
+      [
+        '/acc1/queue',
+        {
+          publishDateStart: '2025-01-02',
+          publishDateEnd: '2025-01-02',
+          timezone: 'UTC',
+          limit: 20,
+        },
+      ],
     ]);
   });
 
   test('POST /api/bulk-send uses v1 upload endpoint when configured', async () => {
     const { app, pool, ofApi } = await createApp({ useV1MediaUpload: true });
     const insertRes = await pool.query(
-      `INSERT INTO bulk_schedule_items (image_url_cf, destination, local_status, caption, source_filename)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      ['https://cdn.example/file.jpg', 'post', 'scheduled', 'caption', 'upload'],
+      `INSERT INTO bulk_schedule_items (image_url_cf, destination, local_status, caption, source_filename, schedule_time, timezone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [
+        'https://cdn.example/file.jpg',
+        'post',
+        'scheduled',
+        'caption',
+        'upload',
+        '2025-01-02T12:00:00Z',
+        'UTC',
+      ],
     );
     const itemId = insertRes.rows[0].id;
 
@@ -443,9 +532,26 @@ describe('bulk schedule routes', () => {
     });
     ofApi.put.mockImplementation(() => Promise.reject(new Error('Unexpected PUT')));
     ofApi.get.mockImplementation((url, config = {}) => {
+      if (url === '/acc1/queue/counts') {
+        expect(config.params).toEqual({
+          publishDateStart: '2025-01-02',
+          publishDateEnd: '2025-01-02',
+          timezone: 'UTC',
+        });
+        return Promise.resolve({
+          data: { data: { list: { '2025-01-02': { post: 1 } }, syncInProcess: false } },
+        });
+      }
       if (url === '/acc1/queue') {
-        expect(config.params.queueItemIds).toEqual([778]);
-        return Promise.resolve({ data: { queue: [{ queue_item_id: 778, state: 'queued' }] } });
+        expect(config.params).toEqual({
+          publishDateStart: '2025-01-02',
+          publishDateEnd: '2025-01-02',
+          timezone: 'UTC',
+          limit: 20,
+        });
+        return Promise.resolve({
+          data: { data: { list: [{ id: 778, type: 'post', entity: { queueId: 778 } }] } },
+        });
       }
       return Promise.reject(new Error(`Unexpected GET ${url}`));
     });
