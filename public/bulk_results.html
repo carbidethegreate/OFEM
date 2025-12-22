@@ -319,30 +319,6 @@
         justify-content: flex-end;
       }
 
-      .destination-pills {
-        display: inline-flex;
-        gap: 6px;
-        padding: 6px;
-        background: var(--gray-100);
-        border: 1px solid var(--gray-200);
-        border-radius: 999px;
-      }
-
-      .destination-pill {
-        padding: 6px 10px;
-        border-radius: 999px;
-        border: 1px solid transparent;
-        cursor: pointer;
-        font-weight: 600;
-        color: var(--gray-700);
-      }
-
-      .destination-pill.active {
-        background: var(--blue-600);
-        color: white;
-        border-color: var(--blue-700);
-      }
-
       details summary {
         cursor: pointer;
         font-weight: 600;
@@ -381,6 +357,48 @@
         gap: 10px;
         align-items: center;
         flex-wrap: wrap;
+      }
+
+      .destination-row {
+        align-items: flex-start;
+      }
+
+      .destination-options {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .destination-option {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border: 1px solid var(--gray-200);
+        border-radius: 10px;
+        background: var(--gray-50);
+        cursor: pointer;
+        transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .destination-option input {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--blue-600);
+      }
+
+      .destination-option:hover {
+        border-color: var(--blue-700);
+        background: white;
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+      }
+
+      .destination-option.disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        border-style: dashed;
+        background: var(--gray-100);
+        box-shadow: none;
       }
     </style>
   </head>
@@ -579,24 +597,8 @@
           const idLabel = document.createElement('span');
           idLabel.textContent = `Item #${item.id}`;
 
-          const destinationPills = document.createElement('div');
-          destinationPills.className = 'destination-pills';
-          ['post', 'message', 'both'].forEach((value) => {
-            const pill = document.createElement('button');
-            pill.type = 'button';
-            pill.className = 'destination-pill';
-            pill.textContent = value === 'both' ? 'Post + Message' : value[0].toUpperCase() + value.slice(1);
-            if ((item.destination || 'post').toLowerCase() === value) pill.classList.add('active');
-            pill.addEventListener('click', async () => {
-              if (pill.classList.contains('active')) return;
-              await updateItem(item.id, { destination: value }, `Destination updated to ${value}.`);
-            });
-            destinationPills.appendChild(pill);
-          });
-
           meta.appendChild(checkbox);
           meta.appendChild(idLabel);
-          meta.appendChild(destinationPills);
 
           const statuses = document.createElement('div');
           statuses.className = 'status-group';
@@ -674,6 +676,102 @@
           scheduleRow.appendChild(display);
 
           info.appendChild(scheduleRow);
+
+          const destinationRow = document.createElement('div');
+          destinationRow.className = 'field destination-row';
+          const destinationLabel = document.createElement('label');
+          destinationLabel.textContent = 'Queue destinations';
+          const destinationOptions = document.createElement('div');
+          destinationOptions.className = 'destination-options';
+
+          const createDestinationOption = (value, labelText, isChecked) => {
+            const label = document.createElement('label');
+            label.className = 'destination-option';
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.value = value;
+            input.checked = isChecked;
+            const text = document.createElement('span');
+            text.textContent = labelText;
+            label.appendChild(input);
+            label.appendChild(text);
+            return { label, input };
+          };
+
+          const destinationValue = (item.destination || 'both').toLowerCase();
+          const postOption = createDestinationOption(
+            'post',
+            'Queue to OF Post',
+            destinationValue === 'post',
+          );
+          const messageOption = createDestinationOption(
+            'message',
+            'Queue to OF Message',
+            destinationValue === 'message',
+          );
+          const bothOption = createDestinationOption(
+            'both',
+            'Queue to OF Post and Message',
+            destinationValue === 'both',
+          );
+
+          const resolveDestination = () => {
+            if (bothOption.input.checked) return 'both';
+            if (postOption.input.checked && messageOption.input.checked) return 'both';
+            if (postOption.input.checked) return 'post';
+            if (messageOption.input.checked) return 'message';
+            return 'both';
+          };
+
+          const syncCombinedState = () => {
+            const singleSelected = postOption.input.checked || messageOption.input.checked;
+            bothOption.input.disabled = singleSelected;
+            bothOption.label.classList.toggle('disabled', singleSelected);
+            if (singleSelected && bothOption.input.checked) {
+              bothOption.input.checked = false;
+            }
+          };
+
+          const handleSingleChange = async () => {
+            if (bothOption.input.checked) {
+              bothOption.input.checked = false;
+            }
+            syncCombinedState();
+            const destination = resolveDestination();
+            await updateItem(
+              item.id,
+              { destination },
+              `Destination updated to ${destination}.`,
+            );
+          };
+
+          const handleCombinedChange = async () => {
+            if (bothOption.input.checked) {
+              postOption.input.checked = false;
+              messageOption.input.checked = false;
+            }
+            syncCombinedState();
+            const destination = resolveDestination();
+            await updateItem(
+              item.id,
+              { destination },
+              `Destination updated to ${destination}.`,
+            );
+          };
+
+          postOption.input.addEventListener('change', handleSingleChange);
+          messageOption.input.addEventListener('change', handleSingleChange);
+          bothOption.input.addEventListener('change', handleCombinedChange);
+
+          syncCombinedState();
+
+          destinationOptions.appendChild(postOption.label);
+          destinationOptions.appendChild(messageOption.label);
+          destinationOptions.appendChild(bothOption.label);
+
+          destinationRow.appendChild(destinationLabel);
+          destinationRow.appendChild(destinationOptions);
+          info.appendChild(destinationRow);
           media.appendChild(info);
 
           const logDetails = document.createElement('details');
