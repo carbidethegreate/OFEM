@@ -32,6 +32,69 @@ module.exports = function ({
   router.use(express.json({ limit: '10mb' }));
 
   const sanitizeErrorFn = sanitizeErrorFromServer || sanitizeError;
+  function parseRetryAfterMs(headers) {
+    if (!headers || typeof headers !== 'object') return null;
+    const raw =
+      headers['retry-after'] ||
+      headers['Retry-After'] ||
+      headers['Retry-after'] ||
+      headers['RETRY-AFTER'];
+    if (!raw) return null;
+    const seconds = Number(raw);
+    if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+    const dateMs = Date.parse(raw);
+    if (!Number.isNaN(dateMs)) return Math.max(0, dateMs - Date.now());
+    return null;
+  }
+  function buildLastErrorPayload(sanitized, fallback) {
+    const baseMessage = sanitized?.message || fallback || 'Send failed';
+    if (sanitized?.response?.data !== undefined) {
+      try {
+        return JSON.stringify({
+          message: baseMessage,
+          response: sanitized.response.data,
+        });
+      } catch {
+        return baseMessage;
+      }
+    }
+    return baseMessage;
+  }
+  function delay(ms) {
+    if (!ms || ms <= 0) return Promise.resolve();
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+  function createRateLimiter() {
+    let nextAllowedTime = 0;
+    return {
+      async wait() {
+        const waitMs = Math.max(0, nextAllowedTime - Date.now());
+        if (waitMs > 0) await delay(waitMs);
+      },
+      note(headers) {
+        const retryAfter = parseRetryAfterMs(headers);
+        if (retryAfter != null) {
+          nextAllowedTime = Math.max(nextAllowedTime, Date.now() + retryAfter);
+        }
+      },
+      async call(requestFn) {
+        await this.wait();
+        try {
+          const resp = await ofApiRequest(requestFn);
+          this.note(resp?.headers);
+          return resp;
+        } catch (err) {
+          this.note(err?.response?.headers);
+          throw err;
+        }
+      },
+    };
+  }
+  async function logStep(itemId, step, phase, message, meta) {
+    const level = phase === 'error' ? 'error' : 'info';
+    const event = `${step}:${phase}`;
+    await appendLog(itemId, level, event, message, meta);
+  }
 
   function ensureBulkTablesAvailable(res) {
     if (hasBulkScheduleTables()) return true;
@@ -173,45 +236,79 @@ module.exports = function ({
     filenameHint,
     destination,
     itemId,
+    rateLimiter,
   }) {
+    await logStep(
+      itemId,
+      `upload:${destination}`,
+      'start',
+      'Starting media upload',
+      { filename: filenameHint },
+    );
     if (!imageUrl) {
-      throw new Error('Missing image URL for upload');
+      const err = new Error('Missing image URL for upload');
+      await logStep(itemId, `upload:${destination}`, 'error', err.message, {});
+      throw err;
     }
-    const { buffer, contentType, filename } = await downloadMediaFile(
-      imageUrl,
-      filenameHint,
-    );
-    const form = new FormData();
-    form.append('file', buffer, { filename, contentType });
-    const resp = await ofApiRequest(() =>
-      ofApi.post('/v1/media/upload-media-to-the-only-fans-cdn', form, {
-        headers: form.getHeaders(),
-      }),
-    );
-    const mediaId = coalesceId(
-      resp.data?.prefixed_id,
-      resp.data?.media_id,
-      resp.data?.mediaId,
-      resp.data?.id,
-      resp.data?.media?.id,
-      resp.data?.media?.media_id,
-    );
-    if (!mediaId) {
-      throw new Error('Upload succeeded but media ID is missing');
+    try {
+      const { buffer, contentType, filename } = await downloadMediaFile(
+        imageUrl,
+        filenameHint,
+      );
+      const form = new FormData();
+      form.append('file', buffer, { filename, contentType });
+      const requester = rateLimiter?.call
+        ? (fn) => rateLimiter.call(fn)
+        : (fn) => ofApiRequest(fn);
+      const resp = await requester(() =>
+        ofApi.post('/v1/media/upload-media-to-the-only-fans-cdn', form, {
+          headers: form.getHeaders(),
+        }),
+      );
+      const mediaId = coalesceId(
+        resp.data?.prefixed_id,
+        resp.data?.media_id,
+        resp.data?.mediaId,
+        resp.data?.id,
+        resp.data?.media?.id,
+        resp.data?.media?.media_id,
+      );
+      if (!mediaId) {
+        throw new Error('Upload succeeded but media ID is missing');
+      }
+      await logStep(
+        itemId,
+        `upload:${destination}`,
+        'end',
+        'Media uploaded',
+        {
+          mediaId,
+          destination,
+        },
+      );
+      return { mediaId, raw: resp.data };
+    } catch (err) {
+      const sanitized = sanitizeErrorFn(err);
+      await logStep(
+        itemId,
+        `upload:${destination}`,
+        'error',
+        sanitized?.message || err.message || 'Upload failed',
+        sanitized,
+      );
+      throw err;
     }
-    await appendLog(itemId, 'info', `upload:${destination}`, 'Media uploaded', {
-      mediaId,
-      destination,
-    });
-    return { mediaId, raw: resp.data };
   }
 
-  async function fetchActiveFollowings(limit = OF_FETCH_LIMIT) {
+  async function fetchActiveFollowings(limit = OF_FETCH_LIMIT, rateLimiter) {
     const ids = new Set();
     let page = 1;
     const pageSize = Math.min(100, limit);
     while (ids.size < limit) {
-      const resp = await ofApiRequest(() =>
+      const requester = rateLimiter?.call
+        ? (fn) => rateLimiter.call(fn)
+        : (fn) => ofApiRequest(fn);
+      const resp = await requester(() =>
         ofApi.get('/v1/following/list-active-followings', {
           params: { page, limit: pageSize },
         }),
@@ -243,11 +340,14 @@ module.exports = function ({
     return Array.from(ids).slice(0, limit);
   }
 
-  async function confirmQueueStatuses(queueIds = []) {
+  async function confirmQueueStatuses(queueIds = [], rateLimiter) {
     const ids = queueIds.filter(Boolean);
     if (!ids.length) return {};
     try {
-      const resp = await ofApiRequest(() =>
+      const requester = rateLimiter?.call
+        ? (fn) => rateLimiter.call(fn)
+        : (fn) => ofApiRequest(fn);
+      const resp = await requester(() =>
         ofApi.get('/v1/queue/list-queue-items', {
           params: { queueItemIds: ids },
         }),
@@ -740,6 +840,7 @@ module.exports = function ({
         return res.status(404).json({ error: 'No matching schedule items' });
       }
 
+      const rateLimiter = createRateLimiter();
       const results = [];
 
       for (const item of items) {
@@ -748,6 +849,7 @@ module.exports = function ({
         if (!force && item.local_status === 'sent') {
           outcome.status = 'skipped';
           outcome.reason = 'Already marked as sent';
+          outcome.item = formatItem(item);
           results.push(outcome);
           continue;
         }
@@ -787,10 +889,11 @@ module.exports = function ({
               filenameHint: `${filenameHint}-message`,
               destination: 'message',
               itemId: item.id,
+              rateLimiter,
             });
             messageMediaId = messageUpload.mediaId;
 
-            const recipientIds = await fetchActiveFollowings(OF_FETCH_LIMIT);
+            const recipientIds = await fetchActiveFollowings(OF_FETCH_LIMIT, rateLimiter);
             if (!recipientIds.length) {
               throw new Error('No active followings available for messaging');
             }
@@ -802,38 +905,56 @@ module.exports = function ({
             };
             if (scheduleTimeUtc) messagePayload.scheduleTime = scheduleTimeUtc;
 
-            const messageResp = await ofApiRequest(() =>
-              ofApi.post('/v1/mass-messaging/send-mass-message', messagePayload),
-            );
-            messageId = coalesceId(
-              messageResp.data?.id,
-              messageResp.data?.messageId,
-              messageResp.data?.message_id,
-              messageResp.data?.data?.id,
-              messageResp.data?.data?.messageId,
-              messageResp.data?.massMessageId,
-              messageResp.data?.mass_message_id,
-            );
-            messageQueueId = coalesceId(
-              messageResp.data?.queueId,
-              messageResp.data?.queue_id,
-              messageResp.data?.queueItemId,
-              messageResp.data?.queue_item_id,
-              messageResp.data?.data?.queue_id,
-              messageResp.data?.data?.queueId,
-            );
-            messageStatus =
-              normalizeQueueStatus(
-                messageResp.data?.status ||
-                  messageResp.data?.queueStatus ||
-                  messageResp.data?.queue_status,
-              ) || (messageQueueId ? 'queued' : 'sent');
-            await appendLog(item.id, 'info', 'send:message', 'Mass message submitted', {
-              messageId,
-              messageQueueId,
-              recipients: recipientIds.length,
-              schedule_time: scheduleTimeUtc,
-            });
+            try {
+              await logStep(item.id, 'send:message', 'start', 'Submitting mass message', {
+                recipients: recipientIds.length,
+                schedule_time: scheduleTimeUtc,
+              });
+              const messageResp = await rateLimiter.call(() =>
+                ofApi.post('/v1/mass-messaging/send-mass-message', messagePayload),
+              );
+              messageId = coalesceId(
+                messageResp.data?.id,
+                messageResp.data?.messageId,
+                messageResp.data?.message_id,
+                messageResp.data?.data?.id,
+                messageResp.data?.data?.messageId,
+                messageResp.data?.massMessageId,
+                messageResp.data?.mass_message_id,
+              );
+              messageQueueId = coalesceId(
+                messageResp.data?.queueId,
+                messageResp.data?.queue_id,
+                messageResp.data?.queueItemId,
+                messageResp.data?.queue_item_id,
+                messageResp.data?.data?.queue_id,
+                messageResp.data?.data?.queueId,
+              );
+              messageStatus =
+                normalizeQueueStatus(
+                  messageResp.data?.status ||
+                    messageResp.data?.queueStatus ||
+                    messageResp.data?.queue_status,
+                ) || (messageQueueId ? 'queued' : 'sent');
+              await logStep(item.id, 'send:message', 'end', 'Mass message submitted', {
+                messageId,
+                messageQueueId,
+                recipients: recipientIds.length,
+                schedule_time: scheduleTimeUtc,
+              });
+            } catch (messageErr) {
+              const sanitizedMessageErr = sanitizeErrorFn(messageErr);
+              await logStep(
+                item.id,
+                'send:message',
+                'error',
+                sanitizedMessageErr?.message ||
+                  messageErr.message ||
+                  'Failed to send message',
+                sanitizedMessageErr,
+              );
+              throw messageErr;
+            }
           }
 
           if (['post', 'both'].includes(destination)) {
@@ -842,6 +963,7 @@ module.exports = function ({
               filenameHint: `${filenameHint}-post`,
               destination: 'post',
               itemId: item.id,
+              rateLimiter,
             });
             postMediaId = postUpload.mediaId;
 
@@ -851,36 +973,56 @@ module.exports = function ({
             };
             if (scheduleTimeUtc) postPayload.scheduleTime = scheduleTimeUtc;
 
-            const postResp = await ofApiRequest(() =>
-              ofApi.post('/v1/posts/send-post', postPayload),
-            );
-            postId = coalesceId(
-              postResp.data?.id,
-              postResp.data?.postId,
-              postResp.data?.post_id,
-              postResp.data?.data?.id,
-              postResp.data?.data?.postId,
-            );
-            postQueueId = coalesceId(
-              postResp.data?.queueId,
-              postResp.data?.queue_id,
-              postResp.data?.queueItemId,
-              postResp.data?.queue_item_id,
-              postResp.data?.data?.queue_id,
-              postResp.data?.data?.queueId,
-            );
-            postStatus =
-              normalizeQueueStatus(
-                postResp.data?.status || postResp.data?.queueStatus || postResp.data?.queue_status,
-              ) || (postQueueId ? 'queued' : 'sent');
-            await appendLog(item.id, 'info', 'send:post', 'Post submission completed', {
-              postId,
-              postQueueId,
-              schedule_time: scheduleTimeUtc,
-            });
+            try {
+              await logStep(item.id, 'send:post', 'start', 'Submitting post', {
+                schedule_time: scheduleTimeUtc,
+              });
+              const postResp = await rateLimiter.call(() =>
+                ofApi.post('/v1/posts/send-post', postPayload),
+              );
+              postId = coalesceId(
+                postResp.data?.id,
+                postResp.data?.postId,
+                postResp.data?.post_id,
+                postResp.data?.data?.id,
+                postResp.data?.data?.postId,
+              );
+              postQueueId = coalesceId(
+                postResp.data?.queueId,
+                postResp.data?.queue_id,
+                postResp.data?.queueItemId,
+                postResp.data?.queue_item_id,
+                postResp.data?.data?.queue_id,
+                postResp.data?.data?.queueId,
+              );
+              postStatus =
+                normalizeQueueStatus(
+                  postResp.data?.status ||
+                    postResp.data?.queueStatus ||
+                    postResp.data?.queue_status,
+                ) || (postQueueId ? 'queued' : 'sent');
+              await logStep(item.id, 'send:post', 'end', 'Post submission completed', {
+                postId,
+                postQueueId,
+                schedule_time: scheduleTimeUtc,
+              });
+            } catch (postErr) {
+              const sanitizedPostErr = sanitizeErrorFn(postErr);
+              await logStep(
+                item.id,
+                'send:post',
+                'error',
+                sanitizedPostErr?.message || postErr.message || 'Failed to submit post',
+                sanitizedPostErr,
+              );
+              throw postErr;
+            }
           }
 
-          const queueStatuses = await confirmQueueStatuses([postQueueId, messageQueueId]);
+          const queueStatuses = await confirmQueueStatuses(
+            [postQueueId, messageQueueId],
+            rateLimiter,
+          );
           if (queueStatuses[postQueueId]) postStatus = queueStatuses[postQueueId];
           if (queueStatuses[messageQueueId]) messageStatus = queueStatuses[messageQueueId];
 
@@ -943,6 +1085,7 @@ module.exports = function ({
         } catch (err) {
           const sanitized = sanitizeErrorFn(err);
           const safeMessage = sanitized?.message || err.message || 'Send failed';
+          const lastError = buildLastErrorPayload(sanitized, safeMessage);
           await appendLog(item.id, 'error', 'send:error', safeMessage, sanitized);
           const { rows: updatedRows } = await pool.query(
             `UPDATE bulk_schedule_items
@@ -957,12 +1100,13 @@ module.exports = function ({
               'error',
               ['post', 'both'].includes(destination) ? 'error' : item.post_status,
               ['message', 'both'].includes(destination) ? 'error' : item.message_status,
-              safeMessage,
+              lastError,
               item.id,
             ],
           );
           outcome.status = 'error';
           outcome.error = safeMessage;
+          outcome.last_error = lastError;
           outcome.item = formatItem(updatedRows[0] || item);
         }
 
