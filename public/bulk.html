@@ -131,6 +131,8 @@ document.getElementById('schedulePosts').addEventListener('click', async () => {
       body: JSON.stringify(posts)
     });
     if (!persistRes.ok) {
+      const bodyText = await persistRes.text();
+      console.error('schedule posts failed', persistRes.status, bodyText);
       throw new Error(`Failed to schedule posts: ${persistRes.status}`);
     }
     const responseBody = await persistRes.json();

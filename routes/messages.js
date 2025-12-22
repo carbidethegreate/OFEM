@@ -248,10 +248,40 @@ module.exports = function ({
     } catch (err) {
       await client.query('ROLLBACK');
       const status = err.status || 500;
-      console.error(
-        'Error saving scheduled posts:',
-        sanitizeError(err),
-      );
+      const validationStates = posts.map((post, idx) => {
+        const scheduleTimeInput = post?.schedule_time || post?.sendAt || null;
+        const parsedScheduleTime =
+          scheduleTimeInput &&
+          !Number.isNaN(new Date(scheduleTimeInput).getTime());
+
+        return {
+          index: idx,
+          hasScheduleTime: Boolean(scheduleTimeInput),
+          scheduleTimeValid: Boolean(parsedScheduleTime),
+        };
+      });
+
+      const sanitizedErr = sanitizeError(err);
+      const sanitizedMessage = sanitizedErr?.message || err.message;
+      const sanitizedStack = sanitizedErr?.stack || err.stack;
+      const sanitizedStatus = sanitizedErr?.status || err.status;
+      console.error('Error saving scheduled posts:', {
+        error: sanitizedErr,
+        context: {
+          message: sanitizedMessage,
+          stack: sanitizedStack,
+          status: sanitizedStatus,
+          posts: {
+            total: posts.length,
+            validation: validationStates,
+          },
+        },
+      });
+      console.error('[scheduled-posts] failed', {
+        status,
+        message: sanitizedMessage,
+        posts: posts.length,
+      });
       res
         .status(status)
         .json({ error: err.message || 'Failed to save scheduled posts' });
