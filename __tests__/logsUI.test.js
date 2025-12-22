@@ -10,8 +10,8 @@ describe('Activity logs UI', () => {
     global.document = dom.window.document;
     const { renderLogs } = require('../public/logs');
     renderLogs([
-      { time: '2025-01-01T00:00:00Z', level: 'info', msg: 'hello' },
-      { time: '2025-01-01T01:00:00Z', level: 'error', msg: 'oops' },
+      { created_at: '2025-01-01T00:00:00Z', level: 'info', message: 'hello' },
+      { created_at: '2025-01-01T01:00:00Z', level: 'error', message: 'oops' },
     ]);
     const html = dom.window.document.getElementById('logContainer').innerHTML;
     expect(html).toContain('hello');
@@ -23,7 +23,10 @@ describe('Activity logs UI', () => {
     global.document = dom.window.document;
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ logs: [{ time: 't', level: 'info', msg: 'hi' }] }),
+      json: () =>
+        Promise.resolve({
+          logs: [{ created_at: 't', level: 'info', message: 'hi', event: 'test' }],
+        }),
     });
     const { refresh } = require('../public/logs');
     await refresh();

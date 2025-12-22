@@ -12,17 +12,30 @@ mockAxios.create.mockReturnValue(mockAxios);
 
 let app;
 
-beforeAll(() => {
+beforeAll(async () => {
   process.env.ONLYFANS_API_KEY = 'test';
   process.env.OPENAI_API_KEY = 'test';
+  await mockPool.query(`
+    CREATE TABLE bulk_logs (
+      id SERIAL PRIMARY KEY,
+      item_id BIGINT,
+      level TEXT,
+      event TEXT,
+      message TEXT,
+      meta JSONB DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
   app = require('../server');
 });
 
 test('returns logged entries', async () => {
-  console.log('hello log');
-  console.error('error log');
+  await mockPool.query(
+    `INSERT INTO bulk_logs (item_id, level, event, message, meta)
+     VALUES (NULL, 'info', 'test:info', 'hello log', '{}'),
+            (NULL, 'error', 'test:error', 'error log', '{}')`,
+  );
   const res = await request(app).get('/api/logs').expect(200);
-  const msgs = res.body.logs.map((l) => l.msg);
-  expect(msgs.some((m) => m.includes('hello log'))).toBe(true);
-  expect(msgs.some((m) => m.includes('error log'))).toBe(true);
+  const msgs = res.body.logs.map((l) => l.message);
+  expect(msgs).toEqual(expect.arrayContaining(['hello log', 'error log']));
 });

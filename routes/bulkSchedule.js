@@ -16,7 +16,8 @@ const {
   updateBatch,
   pruneExpired,
 } = require('../utils/uploadRetryStore');
-const { sanitizeError, sanitizeLogPayload } = require('../sanitizeError');
+const { sanitizeError } = require('../sanitizeError');
+const { createBulkLogger } = require('../utils/bulkLogs');
 
 module.exports = function ({
   pool,
@@ -32,6 +33,10 @@ module.exports = function ({
   router.use(express.json({ limit: '10mb' }));
 
   const sanitizeErrorFn = sanitizeErrorFromServer || sanitizeError;
+  const { appendLog, fetchLogs } = createBulkLogger({
+    pool,
+    sanitizeError: sanitizeErrorFn,
+  });
   function parseRetryAfterMs(headers) {
     if (!headers || typeof headers !== 'object') return null;
     const raw =
@@ -93,7 +98,13 @@ module.exports = function ({
   async function logStep(itemId, step, phase, message, meta) {
     const level = phase === 'error' ? 'error' : 'info';
     const event = `${step}:${phase}`;
-    await appendLog(itemId, level, event, message, meta);
+    await appendLog({
+      itemId,
+      level,
+      event,
+      message,
+      meta,
+    });
   }
 
   function ensureBulkTablesAvailable(res) {
@@ -114,23 +125,6 @@ module.exports = function ({
       return false;
     }
     return true;
-  }
-
-  async function appendLog(itemId, level, event, message, meta) {
-    try {
-      await pool.query(
-        'INSERT INTO bulk_logs (item_id, level, event, message, meta) VALUES ($1, $2, $3, $4, $5)',
-        [
-          itemId || null,
-          level,
-          event,
-          message,
-          sanitizeLogPayload(meta || {}),
-        ],
-      );
-    } catch (err) {
-      console.error('Failed to write bulk log:', sanitizeErrorFn(err));
-    }
   }
 
   function normalizeDestination(destination) {
@@ -167,18 +161,6 @@ module.exports = function ({
         post: row.post_status,
         message: row.message_status,
       },
-    };
-  }
-
-  function formatLogRow(row) {
-    return {
-      id: row.id,
-      item_id: row.item_id,
-      level: row.level,
-      event: row.event,
-      message: row.message,
-      meta: row.meta || {},
-      created_at: row.created_at ? new Date(row.created_at).toISOString() : null,
     };
   }
 
@@ -610,7 +592,7 @@ module.exports = function ({
       }
 
       await client.query('COMMIT');
-      saved.forEach((savedPost) => {
+      for (const savedPost of saved) {
         const target = scheduleResults[savedPost.originalIndex];
         if (target) {
           target.status = 'scheduled';
@@ -621,7 +603,19 @@ module.exports = function ({
             ? new Date(savedPost.schedule_time).toISOString()
             : null;
         }
-      });
+        await appendLog({
+          itemId: savedPost.id,
+          level: 'info',
+          event: 'schedule:save',
+          message: 'Bulk schedule item saved',
+          meta: {
+            destination: savedPost.destination,
+            schedule_time: savedPost.schedule_time,
+            timezone: savedPost.timezone,
+            batch_id: savedPost.batch_id,
+          },
+        });
+      }
       res.status(201).json({
         success: true,
         posts: saved.map((p) => {
@@ -666,6 +660,7 @@ module.exports = function ({
     try {
       const filters = [];
       const values = [];
+      const appliedFilters = {};
       if (req.query.status) {
         const statuses = String(req.query.status)
           .split(',')
@@ -674,6 +669,7 @@ module.exports = function ({
         if (statuses.length) {
           filters.push(`local_status = ANY($${values.length + 1})`);
           values.push(statuses);
+          appliedFilters.status = statuses;
         }
       }
       if (req.query.destination) {
@@ -684,6 +680,7 @@ module.exports = function ({
         if (destinations.length) {
           filters.push(`destination = ANY($${values.length + 1})`);
           values.push(destinations);
+          appliedFilters.destination = destinations;
         }
       }
       const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
@@ -692,6 +689,12 @@ module.exports = function ({
          ORDER BY schedule_time NULLS LAST, id DESC`,
         values,
       );
+      await appendLog({
+        level: 'info',
+        event: 'load:items',
+        message: 'Loaded bulk schedule items',
+        meta: { count: rows.length, filters: appliedFilters },
+      });
       res.json({
         items: rows.map((row) => formatItem(row)),
       });
@@ -753,6 +756,20 @@ module.exports = function ({
       if (!rows.length) {
         return res.status(404).json({ error: 'Item not found' });
       }
+      await appendLog({
+        itemId: rows[0].id,
+        level: 'info',
+        event: 'schedule:update',
+        message: 'Bulk schedule item updated',
+        meta: {
+          updates: {
+            caption: req.body.caption,
+            schedule_time: req.body.schedule_time,
+            timezone: req.body.timezone,
+            destination: req.body.destination,
+          },
+        },
+      });
       res.json({ item: formatItem(rows[0]) });
     } catch (err) {
       console.error('Error updating bulk schedule:', sanitizeErrorFn(err));
@@ -777,39 +794,15 @@ module.exports = function ({
   router.get('/bulk-logs', async (req, res) => {
     if (!ensureBulkTablesAvailable(res)) return;
     try {
-      const itemId = req.query.itemId ? parseInt(req.query.itemId, 10) : null;
-      const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-      const pageSize = Math.min(parseInt(req.query.pageSize, 10) || 20, 100);
-      const offset = (page - 1) * pageSize;
+      const parsedItemId =
+        req.query.itemId !== undefined ? parseInt(req.query.itemId, 10) : null;
+      const itemId = Number.isNaN(parsedItemId) ? null : parsedItemId;
+      const level = req.query.level;
+      const page = req.query.page;
+      const pageSize = req.query.pageSize;
 
-      const params = [];
-      const where = itemId ? `WHERE item_id = $1` : '';
-      if (itemId) params.push(itemId);
-
-      const logsRes = await pool.query(
-        `SELECT * FROM bulk_logs ${where}
-         ORDER BY created_at DESC, id DESC
-         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-        [...params, pageSize, offset],
-      );
-      const countRes = await pool.query(
-        `SELECT COUNT(*)::int AS count FROM bulk_logs ${where}`,
-        params,
-      );
-      const globalsRes = await pool.query(
-        `SELECT * FROM bulk_logs
-         WHERE item_id IS NULL
-         ORDER BY created_at DESC, id DESC
-         LIMIT 20`,
-      );
-
-      res.json({
-        logs: logsRes.rows.map(formatLogRow),
-        globals: globalsRes.rows.map(formatLogRow),
-        page,
-        pageSize,
-        total: countRes.rows[0]?.count || 0,
-      });
+      const data = await fetchLogs({ itemId, level, page, pageSize });
+      res.json(data);
     } catch (err) {
       console.error('Error fetching bulk logs:', sanitizeErrorFn(err));
       res.status(500).json({ error: 'Failed to fetch logs' });
@@ -867,17 +860,17 @@ module.exports = function ({
         let messageStatus = item.message_status || null;
 
         try {
-          await appendLog(
-            item.id,
-            'info',
-            'send:start',
-            'Starting bulk send',
-            {
+          await appendLog({
+            itemId: item.id,
+            level: 'info',
+            event: 'send:start',
+            message: 'Starting bulk send',
+            meta: {
               destination: item.destination,
               schedule_time: scheduleTimeUtc || item.schedule_time,
               timezone: item.timezone,
             },
-          );
+          });
 
           if (!item.image_url_cf) {
             throw new Error('Missing image_url_cf for item');
@@ -1072,11 +1065,17 @@ module.exports = function ({
             ],
           );
 
-          await appendLog(item.id, 'info', 'send:queued', 'Item queued', {
-            postMediaId,
-            messageMediaId,
-            postQueueId,
-            messageQueueId,
+          await appendLog({
+            itemId: item.id,
+            level: 'info',
+            event: 'send:queued',
+            message: 'Item queued',
+            meta: {
+              postMediaId,
+              messageMediaId,
+              postQueueId,
+              messageQueueId,
+            },
           });
 
           const updatedItem = updatedRows[0] || item;
@@ -1086,7 +1085,13 @@ module.exports = function ({
           const sanitized = sanitizeErrorFn(err);
           const safeMessage = sanitized?.message || err.message || 'Send failed';
           const lastError = buildLastErrorPayload(sanitized, safeMessage);
-          await appendLog(item.id, 'error', 'send:error', safeMessage, sanitized);
+          await appendLog({
+            itemId: item.id,
+            level: 'error',
+            event: 'send:error',
+            message: safeMessage,
+            meta: sanitized,
+          });
           const { rows: updatedRows } = await pool.query(
             `UPDATE bulk_schedule_items
              SET local_status = $1,
