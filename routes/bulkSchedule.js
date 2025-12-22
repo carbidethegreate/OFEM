@@ -340,25 +340,27 @@ module.exports = function ({
 
   async function fetchActiveFollowings(limit = OF_FETCH_LIMIT, rateLimiter) {
     const ids = new Set();
-    let page = 1;
-    const pageSize = Math.min(100, limit);
+    const pageSize = Math.max(1, Math.min(50, limit));
+    const accountId = await getOFAccountId();
+    let offset = 0;
     while (ids.size < limit) {
       const requester = rateLimiter?.call
         ? (fn) => rateLimiter.call(fn)
         : (fn) => ofApiRequest(fn);
       const resp = await requester(() =>
-        ofApi.get('/v1/following/list-active-followings', {
-          params: { page, limit: pageSize },
+        ofApi.get(`/${accountId}/following/active`, {
+          params: { limit: pageSize, offset },
         }),
       );
-      const data = resp.data || {};
+      const payload = resp?.data || {};
+      const data = payload.data || payload;
       const rows =
         data.list ||
         data.followings ||
         data.users ||
-        data.data?.list ||
-        data.data?.followings ||
-        data.data?.users ||
+        payload.list ||
+        payload.followings ||
+        payload.users ||
         [];
       const list = Array.isArray(rows) ? rows : [];
       for (const u of list) {
@@ -366,16 +368,38 @@ module.exports = function ({
         if (id != null) ids.add(Number(id));
         if (ids.size >= limit) break;
       }
-      const hasMore =
+      const total =
+        data.count ??
+        data.total ??
+        data.totalCount ??
+        payload.count ??
+        payload.total ??
+        payload.totalCount;
+      const numericTotal = Number(total);
+      const totalIsValid = Number.isFinite(numericTotal);
+      const nextOffset = offset + list.length;
+      const hasMoreFlag =
         data.hasMore ??
         data.has_more ??
-        data.data?.hasMore ??
-        data.data?.has_more ??
-        (list.length > 0 && list.length >= pageSize);
+        payload.hasMore ??
+        payload.has_more ??
+        (totalIsValid ? nextOffset < numericTotal : undefined) ??
+        (payload._pagination?.next_page ? true : undefined);
+      const hasMore =
+        hasMoreFlag !== undefined
+          ? hasMoreFlag
+          : list.length > 0 && list.length >= pageSize;
       if (!hasMore || list.length === 0 || ids.size >= limit) break;
-      page += 1;
+      offset = nextOffset;
     }
-    return Array.from(ids).slice(0, limit);
+    const result = Array.from(ids).slice(0, limit);
+    if (result.length === 0) {
+      console.info('Active followings fetch returned no recipients', {
+        accountId,
+        limit,
+      });
+    }
+    return result;
   }
 
   async function confirmQueueStatuses(queueIds = [], rateLimiter) {
@@ -944,6 +968,13 @@ module.exports = function ({
 
             const recipientIds = await fetchActiveFollowings(OF_FETCH_LIMIT, rateLimiter);
             if (!recipientIds.length) {
+              await logStep(
+                item.id,
+                'recipients',
+                'info',
+                'Active followings fetch returned no recipients',
+                { limit: OF_FETCH_LIMIT },
+              );
               throw new Error('No active followings available for messaging');
             }
 
