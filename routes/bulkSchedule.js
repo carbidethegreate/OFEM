@@ -1027,28 +1027,50 @@ module.exports = function ({
                 schedule_time: scheduleTimeUtc,
               });
               const postResp = await rateLimiter.call(() =>
-                ofApi.post('/v1/posts/send-post', postPayload),
+                ofApi.post('/v1/queue/publish-queue-item', {
+                  queueType: 'post',
+                  ...postPayload,
+                }),
               );
+              const postRespData = postResp?.data || {};
               postId = coalesceId(
-                postResp.data?.id,
-                postResp.data?.postId,
-                postResp.data?.post_id,
-                postResp.data?.data?.id,
-                postResp.data?.data?.postId,
+                postRespData.id,
+                postRespData.postId,
+                postRespData.post_id,
+                postRespData.post?.id,
+                postRespData.queueItem?.postId,
+                postRespData.queue_item?.post_id,
+                postRespData.data?.id,
+                postRespData.data?.postId,
+                postRespData.data?.post_id,
+                postRespData.data?.post?.id,
               );
               postQueueId = coalesceId(
-                postResp.data?.queueId,
-                postResp.data?.queue_id,
-                postResp.data?.queueItemId,
-                postResp.data?.queue_item_id,
-                postResp.data?.data?.queue_id,
-                postResp.data?.data?.queueId,
+                postRespData.queueId,
+                postRespData.queue_id,
+                postRespData.queueItemId,
+                postRespData.queue_item_id,
+                postRespData.queueItem?.id,
+                postRespData.queue_item?.id,
+                postRespData.data?.queue_id,
+                postRespData.data?.queueId,
+                postRespData.data?.queueItemId,
+                postRespData.data?.queue_item_id,
+                postRespData.data?.queueItem?.id,
+                postRespData.data?.queue_item?.id,
               );
               postStatus =
                 normalizeQueueStatus(
-                  postResp.data?.status ||
-                    postResp.data?.queueStatus ||
-                    postResp.data?.queue_status,
+                  postRespData.status ||
+                    postRespData.queueStatus ||
+                    postRespData.queue_status ||
+                    postRespData.queueItem?.status ||
+                    postRespData.queue_item?.status ||
+                    postRespData.data?.status ||
+                    postRespData.data?.queueStatus ||
+                    postRespData.data?.queue_status ||
+                    postRespData.data?.queueItem?.status ||
+                    postRespData.data?.queue_item?.status,
                 ) || (postQueueId ? 'queued' : 'sent');
               await logStep(item.id, 'send:post', 'end', 'Post submission completed', {
                 postId,

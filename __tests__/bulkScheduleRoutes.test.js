@@ -290,8 +290,10 @@ describe('bulk schedule routes', () => {
       if (url.includes('send-mass-message')) {
         return Promise.resolve({ data: { messageId: 300, queue_id: 301, status: 'queued' } });
       }
-      if (url.includes('send-post')) {
-        return Promise.resolve({ data: { postId: 400, queue_id: 401, status: 'sent' } });
+      if (url.includes('publish-queue-item')) {
+        return Promise.resolve({
+          data: { post: { id: 400 }, queue_item: { id: 401, status: 'queued' } },
+        });
       }
       return Promise.reject(new Error(`Unexpected POST ${url}`));
     });
@@ -331,7 +333,7 @@ describe('bulk schedule routes', () => {
       '/v1/following/list-active-followings',
       '/v1/mass-messaging/send-mass-message',
       '/acc1/media/upload',
-      '/v1/posts/send-post',
+      '/v1/queue/publish-queue-item',
       '/v1/queue/list-queue-items',
     ]);
   });
@@ -354,8 +356,10 @@ describe('bulk schedule routes', () => {
       if (url.includes('upload-media-to-the-only-fans-cdn')) {
         return Promise.resolve({ data: { media: { id: 555 } } });
       }
-      if (url.includes('send-post')) {
-        return Promise.resolve({ data: { postId: 777, queue_id: 778, status: 'queued' } });
+      if (url.includes('publish-queue-item')) {
+        return Promise.resolve({
+          data: { queueItemId: 778, status: 'queued', post: { id: 777 } },
+        });
       }
       return Promise.reject(new Error(`Unexpected POST ${url}`));
     });
