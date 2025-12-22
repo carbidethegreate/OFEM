@@ -303,10 +303,18 @@ describe('bulk schedule routes', () => {
         expect(config.params).toEqual({ limit: 5, offset: 0 });
         return Promise.resolve({ data: { data: { list: [{ id: 1 }, { id: 2 }], hasMore: false } } });
       }
-      if (url.includes('list-queue-items')) {
-        callOrder.push(url);
+      if (url === '/acc1/queue') {
+        callOrder.push([url, config.params]);
+        expect(config.params).toEqual({ queueItemIds: [401, 301] });
         return Promise.resolve({
-          data: { items: [{ queue_item_id: 401, status: 'sent' }, { queue_item_id: 301, status: 'sent' }] },
+          data: {
+            data: {
+              queueItems: [
+                { queue_item_id: 401, status: 'sent' },
+                { queue_item: { id: 301, queue_status: 'sent' } },
+              ],
+            },
+          },
         });
       }
       return Promise.reject(new Error(`Unexpected GET ${url}`));
@@ -346,7 +354,7 @@ describe('bulk schedule routes', () => {
       '/acc1/media/upload',
       '/acc1/queue',
       '/acc1/queue/401/publish',
-      '/v1/queue/list-queue-items',
+      ['/acc1/queue', { queueItemIds: [401, 301] }],
     ]);
   });
 
@@ -383,9 +391,10 @@ describe('bulk schedule routes', () => {
       }
       return Promise.reject(new Error(`Unexpected PUT ${url}`));
     });
-    ofApi.get.mockImplementation((url) => {
-      if (url.includes('list-queue-items')) {
-        return Promise.resolve({ data: { items: [{ queue_item_id: 778, status: 'sent' }] } });
+    ofApi.get.mockImplementation((url, config = {}) => {
+      if (url === '/acc1/queue') {
+        expect(config.params.queueItemIds).toEqual([778]);
+        return Promise.resolve({ data: { queue: [{ queue_item_id: 778, state: 'sent' }] } });
       }
       return Promise.reject(new Error(`Unexpected GET ${url}`));
     });
