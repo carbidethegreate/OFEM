@@ -65,7 +65,8 @@ CREATE TABLE bulk_logs (
 );
 `;
 
-async function createApp() {
+async function createApp(options = {}) {
+  const { useV1MediaUpload = false } = options;
   const mem = newDb();
   const pg = mem.adapters.createPg();
   const pool = new pg.Pool();
@@ -109,6 +110,7 @@ async function createApp() {
     ofApi,
     hasBulkScheduleTables: () => true,
     OF_FETCH_LIMIT: 5,
+    useV1MediaUpload,
   }));
   return { app, pool, ofApi, ofApiRequest, getMissingEnvVars, getOFAccountId };
 }
@@ -332,6 +334,49 @@ describe('bulk schedule routes', () => {
       '/v1/posts/send-post',
       '/v1/queue/list-queue-items',
     ]);
+  });
+
+  test('POST /api/bulk-send uses v1 upload endpoint when configured', async () => {
+    const { app, pool, ofApi } = await createApp({ useV1MediaUpload: true });
+    const insertRes = await pool.query(
+      `INSERT INTO bulk_schedule_items (image_url_cf, destination, local_status, caption, source_filename)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      ['https://cdn.example/file.jpg', 'post', 'scheduled', 'caption', 'upload'],
+    );
+    const itemId = insertRes.rows[0].id;
+
+    axios.get.mockResolvedValue({
+      data: Buffer.from('filedata'),
+      headers: { 'content-type': 'image/jpeg' },
+    });
+
+    ofApi.post.mockImplementation((url) => {
+      if (url.includes('upload-media-to-the-only-fans-cdn')) {
+        return Promise.resolve({ data: { media: { id: 555 } } });
+      }
+      if (url.includes('send-post')) {
+        return Promise.resolve({ data: { postId: 777, queue_id: 778, status: 'queued' } });
+      }
+      return Promise.reject(new Error(`Unexpected POST ${url}`));
+    });
+    ofApi.get.mockImplementation((url) => {
+      if (url.includes('list-queue-items')) {
+        return Promise.resolve({ data: { items: [{ queue_item_id: 778, status: 'sent' }] } });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+
+    const res = await request(app)
+      .post('/api/bulk-send')
+      .send({ itemIds: [itemId] })
+      .expect(200);
+
+    expect(res.body.results[0].status).toBe('sent');
+    const uploadCalls = ofApi.post.mock.calls.filter(([url]) =>
+      url.includes('upload-media-to-the-only-fans-cdn'),
+    );
+    expect(uploadCalls).toHaveLength(1);
+    expect(ofApi.post.mock.calls.find(([url]) => url.includes('/acc1/media/upload'))).toBeUndefined();
   });
 
   test('POST /api/bulk-send reports per-destination failures without reusing uploads', async () => {
