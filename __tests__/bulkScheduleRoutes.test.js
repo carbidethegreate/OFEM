@@ -297,12 +297,14 @@ describe('bulk schedule routes', () => {
       }
       return Promise.reject(new Error(`Unexpected POST ${url}`));
     });
-    ofApi.get.mockImplementation((url) => {
-      callOrder.push(url);
-      if (url.includes('list-active-followings')) {
-        return Promise.resolve({ data: { list: [{ id: 1 }, { id: 2 }] } });
+    ofApi.get.mockImplementation((url, config = {}) => {
+      if (url.includes('/following/active')) {
+        callOrder.push([url, config.params]);
+        expect(config.params).toEqual({ limit: 5, offset: 0 });
+        return Promise.resolve({ data: { data: { list: [{ id: 1 }, { id: 2 }], hasMore: false } } });
       }
       if (url.includes('list-queue-items')) {
+        callOrder.push(url);
         return Promise.resolve({
           data: { items: [{ queue_item_id: 401, status: 'sent' }, { queue_item_id: 301, status: 'sent' }] },
         });
@@ -330,7 +332,7 @@ describe('bulk schedule routes', () => {
 
     expect(callOrder).toEqual([
       '/acc1/media/upload',
-      '/v1/following/list-active-followings',
+      ['/acc1/following/active', { limit: 5, offset: 0 }],
       '/v1/mass-messaging/send-mass-message',
       '/acc1/media/upload',
       '/v1/queue/publish-queue-item',
