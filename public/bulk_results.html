@@ -732,9 +732,14 @@
             }
           };
 
-          const handleSingleChange = async () => {
+          const handleSingleChange = async (changed) => {
             if (bothOption.input.checked) {
               bothOption.input.checked = false;
+            }
+            if (changed.checked) {
+              const counterpart =
+                changed === postOption.input ? messageOption.input : postOption.input;
+              counterpart.checked = false;
             }
             syncCombinedState();
             const destination = resolveDestination();
@@ -759,8 +764,10 @@
             );
           };
 
-          postOption.input.addEventListener('change', handleSingleChange);
-          messageOption.input.addEventListener('change', handleSingleChange);
+          postOption.input.addEventListener('change', () => handleSingleChange(postOption.input));
+          messageOption.input.addEventListener('change', () =>
+            handleSingleChange(messageOption.input),
+          );
           bothOption.input.addEventListener('change', handleCombinedChange);
 
           syncCombinedState();
