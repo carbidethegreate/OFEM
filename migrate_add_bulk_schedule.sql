@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS bulk_schedule_items (
   schedule_time TIMESTAMPTZ,
   timezone TEXT,
   destination TEXT,
+  legacy_scheduled_post_id BIGINT,
   post_media_id BIGINT,
   message_media_id BIGINT,
   of_post_id BIGINT,
@@ -24,6 +25,10 @@ CREATE TABLE IF NOT EXISTS bulk_schedule_items (
   CONSTRAINT bulk_schedule_items_destination_check CHECK (destination IN ('post', 'message', 'both')),
   CONSTRAINT bulk_schedule_items_local_status_check CHECK (local_status IN ('draft', 'pending', 'scheduled', 'queued', 'sent', 'error'))
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bulk_schedule_legacy_id
+  ON bulk_schedule_items(legacy_scheduled_post_id)
+  WHERE legacy_scheduled_post_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS bulk_logs (
   id BIGSERIAL PRIMARY KEY,

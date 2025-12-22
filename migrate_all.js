@@ -15,6 +15,7 @@ const scripts = [
   'migrate_scheduled_messages.js',
   'migrate_add_scheduled_posts.js',
   'migrate_add_bulk_schedule.js',
+  'migrate_move_scheduled_posts_to_bulk.js',
   'migrate_add_vault_lists.js',
   'migrate_add_ppv_tables.js',
   'migrate_add_ppv_schedule_fields.js',

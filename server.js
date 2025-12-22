@@ -84,6 +84,8 @@ const REQUIRED_ENV_VARS = [
 const DEFAULT_OF_FETCH_LIMIT = 1000;
 const OF_FETCH_LIMIT =
   parseInt(process.env.OF_FETCH_LIMIT, 10) || DEFAULT_OF_FETCH_LIMIT;
+const ENABLE_BULK_SCHEDULE =
+  process.env.ENABLE_BULK_SCHEDULE === 'false' ? false : true;
 
 // Flags indicating availability of background-task tables
 let hasScheduledMessagesTable = true;
@@ -121,6 +123,7 @@ CREATE TABLE IF NOT EXISTS bulk_schedule_items (
   schedule_time TIMESTAMPTZ,
   timezone TEXT,
   destination TEXT,
+  legacy_scheduled_post_id BIGINT,
   post_media_id BIGINT,
   message_media_id BIGINT,
   of_post_id BIGINT,
@@ -145,6 +148,7 @@ ALTER TABLE bulk_schedule_items
   ADD COLUMN IF NOT EXISTS schedule_time TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS timezone TEXT,
   ADD COLUMN IF NOT EXISTS destination TEXT,
+  ADD COLUMN IF NOT EXISTS legacy_scheduled_post_id BIGINT,
   ADD COLUMN IF NOT EXISTS post_media_id BIGINT,
   ADD COLUMN IF NOT EXISTS message_media_id BIGINT,
   ADD COLUMN IF NOT EXISTS of_post_id BIGINT,
@@ -234,6 +238,12 @@ CREATE INDEX IF NOT EXISTS idx_bulk_logs_item_id_created_at
   ON bulk_logs (item_id, created_at);
 `;
 
+const bulkLegacyIndex = `
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bulk_schedule_legacy_id
+  ON bulk_schedule_items(legacy_scheduled_post_id)
+  WHERE legacy_scheduled_post_id IS NOT NULL;
+`;
+
 // Utility to check for table existence using information_schema.columns
 async function tableExists(tableName) {
   try {
@@ -269,6 +279,13 @@ async function ensureScheduledPostsTable() {
 }
 
 async function ensureBulkScheduleTables() {
+  if (!ENABLE_BULK_SCHEDULE) {
+    hasBulkScheduleTables = false;
+    console.warn(
+      'Bulk schedule tables disabled via ENABLE_BULK_SCHEDULE=false; legacy flow remains available.',
+    );
+    return;
+  }
   try {
     await pool.query(createBulkScheduleItemsTable);
     await pool.query(alterBulkScheduleItemsTable);
@@ -278,6 +295,7 @@ async function ensureBulkScheduleTables() {
     await pool.query(alterBulkLogsTable);
     await pool.query(bulkLogLevelConstraint);
     await pool.query(bulkLogsIndex);
+    await pool.query(bulkLegacyIndex);
     hasBulkScheduleTables = true;
   } catch (err) {
     hasBulkScheduleTables = false;
@@ -622,7 +640,7 @@ const webhookRoutes = require('./routes/webhooks')({
 });
 const logsRoutes = require('./routes/logs')({
   pool,
-  hasBulkScheduleTables: () => hasBulkScheduleTables,
+  hasBulkScheduleTables: () => hasBulkScheduleTables && ENABLE_BULK_SCHEDULE,
 });
 const bulkScheduleRoutes = require('./routes/bulkSchedule')({
   pool,
@@ -631,7 +649,7 @@ const bulkScheduleRoutes = require('./routes/bulkSchedule')({
   getOFAccountId,
   ofApiRequest,
   ofApi,
-  hasBulkScheduleTables: () => hasBulkScheduleTables,
+  hasBulkScheduleTables: () => hasBulkScheduleTables && ENABLE_BULK_SCHEDULE,
   OF_FETCH_LIMIT,
 });
 app.use('/api', fansRoutes);
@@ -651,6 +669,7 @@ app.get('/api/status', async (req, res) => {
     openai: {},
     files: { envFile: fs.existsSync(path.join(__dirname, '.env')) },
     node: { version: process.version },
+    features: { bulk_schedule_enabled: ENABLE_BULK_SCHEDULE },
   };
   const requiredEnv = [
     'ONLYFANS_API_KEY',
@@ -699,8 +718,9 @@ app.get('/api/status', async (req, res) => {
   }
   status.database.bulk_schedule_tables = hasBulkScheduleTables;
   if (!hasBulkScheduleTables) {
-    status.database.bulk_schedule_message =
-      'bulk_schedule_items/bulk_logs tables missing; run migrations to enable bulk scheduling';
+    status.database.bulk_schedule_message = ENABLE_BULK_SCHEDULE
+      ? 'bulk_schedule_items/bulk_logs tables missing; run migrations to enable bulk scheduling'
+      : 'Bulk scheduling disabled via ENABLE_BULK_SCHEDULE=false';
   }
   res.json(status);
 });
