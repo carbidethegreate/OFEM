@@ -14,6 +14,15 @@ const { sanitizeError } = require('./sanitizeError');
 const sanitizeMediaIds = require('./sanitizeMediaIds');
 dotenv.config();
 
+const DEFAULT_ONLYFANS_API_BASE = 'https://app.onlyfansapi.com/api';
+function resolveOnlyFansApiBase() {
+  const raw = (process.env.ONLYFANS_API_BASE || '').trim();
+  if (!raw) return DEFAULT_ONLYFANS_API_BASE;
+  return raw.replace(/\/+$/, '');
+}
+const ONLYFANS_API_BASE = resolveOnlyFansApiBase();
+const usingDefaultOnlyfansBase = !(process.env.ONLYFANS_API_BASE || '').trim();
+
 // Database connection pool
 const pool = require('./db');
 
@@ -64,7 +73,7 @@ console.error = (...args) => {
 
 // OnlyFans API client (bearer auth)
 const ofApi = axios.create({
-  baseURL: 'https://app.onlyfansapi.com/api',
+  baseURL: ONLYFANS_API_BASE,
   headers: { Authorization: `Bearer ${process.env.ONLYFANS_API_KEY}` },
   timeout: 30000,
 });
@@ -458,7 +467,29 @@ function getMissingEnvVars(list = REQUIRED_ENV_VARS) {
   return list.filter((v) => !process.env[v]);
 }
 
+function getOnlyFansConfigStatus() {
+  const apiKey = (process.env.ONLYFANS_API_KEY || '').trim();
+  const baseUrl = (ONLYFANS_API_BASE || '').trim();
+  return {
+    apiKeyMissing: !apiKey,
+    baseMissing: !baseUrl,
+    baseEnvMissing: !(process.env.ONLYFANS_API_BASE || '').trim(),
+    baseUrl,
+    usingDefault: usingDefaultOnlyfansBase,
+  };
+}
+
 async function verifyOnlyFansToken() {
+  const config = getOnlyFansConfigStatus();
+  if (config.apiKeyMissing || config.baseMissing) {
+    const missingParts = [];
+    if (config.apiKeyMissing) missingParts.push('ONLYFANS_API_KEY');
+    if (config.baseMissing) missingParts.push('ONLYFANS_API_BASE');
+    console.error(
+      `Missing OnlyFans configuration: ${missingParts.join(', ')}.`,
+    );
+    process.exit(1);
+  }
   try {
     await ofApi.get('/accounts');
   } catch (err) {
@@ -833,7 +864,10 @@ app.get('/api/status', async (req, res) => {
   const status = {
     env: {},
     database: {},
-    onlyfans: {},
+    onlyfans: {
+      base_url: ONLYFANS_API_BASE,
+      using_default_base: usingDefaultOnlyfansBase,
+    },
     openai: {},
     files: { envFile: fs.existsSync(path.join(__dirname, '.env')) },
     node: { version: process.version },
@@ -842,6 +876,7 @@ app.get('/api/status', async (req, res) => {
   const requiredEnv = [
     'ONLYFANS_API_KEY',
     'ONLYFANS_ACCOUNT_ID',
+    'ONLYFANS_API_BASE',
     'OPENAI_API_KEY',
     'OPENAI_MODEL',
     'DB_NAME',
@@ -861,8 +896,20 @@ app.get('/api/status', async (req, res) => {
     status.database.error = err.message;
   }
   try {
-    await ofApi.get('/accounts');
-    status.onlyfans.ok = true;
+    const config = getOnlyFansConfigStatus();
+    status.onlyfans.missing_api_key = config.apiKeyMissing;
+    status.onlyfans.missing_base_url = config.baseMissing;
+    status.onlyfans.missing_base_env = config.baseEnvMissing;
+    if (config.apiKeyMissing) {
+      status.onlyfans.ok = false;
+      status.onlyfans.error = 'Missing ONLYFANS_API_KEY';
+    } else if (config.baseMissing) {
+      status.onlyfans.ok = false;
+      status.onlyfans.error = 'Missing ONLYFANS_API_BASE';
+    } else {
+      await ofApi.get('/accounts');
+      status.onlyfans.ok = true;
+    }
   } catch (err) {
     status.onlyfans.ok = false;
     status.onlyfans.error = err.response
@@ -1096,6 +1143,12 @@ if (require.main === module) {
         `Missing environment variable(s): ${missing.join(', ')}`,
       );
       process.exit(1);
+    }
+    const ofConfig = getOnlyFansConfigStatus();
+    if (ofConfig.baseEnvMissing) {
+      console.warn(
+        `ONLYFANS_API_BASE is not set; defaulting to ${DEFAULT_ONLYFANS_API_BASE}`,
+      );
     }
     await ensureScheduledPostsTable();
     await ensureBulkScheduleTables();
