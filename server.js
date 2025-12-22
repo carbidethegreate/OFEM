@@ -78,6 +78,27 @@ const OF_FETCH_LIMIT =
 // Flags indicating availability of background-task tables
 let hasScheduledMessagesTable = true;
 let hasPpvSetsTable = true;
+let hasScheduledPostsTable = true;
+
+const createScheduledPostsTable = `
+CREATE TABLE IF NOT EXISTS scheduled_posts (
+  id BIGSERIAL PRIMARY KEY,
+  image_url TEXT,
+  caption TEXT,
+  schedule_time TIMESTAMP WITH TIME ZONE,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+`;
+
+const alterScheduledPostsTable = `
+ALTER TABLE scheduled_posts
+  ADD COLUMN IF NOT EXISTS image_url TEXT,
+  ADD COLUMN IF NOT EXISTS caption TEXT,
+  ADD COLUMN IF NOT EXISTS schedule_time TIMESTAMP WITH TIME ZONE,
+  ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+`;
 
 // Utility to check for table existence using information_schema.columns
 async function tableExists(tableName) {
@@ -90,6 +111,26 @@ async function tableExists(tableName) {
   } catch (err) {
     console.error(`Error checking for table ${tableName}:`, sanitizeError(err));
     return false;
+  }
+}
+
+async function ensureScheduledPostsTable() {
+  try {
+    const exists = await tableExists('scheduled_posts');
+    if (!exists) {
+      console.warn(
+        'scheduled_posts table missing; attempting to create it automatically',
+      );
+      await pool.query(createScheduledPostsTable);
+    }
+    await pool.query(alterScheduledPostsTable);
+    hasScheduledPostsTable = true;
+  } catch (err) {
+    hasScheduledPostsTable = false;
+    console.error(
+      'scheduled_posts table unavailable; run migrations to enable bulk post scheduling:',
+      sanitizeError(err),
+    );
   }
 }
 
@@ -398,6 +439,7 @@ const messagesRoutes = require('./routes/messages')({
   sanitizeError,
   sendMessageToFan,
   getMissingEnvVars,
+  hasScheduledPostsTable: () => hasScheduledPostsTable,
 });
 const webhookRoutes = require('./routes/webhooks')({
   pool,
@@ -463,6 +505,11 @@ app.get('/api/status', async (req, res) => {
     status.openai.error = err.response
       ? err.response.statusText || err.response.data
       : err.message;
+  }
+  status.database.scheduled_posts_table = hasScheduledPostsTable;
+  if (!hasScheduledPostsTable) {
+    status.database.scheduled_posts_message =
+      'scheduled_posts table missing; run migrations to enable scheduled posts';
   }
   res.json(status);
 });
@@ -664,6 +711,7 @@ if (require.main === module) {
       );
       process.exit(1);
     }
+    await ensureScheduledPostsTable();
     await verifyOnlyFansToken();
     app.listen(port, () => {
       console.log(`OFEM server listening on http://localhost:${port}`);

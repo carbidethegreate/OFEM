@@ -117,6 +117,26 @@ ALTER TABLE fans
  - updatedAt: timestamp of the last update to this fan record (defaults to now on insert).
 */
 
+const createScheduledPostsTable = `
+CREATE TABLE IF NOT EXISTS scheduled_posts (
+  id BIGSERIAL PRIMARY KEY,
+  image_url TEXT,
+  caption TEXT,
+  schedule_time TIMESTAMP WITH TIME ZONE,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+`;
+
+const alterScheduledPostsTable = `
+ALTER TABLE scheduled_posts
+  ADD COLUMN IF NOT EXISTS image_url TEXT,
+  ADD COLUMN IF NOT EXISTS caption TEXT,
+  ADD COLUMN IF NOT EXISTS schedule_time TIMESTAMP WITH TIME ZONE,
+  ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+`;
+
 (async () => {
   try {
     const { rows: colRows } = await pool.query(
@@ -132,6 +152,9 @@ ALTER TABLE fans
     await pool.query(createTableQuery);
     await pool.query(addColumnsQuery);
     console.log('✅ "fans" table has been created/updated.');
+    await pool.query(createScheduledPostsTable);
+    await pool.query(alterScheduledPostsTable);
+    console.log('✅ "scheduled_posts" table has been created/updated.');
   } catch (err) {
     console.error('Error running migration:', err.message);
     process.exitCode = 1;
