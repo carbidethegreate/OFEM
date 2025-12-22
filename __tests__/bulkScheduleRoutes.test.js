@@ -94,7 +94,7 @@ async function createApp(options = {}) {
     return baseQuery(text, params);
   };
 
-  const ofApi = { post: jest.fn(), get: jest.fn() };
+  const ofApi = { post: jest.fn(), get: jest.fn(), put: jest.fn() };
   const ofApiRequest = jest.fn((fn) => fn());
   const getMissingEnvVars = jest.fn(() => []);
   const getOFAccountId = jest.fn().mockResolvedValue('acc1');
@@ -290,9 +290,9 @@ describe('bulk schedule routes', () => {
       if (url.includes('/mass-messaging')) {
         return Promise.resolve({ data: { messageId: 300, queue_id: 301, status: 'queued' } });
       }
-      if (url.includes('publish-queue-item')) {
+      if (url === '/acc1/queue') {
         return Promise.resolve({
-          data: { post: { id: 400 }, queue_item: { id: 401, status: 'queued' } },
+          data: { queue: { id: 401, post: { id: 400 }, status: 'draft' } },
         });
       }
       return Promise.reject(new Error(`Unexpected POST ${url}`));
@@ -310,6 +310,15 @@ describe('bulk schedule routes', () => {
         });
       }
       return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+    ofApi.put.mockImplementation((url) => {
+      callOrder.push(url);
+      if (url === '/acc1/queue/401/publish') {
+        return Promise.resolve({
+          data: { data: { queue: { id: 401, postId: 400, status: 'queued' } } },
+        });
+      }
+      return Promise.reject(new Error(`Unexpected PUT ${url}`));
     });
 
     const res = await request(app)
@@ -335,7 +344,8 @@ describe('bulk schedule routes', () => {
       ['/acc1/following/active', { limit: 5, offset: 0 }],
       '/acc1/mass-messaging',
       '/acc1/media/upload',
-      '/v1/queue/publish-queue-item',
+      '/acc1/queue',
+      '/acc1/queue/401/publish',
       '/v1/queue/list-queue-items',
     ]);
   });
@@ -358,12 +368,20 @@ describe('bulk schedule routes', () => {
       if (url.includes('upload-media-to-the-only-fans-cdn')) {
         return Promise.resolve({ data: { media: { id: 555 } } });
       }
-      if (url.includes('publish-queue-item')) {
+      if (url === '/acc1/queue') {
         return Promise.resolve({
-          data: { queueItemId: 778, status: 'queued', post: { id: 777 } },
+          data: { data: { queue: { id: 778, post: { id: 777 }, status: 'queued' } } },
         });
       }
       return Promise.reject(new Error(`Unexpected POST ${url}`));
+    });
+    ofApi.put.mockImplementation((url) => {
+      if (url === '/acc1/queue/778/publish') {
+        return Promise.resolve({
+          data: { data: { queueItem: { id: 778, post_id: 777, status: 'queued' } } },
+        });
+      }
+      return Promise.reject(new Error(`Unexpected PUT ${url}`));
     });
     ofApi.get.mockImplementation((url) => {
       if (url.includes('list-queue-items')) {
