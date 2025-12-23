@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LoadVault</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <h1>Upload Media</h1>
+
+  <form id="uploadForm">
+    <label>
+      File
+      <input type="file" id="fileInput" required>
+    </label>
+    <label>
+      Name (optional)
+      <input type="text" id="nameInput">
+    </label>
+    <button type="submit">Upload</button>
+  </form>
+
+  <div id="result" class="result"></div>
+
+  <h2>Vault Media</h2>
+  <form id="listVaultForm">
+    <input type="text" id="vaultQuery" placeholder="Search">
+    <input type="number" id="vaultLimit" value="24">
+    <input type="number" id="vaultOffset" value="0">
+    <button type="submit">Fetch</button>
+  </form>
+
+  <pre id="vaultListResult"></pre>
+
+  <h2>Add Media to Vault List 26834941</h2>
+  <form id="addToListForm">
+    <input type="text" id="mediaIdsInput" placeholder="mediaId1, mediaId2">
+    <input type="text" id="listIdInput" placeholder="List ID (optional)">
+    <button type="submit">Add</button>
+  </form>
+
+  <pre id="addToListResult"></pre>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
