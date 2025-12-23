@@ -712,7 +712,8 @@
           };
 
           const destinationValue = normalizeDestinationValue(item.destination);
-          let bothDisabled = Boolean(item.both_disabled);
+          let bothDisabled =
+            destinationValue !== 'both' ? true : Boolean(item.both_disabled);
           const postOption = createDestinationOption(
             'post',
             'Queue to OF Post',
@@ -755,8 +756,7 @@
             await updateItem(
               item.id,
               {
-                mode: nextMode,
-                both_disabled: bothDisabled,
+                destination: nextMode,
                 schedule_time: scheduleIso,
                 timezone: timezoneSelect.value || null,
               },
@@ -848,7 +848,7 @@
         if (!card) return;
         const logPanel = card.querySelector('.log-panel');
         try {
-          const res = await fetch(\`/api/scheduled-items/\${id}/mode\`, {
+          const res = await fetch(\`/api/bulk-schedule/\${id}\`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -864,8 +864,7 @@
             state.items[idx] = {
               ...state.items[idx],
               ...updated,
-              destination: normalizeDestinationValue(updated.mode || updated.destination),
-              both_disabled: Boolean(updated.both_disabled),
+              destination: normalizeDestinationValue(updated.destination),
               image_url: updated.media_url || updated.image_url || state.items[idx].image_url,
               local_status: updated.status || updated.local_status,
               post_status: updated.post_status,

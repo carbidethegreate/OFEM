@@ -81,13 +81,13 @@ const openaiAxios = axios.create({ timeout: 30000 });
 // OpenAI model configuration with fallback
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 let OFAccountId = null;
+let verifiedAccountId = null;
+const CORE_DB_ENV_VARS = ['DB_NAME', 'DB_USER', 'DB_PASSWORD'];
+const CORE_API_ENV_VARS = ['ONLYFANS_API_KEY', 'OPENAI_API_KEY'];
 const REQUIRED_ENV_VARS = [
-  'ONLYFANS_API_KEY',
+  ...CORE_API_ENV_VARS,
+  ...CORE_DB_ENV_VARS,
   'ONLYFANS_ACCOUNT_ID',
-  'DB_NAME',
-  'DB_USER',
-  'DB_PASSWORD',
-  'OPENAI_API_KEY',
 ];
 // Configurable cap on OnlyFans records to fetch when paging. Prevents runaway loops if
 // the API keeps returning data. Override with OF_FETCH_LIMIT environment variable.
@@ -477,6 +477,14 @@ function getMissingEnvVars(list = REQUIRED_ENV_VARS) {
   return list.filter((v) => !process.env[v]);
 }
 
+function getStartupMissingEnvVars() {
+  const missing = new Set(getMissingEnvVars(CORE_API_ENV_VARS));
+  if (!process.env.DATABASE_URL) {
+    getMissingEnvVars(CORE_DB_ENV_VARS).forEach((v) => missing.add(v));
+  }
+  return [...missing];
+}
+
 function getOnlyFansConfigStatus() {
   const apiKey = (process.env.ONLYFANS_API_KEY || '').trim();
   const baseUrl = (ONLYFANS_API_BASE || '').trim();
@@ -628,6 +636,7 @@ async function getOFAccountId(refresh = false) {
   if (configuredAccountId) {
     if (refresh || OFAccountId !== configuredAccountId) {
       OFAccountId = configuredAccountId;
+      verifiedAccountId = null;
       console.log(`Using OnlyFans account: ${OFAccountId}`);
     }
     return OFAccountId;
@@ -638,6 +647,27 @@ async function getOFAccountId(refresh = false) {
   );
   err.status = 400;
   throw err;
+}
+
+async function ensureAccountAccessible(accountId) {
+  if (verifiedAccountId && String(verifiedAccountId) === String(accountId || verifiedAccountId)) {
+    return;
+  }
+  const resp = await ofApiRequest(() => ofApi.get('/accounts'));
+  const accounts = resp.data?.accounts || resp.data?.data || resp.data || [];
+  if (!accountId || !Array.isArray(accounts)) {
+    verifiedAccountId = accountId || 'verified';
+    return;
+  }
+  const match = accounts.find((a) => String(a.id) === String(accountId));
+  if (!match) {
+    const err = new Error(
+      `ONLYFANS_ACCOUNT_ID "${accountId}" was not found in /accounts response.`,
+    );
+    err.status = 400;
+    throw err;
+  }
+  verifiedAccountId = match.id;
 }
 // Determine if an OnlyFans account appears system generated
 function isSystemGenerated(username = '', profileName = '') {
@@ -801,6 +831,7 @@ const fansRoutes = require('./routes/fans')({
   removeEmojis,
   OPENAI_MODEL,
   OF_FETCH_LIMIT,
+  ensureAccountAccessible,
 });
 const ppvRoutes = require('./routes/ppv')({
   getOFAccountId,
@@ -817,6 +848,7 @@ const vaultListsRoutes = require('./routes/vaultLists')({
   pool,
   sanitizeError,
   OF_FETCH_LIMIT,
+  ensureAccountAccessible,
 });
 const messagesRoutes = require('./routes/messages')({
   getOFAccountId,
@@ -826,6 +858,7 @@ const messagesRoutes = require('./routes/messages')({
   sanitizeError,
   sendMessageToFan,
   getMissingEnvVars,
+  ensureAccountAccessible,
 });
 const webhookRoutes = require('./routes/webhooks')({
   pool,
@@ -896,7 +929,8 @@ app.get('/api/status', async (req, res) => {
     'DB_PORT',
   ];
   requiredEnv.forEach((k) => {
-    status.env[k] = !!process.env[k];
+    const usingDatabaseUrl = !!process.env.DATABASE_URL && k.startsWith('DB_');
+    status.env[k] = !!process.env[k] || usingDatabaseUrl;
   });
   try {
     await pool.query('SELECT 1');
@@ -1147,12 +1181,19 @@ async function initScheduling() {
 
 if (require.main === module) {
   (async () => {
-    const missing = getMissingEnvVars(['ONLYFANS_API_KEY', 'ONLYFANS_ACCOUNT_ID']);
-    if (missing.length) {
+    const missingCritical = getStartupMissingEnvVars();
+    if (missingCritical.length) {
       console.error(
-        `Missing environment variable(s): ${missing.join(', ')}`,
+        `Missing environment variable(s): ${missingCritical.join(', ')}`,
       );
       process.exit(1);
+    }
+    const missingAccount = getMissingEnvVars(['ONLYFANS_ACCOUNT_ID']);
+    if (missingAccount.length) {
+      console.warn(
+        'ONLYFANS_ACCOUNT_ID is not set. The server will start, but OnlyFans requests that need an account will fail until it is configured. ' +
+          'If deploying on Render, confirm the variable is present on the service Environment tab and redeploy.',
+      );
     }
     const ofConfig = getOnlyFansConfigStatus();
     if (ofConfig.baseEnvMissing) {
