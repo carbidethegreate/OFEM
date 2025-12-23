@@ -7,12 +7,14 @@ module.exports = function ({
   pool,
   sanitizeError,
   OF_FETCH_LIMIT,
+  ensureAccountAccessible,
 }) {
   const router = express.Router();
 
   async function listVaultMedia(req, res) {
     try {
       const accountId = await getOFAccountId();
+      await ensureAccountAccessible(accountId);
       const limit = 100;
       let offset = 0;
       const media = [];
@@ -67,6 +69,7 @@ module.exports = function ({
       let accountId;
       try {
         accountId = await getOFAccountId();
+        await ensureAccountAccessible(accountId);
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
@@ -111,6 +114,7 @@ module.exports = function ({
       let accountId;
       try {
         accountId = await getOFAccountId();
+        await ensureAccountAccessible(accountId);
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
@@ -139,6 +143,7 @@ module.exports = function ({
       let accountId;
       try {
         accountId = await getOFAccountId();
+        await ensureAccountAccessible(accountId);
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
@@ -184,6 +189,7 @@ module.exports = function ({
       let accountId;
       try {
         accountId = await getOFAccountId();
+        await ensureAccountAccessible(accountId);
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
@@ -207,6 +213,7 @@ module.exports = function ({
       let accountId;
       try {
         accountId = await getOFAccountId();
+        await ensureAccountAccessible(accountId);
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
@@ -234,6 +241,7 @@ module.exports = function ({
       let accountId;
       try {
         accountId = await getOFAccountId();
+        await ensureAccountAccessible(accountId);
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
@@ -267,6 +275,7 @@ module.exports = function ({
       let accountId;
       try {
         accountId = await getOFAccountId();
+        await ensureAccountAccessible(accountId);
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }

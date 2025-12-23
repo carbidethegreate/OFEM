@@ -12,6 +12,7 @@ module.exports = function ({
   sanitizeError,
   sendMessageToFan,
   getMissingEnvVars,
+  ensureAccountAccessible,
 }) {
   const router = express.Router();
   const upload = multer();
@@ -22,6 +23,7 @@ module.exports = function ({
         return res.status(400).json({ error: 'No files uploaded' });
       }
       const accountId = await getOFAccountId();
+      await ensureAccountAccessible(accountId);
       const ids = [];
       for (const file of req.files) {
         const form = new FormData();
@@ -58,6 +60,7 @@ module.exports = function ({
         return res.status(400).json({ error: 'url required' });
       }
       const accountId = await getOFAccountId();
+      await ensureAccountAccessible(accountId);
       const resp = await ofApiRequest(() =>
         ofApi.post(`/${accountId}/media/scrape`, { url }),
       );
@@ -390,6 +393,7 @@ module.exports = function ({
       let accountId;
       try {
         accountId = await getOFAccountId();
+        await ensureAccountAccessible(accountId);
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }

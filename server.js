@@ -81,7 +81,8 @@ const openaiAxios = axios.create({ timeout: 30000 });
 // OpenAI model configuration with fallback
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 let OFAccountId = null;
-const CORE_DB_ENV_VARS = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT'];
+let verifiedAccountId = null;
+const CORE_DB_ENV_VARS = ['DB_NAME', 'DB_USER', 'DB_PASSWORD'];
 const CORE_API_ENV_VARS = ['ONLYFANS_API_KEY', 'OPENAI_API_KEY'];
 const REQUIRED_ENV_VARS = [
   ...CORE_API_ENV_VARS,
@@ -635,6 +636,7 @@ async function getOFAccountId(refresh = false) {
   if (configuredAccountId) {
     if (refresh || OFAccountId !== configuredAccountId) {
       OFAccountId = configuredAccountId;
+      verifiedAccountId = null;
       console.log(`Using OnlyFans account: ${OFAccountId}`);
     }
     return OFAccountId;
@@ -645,6 +647,27 @@ async function getOFAccountId(refresh = false) {
   );
   err.status = 400;
   throw err;
+}
+
+async function ensureAccountAccessible(accountId) {
+  if (verifiedAccountId && String(verifiedAccountId) === String(accountId || verifiedAccountId)) {
+    return;
+  }
+  const resp = await ofApiRequest(() => ofApi.get('/accounts'));
+  const accounts = resp.data?.accounts || resp.data?.data || resp.data || [];
+  if (!accountId || !Array.isArray(accounts)) {
+    verifiedAccountId = accountId || 'verified';
+    return;
+  }
+  const match = accounts.find((a) => String(a.id) === String(accountId));
+  if (!match) {
+    const err = new Error(
+      `ONLYFANS_ACCOUNT_ID "${accountId}" was not found in /accounts response.`,
+    );
+    err.status = 400;
+    throw err;
+  }
+  verifiedAccountId = match.id;
 }
 // Determine if an OnlyFans account appears system generated
 function isSystemGenerated(username = '', profileName = '') {
@@ -808,6 +831,7 @@ const fansRoutes = require('./routes/fans')({
   removeEmojis,
   OPENAI_MODEL,
   OF_FETCH_LIMIT,
+  ensureAccountAccessible,
 });
 const ppvRoutes = require('./routes/ppv')({
   getOFAccountId,
@@ -824,6 +848,7 @@ const vaultListsRoutes = require('./routes/vaultLists')({
   pool,
   sanitizeError,
   OF_FETCH_LIMIT,
+  ensureAccountAccessible,
 });
 const messagesRoutes = require('./routes/messages')({
   getOFAccountId,
@@ -833,6 +858,7 @@ const messagesRoutes = require('./routes/messages')({
   sanitizeError,
   sendMessageToFan,
   getMissingEnvVars,
+  ensureAccountAccessible,
 });
 const webhookRoutes = require('./routes/webhooks')({
   pool,

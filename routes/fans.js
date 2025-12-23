@@ -14,6 +14,7 @@ module.exports = function ({
   removeEmojis,
   OPENAI_MODEL,
   OF_FETCH_LIMIT,
+  ensureAccountAccessible,
 }) {
   const router = express.Router();
 
@@ -42,6 +43,7 @@ module.exports = function ({
 
     try {
       const accountId = await getOFAccountId(true);
+      await ensureAccountAccessible(accountId);
 
       const validFilters = new Set(['all', 'active', 'expired']);
       const rawFilter = (
