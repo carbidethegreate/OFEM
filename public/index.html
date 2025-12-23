@@ -417,6 +417,15 @@
         let polls = 0;
         const maxPolls = 60;
 
+        const finish = (success) => {
+          refreshBtn.disabled = false;
+          updateBtn.disabled = false;
+          sendBtn.disabled = fansData.length === 0;
+          document.getElementById('statusMsg').innerText = success
+            ? 'Parker names updated.'
+            : 'Update finished with errors.';
+        };
+
         const poll = async () => {
           if (pendingIds.length === 0) {
             finish(true);
@@ -475,28 +484,22 @@
           setTimeout(poll, 2000);
         };
 
-        const finish = (success) => {
-          refreshBtn.disabled = false;
-          updateBtn.disabled = false;
-          sendBtn.disabled = fansData.length === 0;
-          document.getElementById('statusMsg').innerText = success
-            ? 'Parker names updated.'
-            : 'Update finished with errors.';
-        };
-
-        poll();
-
         try {
           const res = await fetch('/api/updateParkerNames', { method: 'POST' });
           if (!res.ok) {
             const errText = await res.text();
             document.getElementById('statusMsg').innerText =
               'Update failed: ' + errText;
+            finish(false);
+            return;
           }
+          poll();
         } catch (err) {
           console.error('Update Parker names error:', err);
           document.getElementById('statusMsg').innerText =
             'Update failed: ' + err;
+          finish(false);
+          return;
         }
       }
 
