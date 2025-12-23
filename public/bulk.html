@@ -95,13 +95,6 @@ const staggerIntervalInput = document.getElementById('staggerInterval');
 const defaultTimezoneSelect = document.getElementById('defaultTimezone');
 const applyStaggerButton = document.getElementById('applyStagger');
 let filesToUpload = [];
-let uploadResults = [];
-let uploadErrorMessage = '';
-let batchId = null;
-let itemsFromServer = [];
-let scheduledItems = [];
-let hasUploadFailures = false;
-let lastScheduleSucceeded = false;
 const LOCAL_STORAGE_KEYS = {
   timezone: 'ofem.bulk.timezone',
   intervalMinutes: 'ofem.bulk.staggerMinutes',
@@ -151,20 +144,6 @@ function getTimezoneOptions() {
   return [getDefaultTimezone()];
 }
 
-function buildTimezoneSelect() {
-  const select = document.createElement('select');
-  select.className = 'timezone-select';
-  const tzs = getTimezoneOptions();
-  tzs.forEach((tz) => {
-    const opt = document.createElement('option');
-    opt.value = tz;
-    opt.textContent = tz;
-    select.appendChild(opt);
-  });
-  select.value = getDefaultTimezone();
-  return select;
-}
-
 function toDateTimeLocalValue(dateInput) {
   if (!dateInput) return '';
   const parsed = new Date(dateInput);
@@ -172,6 +151,30 @@ function toDateTimeLocalValue(dateInput) {
   const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  const tzs = getTimezoneOptions();
+  defaultTimezoneSelect.innerHTML = '';
+  tzs.forEach((tz) => {
+    const opt = document.createElement('option');
+    opt.value = tz;
+    opt.textContent = tz;
+    defaultTimezoneSelect.appendChild(opt);
+  });
+  defaultTimezoneSelect.value = getDefaultTimezone();
+
+  const savedInterval = getSavedInterval();
+  if (savedInterval) staggerIntervalInput.value = savedInterval;
+
+  defaultTimezoneSelect.addEventListener('change', (e) => saveTimezone(e.target.value));
+  staggerIntervalInput.addEventListener('change', (e) => {
+    const v = parseInt(e.target.value, 10);
+    if (Number.isFinite(v) && v > 0) saveInterval(v);
+  });
+
+  const now = new Date();
+  staggerStartInput.value = toDateTimeLocalValue(now);
+});
 
 function createDestinationPills(name, defaultValue = 'both') {
   const container = document.createElement('div');
@@ -186,22 +189,37 @@ function createDestinationPills(name, defaultValue = 'both') {
     const pill = document.createElement('label');
     pill.className = 'destination-pill';
     pill.dataset.value = opt.value;
+
     const input = document.createElement('input');
     input.type = 'radio';
     input.name = name;
     input.value = opt.value;
+
     if (opt.value === defaultValue) {
       input.checked = true;
       pill.classList.add('active');
     }
+
+    const span = document.createElement('span');
+    span.textContent = opt.label;
+
     pill.appendChild(input);
-    pill.appendChild(document.createTextNode(opt.label));
-    pill.addEventListener('click', (e) => {
-      e.preventDefault();
-      setDestinationValue(container, opt.value);
+    pill.appendChild(span);
+
+    pill.addEventListener('click', () => {
+      [...container.querySelectorAll('.destination-pill')].forEach((p) => p.classList.remove('active'));
+      pill.classList.add('active');
+      input.checked = true;
     });
+
     container.appendChild(pill);
   });
+
+  const note = document.createElement('div');
+  note.className = 'pill-note';
+  note.textContent = 'Choose where to send this item.';
+  container.appendChild(note);
+
   return container;
 }
 
@@ -224,404 +242,85 @@ function getDestinationValue(container) {
 
 function updateSendButtonState() {
   const items = Array.from(document.querySelectorAll('#gallery .item'));
-  const hasSelectable = items.some((item) => {
+  const hasChecked = items.some((item) => {
     const checkbox = item.querySelector('.select-item');
-    return checkbox?.checked && item.dataset.itemId;
+    return checkbox?.checked;
   });
-  sendSelectedButton.disabled = !hasSelectable || !lastScheduleSucceeded;
-}
-
-function resetPersistedState() {
-  lastScheduleSucceeded = false;
-   scheduledItems = [];
-  const items = document.querySelectorAll('#gallery .item');
-  items.forEach((item) => {
-    delete item.dataset.itemId;
-  });
-  updateSendButtonState();
+  sendSelectedButton.disabled = !hasChecked;
 }
 
 fileSelect.addEventListener('click', () => fileElem.click());
-
-fileElem.addEventListener('change', handleFiles, false);
-dropArea.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  dropArea.classList.add('hover');
+fileElem.addEventListener('change', (e) => {
+  if (e.target?.files) handleFiles(e.target.files);
 });
-dropArea.addEventListener('dragleave', () => dropArea.classList.remove('hover'));
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach((eventName) => {
+  dropArea.addEventListener(eventName, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (eventName === 'dragenter' || eventName === 'dragover') dropArea.classList.add('hover');
+    if (eventName === 'dragleave' || eventName === 'drop') dropArea.classList.remove('hover');
+  });
+});
 dropArea.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dropArea.classList.remove('hover');
-  handleFiles({ target: { files: e.dataTransfer.files } });
+  if (e.dataTransfer?.files) handleFiles(e.dataTransfer.files);
 });
 
-function handleFiles(event) {
-  const files = event.target.files;
-  if (!files || !files.length) return;
-  resetPersistedState();
-  scheduleData = [];
-  itemsFromServer = [];
-  uploadResults = [];
-  hasUploadFailures = false;
-  for (const file of files) {
-    if (!file.type.startsWith('image/')) continue;
-    filesToUpload.push(file);
-    const previewUrl = URL.createObjectURL(file);
-    const div = document.createElement('div');
-    div.className = 'item';
-    const checkboxCell = document.createElement('div');
-    checkboxCell.className = 'checkbox-cell';
-    const selectCheckbox = document.createElement('input');
-    selectCheckbox.type = 'checkbox';
-    selectCheckbox.className = 'select-item';
-    selectCheckbox.addEventListener('change', updateSendButtonState);
-    checkboxCell.appendChild(selectCheckbox);
-
-    const img = document.createElement('img');
-    img.src = previewUrl;
-    img.alt = file.name;
-
-    const body = document.createElement('div');
-    body.className = 'item-body';
-
-    const destGroup = createDestinationPills(
-      `destination-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      'both',
-    );
-    body.appendChild(destGroup);
-    const destNote = document.createElement('div');
-    destNote.className = 'pill-note';
-    destNote.textContent = 'Destination applies when sending to OnlyFans.';
-    body.appendChild(destNote);
-
-    const caption = document.createElement('textarea');
-    caption.className = 'caption-input';
-    caption.placeholder = `Caption for ${file.name}`;
-    body.appendChild(caption);
-
-    const scheduleRow = document.createElement('div');
-    scheduleRow.className = 'schedule-row';
-    const scheduleLabel = document.createElement('label');
-    scheduleLabel.textContent = 'Send at';
-    const scheduleInput = document.createElement('input');
-    scheduleInput.type = 'datetime-local';
-    scheduleInput.className = 'schedule-input';
-    scheduleLabel.appendChild(scheduleInput);
-    const tzLabel = document.createElement('label');
-    tzLabel.textContent = 'Timezone';
-    const tzSelect = buildTimezoneSelect();
-    tzSelect.value = defaultTimezoneSelect.value || getDefaultTimezone();
-    tzLabel.appendChild(tzSelect);
-    scheduleRow.appendChild(scheduleLabel);
-    scheduleRow.appendChild(tzLabel);
-    body.appendChild(scheduleRow);
-
-    const status = document.createElement('div');
-    status.className = 'upload-status';
-    status.setAttribute('aria-live', 'polite');
-    body.appendChild(status);
-
-    div.appendChild(checkboxCell);
-    div.appendChild(img);
-    div.appendChild(body);
-    gallery.appendChild(div);
+function handleFiles(fileList) {
+  const files = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+  if (!files.length) {
+    setStatusMessage('No image files detected.', 'warning');
+    return;
   }
-}
-
-let scheduleData = [];
-
-function getItemLabel(idx) {
-  const name =
-    itemsFromServer[idx]?.filename ||
-    filesToUpload[idx]?.name ||
-    `Item ${idx + 1}`;
-  return name;
-}
-
-function collectUploadFailures(items, fallbackError = '') {
-  const failures = [];
-  items.forEach((item, idx) => {
-    const uploadStatus = item?.uploadStatus;
-    const hasUrl = Boolean(item?.imageUrl || item?.url);
-    let reason = '';
-    if (uploadStatus === 'failed') {
-      reason = item?.error?.message || fallbackError || 'Upload failed';
-    } else if (!hasUrl) {
-      reason =
-        uploadStatus === 'success'
-          ? 'Missing upload URL'
-          : fallbackError || 'Upload pending or missing media';
-    }
-    if (reason) {
-      failures.push({ index: idx, label: getItemLabel(idx), reason });
-    }
-  });
-  return failures;
-}
-
-function renderUploadStatuses(items, fallbackError = '') {
-  const itemEls = document.querySelectorAll('#gallery .item');
-  items.forEach((item, idx) => {
-    const statusEl = itemEls[idx]?.querySelector('.upload-status');
-    if (!statusEl) return;
-    statusEl.innerHTML = '';
-    const uploadStatus = item?.uploadStatus;
-    const hasUrl = item?.imageUrl || item?.url;
-    if (uploadStatus === 'success' && hasUrl) {
-      statusEl.append('Upload successful: ');
-      const link = document.createElement('a');
-      link.href = item.imageUrl || item.url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = 'Preview';
-      statusEl.appendChild(link);
-    } else if (uploadStatus === 'failed' || fallbackError) {
-      const err = document.createElement('span');
-      err.className = 'error';
-      err.textContent = `Upload failed: ${item?.error?.message || fallbackError || 'Unknown error'}`;
-      statusEl.appendChild(err);
-    } else {
-      statusEl.textContent = 'Upload pending...';
-    }
-  });
-}
-
-function renderScheduleResults(scheduleResults = []) {
-  const itemEls = document.querySelectorAll('#gallery .item');
-  scheduleResults.forEach((result, idx) => {
-    const statusEl = itemEls[idx]?.querySelector('.upload-status');
-    if (!statusEl) return;
-    const existing = statusEl.querySelector('.schedule-status');
-    if (existing) existing.remove();
-    const scheduleStatus = document.createElement('span');
-    scheduleStatus.className = 'schedule-status';
-    if (result.status === 'scheduled') {
-      scheduleStatus.textContent = 'Scheduled successfully';
-    } else if (result.status === 'ready') {
-      scheduleStatus.textContent = 'Saved and ready to send';
-    } else if (result.status === 'error') {
-      scheduleStatus.textContent = `Scheduling error: ${result.last_error || result.error || 'Unknown error'}`;
-      scheduleStatus.classList.add('error');
-    } else {
-      scheduleStatus.textContent = `Scheduling status: ${result.status || 'queued'}`;
-    }
-    statusEl.appendChild(scheduleStatus);
-  });
-}
-
-function renderReuploadResults(reuploadResults = []) {
-  const itemEls = document.querySelectorAll('#gallery .item');
-  reuploadResults.forEach((result) => {
-    const statusEl = itemEls[result.index]?.querySelector('.upload-status');
-    if (!statusEl) return;
-    const existing = statusEl.querySelector('.reupload-status');
-    if (existing) existing.remove();
-    const reuploadStatus = document.createElement('span');
-    reuploadStatus.className = 'reupload-status';
-    if (result.status === 'success') {
-      reuploadStatus.textContent = 'Reupload succeeded';
-    } else if (result.status === 'failed') {
-      reuploadStatus.textContent = `Reupload failed: ${result.reason || 'Upload failed'}`;
-      reuploadStatus.classList.add('error');
-    } else {
-      reuploadStatus.textContent = `Reupload status: ${result.status || 'unknown'}`;
-    }
-    statusEl.appendChild(reuploadStatus);
-  });
-}
-
-function renderSendResults(sendResults = []) {
-  const itemEls = document.querySelectorAll('#gallery .item');
-  sendResults.forEach((result) => {
-    const itemEl = itemEls[result.index];
-    const statusEl =
-      itemEl?.querySelector('.upload-status') || itemEl?.querySelector('.status');
-    if (!statusEl) return;
-    const existing = statusEl.querySelector('.send-status');
-    if (existing) existing.remove();
-    const sendStatus = document.createElement('span');
-    sendStatus.className = 'send-status';
-    const status = result.item?.status || result.status;
-    const error = result.error || result.item?.last_error;
-    if (status === 'queued') {
-      sendStatus.textContent = 'Queued to OnlyFans';
-    } else if (status === 'sent') {
-      sendStatus.textContent = 'Sent to OnlyFans';
-    } else if (status === 'skipped') {
-      sendStatus.textContent = `Send skipped: ${result.reason || 'Already sent'}`;
-      sendStatus.classList.add('error');
-    } else if (status === 'error') {
-      sendStatus.textContent = `Send failed: ${error || 'Unknown error'}`;
-      sendStatus.classList.add('error');
-    } else {
-      sendStatus.textContent = `Send status: ${status || 'unknown'}`;
-    }
-    statusEl.appendChild(sendStatus);
-  });
-}
-
-function updateScheduleControls(items) {
-  const failures = collectUploadFailures(items, uploadErrorMessage);
-  hasUploadFailures = failures.length > 0;
-  scheduleButton.disabled = hasUploadFailures;
-  retryUploadsButton.classList.toggle('hidden', !hasUploadFailures);
-  retryUploadsButton.disabled = !batchId || !hasUploadFailures;
+  filesToUpload.push(...files);
+  setStatusMessage(`${files.length} file(s) added.`, 'info');
+  renderGallery(files);
   updateSendButtonState();
 }
 
-function populateDefaultTimezoneSelect() {
-  defaultTimezoneSelect.innerHTML = '';
-  const tzs = getTimezoneOptions();
-  tzs.forEach((tz) => {
-    const opt = document.createElement('option');
-    opt.value = tz;
-    opt.textContent = tz;
-    defaultTimezoneSelect.appendChild(opt);
+function renderGallery(newFiles) {
+  newFiles.forEach((file, idx) => {
+    const url = URL.createObjectURL(file);
+    const item = document.createElement('div');
+    item.className = 'item';
+    const checkboxCell = document.createElement('div');
+    checkboxCell.className = 'checkbox-cell';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'select-item';
+    checkbox.checked = true;
+    checkbox.addEventListener('change', updateSendButtonState);
+    checkboxCell.appendChild(checkbox);
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = file.name;
+    const body = document.createElement('div');
+    body.className = 'item-body';
+    const nameBadge = document.createElement('div');
+    nameBadge.innerHTML = `${file.name} <span class="badge">${Math.round(file.size / 1024)} KB</span>`;
+    const caption = document.createElement('textarea');
+    caption.className = 'caption-input';
+    caption.placeholder = 'Caption will be generated...';
+    const scheduleRow = document.createElement('div');
+    scheduleRow.className = 'schedule-row';
+    const scheduleInput = document.createElement('input');
+    scheduleInput.type = 'datetime-local';
+    scheduleInput.className = 'schedule-input';
+    scheduleRow.appendChild(scheduleInput);
+    const destGroup = createDestinationPills(`destination-${Date.now()}-${idx}`, 'both');
+    const destNote = document.createElement('div');
+    destNote.className = 'pill-note';
+    destNote.textContent = 'Destination applies when sending to OnlyFans.';
+    body.appendChild(nameBadge);
+    body.appendChild(caption);
+    body.appendChild(scheduleRow);
+    body.appendChild(destGroup);
+    body.appendChild(destNote);
+    item.appendChild(checkboxCell);
+    item.appendChild(img);
+    item.appendChild(body);
+    gallery.appendChild(item);
   });
-  defaultTimezoneSelect.value = getDefaultTimezone();
 }
-
-populateDefaultTimezoneSelect();
-
-const savedInterval = getSavedInterval();
-if (savedInterval) {
-  staggerIntervalInput.value = savedInterval;
-}
-staggerStartInput.value = toDateTimeLocalValue(new Date());
-
-document.getElementById('generateCaptions').addEventListener('click', async () => {
-  if (filesToUpload.length === 0) {
-    alert('Please select images first.');
-    return;
-  }
-  setStatusMessage('Generating captions...', 'info');
-  uploadResults = [];
-  const formData = new FormData();
-  filesToUpload.forEach((file) => formData.append('images', file));
-
-  try {
-    const response = await fetch('/api/bulk-upload', {
-      method: 'POST',
-      body: formData
-    });
-    if (!response.ok) {
-      let errorDetail = `Failed to generate captions: ${response.status}`;
-      try {
-        const errorJson = await response.json();
-        if (errorJson?.error) {
-          errorDetail = `${errorDetail} - ${errorJson.error}`;
-        }
-      } catch (parseErr) {
-        // ignore
-      }
-      throw new Error(errorDetail);
-    }
-    const data = await response.json();
-    if (data.error && !data.uploadErrors) throw new Error('Failed to generate captions');
-    const uploads = Array.isArray(data.uploads) ? data.uploads : [];
-    const items = Array.isArray(data.items) ? data.items : [];
-    const schedule = Array.isArray(data.schedule) ? data.schedule : [];
-    if (uploads.length !== filesToUpload.length) {
-      throw new Error('Upload response missing media references');
-    }
-    const captionInputs = document.querySelectorAll('.caption-input');
-    const scheduleInputs = document.querySelectorAll('.schedule-input');
-    const timezoneSelects = document.querySelectorAll('.timezone-select');
-    const destinationGroups = document.querySelectorAll('.destination-group');
-    // Prefer the richer items array (includes imageUrl)
-    const sourceArray = items.length ? items : data.captions || [];
-    sourceArray.forEach((c, idx) => {
-      if (captionInputs[idx]) captionInputs[idx].value = c.caption;
-    });
-    batchId = data.batchId || null;
-    itemsFromServer = items;
-    uploadResults = uploads;
-    scheduleData = items.length ? items : schedule;
-    const uploadErrors = Array.isArray(data.uploadErrors)
-      ? data.uploadErrors.filter(Boolean)
-      : [];
-    const cloudflareError = data.cloudflareError || uploadErrors[0] || null;
-    uploadErrorMessage = cloudflareError?.message || uploadErrorMessage;
-    const scheduleToRender = items.length ? items : schedule;
-    scheduleToRender.forEach((s, idx) => {
-      const scheduleValue = s.sendAt || s.schedule_time;
-      if (scheduleInputs[idx] && scheduleValue) {
-        scheduleInputs[idx].value = toDateTimeLocalValue(scheduleValue);
-      }
-      if (timezoneSelects[idx] && s.timezone) {
-        timezoneSelects[idx].value = s.timezone;
-      }
-      if (destinationGroups[idx] && s.destination) {
-        setDestinationValue(destinationGroups[idx], s.destination);
-      }
-    });
-    if (items && items.length) {
-      renderUploadStatuses(items, uploadErrorMessage);
-      updateScheduleControls(items);
-    }
-    if (cloudflareError) {
-      setStatusMessage(`Captions generated, but uploads failed: ${uploadErrorMessage}`, 'error');
-    } else {
-      const successes = items.filter((i) => i.uploadStatus === 'success').length;
-      const failures = items.filter((i) => i.uploadStatus === 'failed').length;
-      if (failures) {
-        const failureList = collectUploadFailures(items, uploadErrorMessage)
-          .map((f) => `${f.label}: ${f.reason}`)
-          .join('; ');
-        setStatusMessage(
-          `Captions generated with partial failures. ${successes} upload(s) ready, ${failures} failed. Issues: ${failureList}`,
-          'warning',
-        );
-      } else {
-        setStatusMessage('Captions generated. All uploads ready to schedule.', 'success');
-      }
-    }
-  } catch (err) {
-    console.error(err);
-    setStatusMessage(err?.message || 'Failed to generate captions.', 'error');
-  }
-});
-
-retryUploadsButton.addEventListener('click', async () => {
-  if (!batchId) {
-    setStatusMessage('No batch to retry. Please generate captions again.', 'warning');
-    return;
-  }
-  setStatusMessage('Retrying failed uploads...', 'info');
-  try {
-    const res = await fetch('/api/bulk-upload/retry', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ batchId }),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Retry failed: ${res.status} - ${text}`);
-    }
-    const data = await res.json();
-    batchId = data.batchId || batchId;
-    itemsFromServer = Array.isArray(data.items) ? data.items : itemsFromServer;
-    uploadResults = Array.isArray(data.uploads) ? data.uploads : uploadResults;
-    scheduleData = Array.isArray(data.schedule) ? data.schedule : scheduleData;
-    renderUploadStatuses(itemsFromServer, uploadErrorMessage);
-    updateScheduleControls(itemsFromServer);
-    const remainingFailures = itemsFromServer.filter((i) => i.uploadStatus === 'failed').length;
-    if (remainingFailures) {
-      const failureList = collectUploadFailures(itemsFromServer, uploadErrorMessage)
-        .map((f) => `${f.label}: ${f.reason}`)
-        .join('; ');
-      setStatusMessage(
-        `Retry completed. ${remainingFailures} upload(s) still failing: ${failureList}`,
-        'warning',
-      );
-    } else {
-      setStatusMessage('Retry successful. All uploads ready to schedule.', 'success');
-    }
-  } catch (err) {
-    console.error(err);
-    setStatusMessage(err?.message || 'Retry failed.', 'error');
-  }
-});
 
 defaultTimezoneSelect.addEventListener('change', () => {
   const tz = defaultTimezoneSelect.value;
@@ -641,235 +340,42 @@ staggerIntervalInput.addEventListener('change', () => {
 });
 
 applyStaggerButton.addEventListener('click', () => {
-  const items = Array.from(document.querySelectorAll('#gallery .item'));
-  if (!items.length) {
-    alert('Add items before applying a staggered schedule.');
+  const startVal = staggerStartInput.value;
+  const intervalMin = parseInt(staggerIntervalInput.value, 10);
+  if (!startVal || !Number.isFinite(intervalMin) || intervalMin <= 0) {
+    setStatusMessage('Please set a valid start time and interval.', 'warning');
     return;
   }
-  const startValue = staggerStartInput.value;
-  if (!startValue) {
-    alert('Provide a start time for auto-stagger.');
-    return;
-  }
-  const startDate = new Date(startValue);
-  if (Number.isNaN(startDate.getTime())) {
-    alert('Start time is invalid.');
-    return;
-  }
-  const minutes = parseInt(staggerIntervalInput.value, 10);
-  if (!Number.isFinite(minutes) || minutes <= 0) {
-    alert('Interval must be a positive number of minutes.');
-    return;
-  }
-  saveInterval(minutes);
-  const tz = defaultTimezoneSelect.value || getDefaultTimezone();
-  saveTimezone(tz);
-  let cursor = startDate;
-  items.forEach((item) => {
-    const scheduleInput = item.querySelector('.schedule-input');
-    const tzSelect = item.querySelector('.timezone-select');
-    if (tzSelect) tzSelect.value = tz;
-    if (!scheduleInput) return;
-    const manualValue = scheduleInput.value;
-    if (manualValue) {
-      const manualDate = new Date(manualValue);
-      if (!Number.isNaN(manualDate.getTime())) {
-        cursor = new Date(manualDate.getTime() + minutes * 60000);
-        return;
-      }
+  const items = [...gallery.querySelectorAll('.item')];
+  let cursor = new Date(startVal);
+  let changed = 0;
+  items.forEach((item, i) => {
+    const input = item.querySelector('.schedule-input');
+    if (!input.value) {
+      input.value = toDateTimeLocalValue(cursor);
+      changed++;
+      cursor = new Date(cursor.getTime() + intervalMin * 60000);
     }
-    scheduleInput.value = toDateTimeLocalValue(cursor);
-    cursor = new Date(cursor.getTime() + minutes * 60000);
   });
-  setStatusMessage('Auto-stagger applied. Manual entries were preserved.', 'info');
+  setStatusMessage(changed ? `Filled ${changed} empty time(s).` : 'No empty schedule fields to fill.', 'info');
 });
 
-document.getElementById('schedulePosts').addEventListener('click', async () => {
-  if (!scheduleData || scheduleData.length === 0) {
-    alert('Please generate captions first.');
-    return;
-  }
-  if (!uploadResults || uploadResults.length === 0) {
-    alert('Uploads missing. Please regenerate captions to refresh uploads.');
-    return;
-  }
-  if (hasUploadFailures) {
-    const failures = collectUploadFailures(itemsFromServer, uploadErrorMessage);
-    const reasons = failures
-      .map((f) => `${f.label}: ${f.reason}`)
-      .join('; ');
-    setStatusMessage(
-      `Scheduling blocked. Resolve failed uploads before scheduling. Issues: ${reasons}`,
-      'error',
-    );
-    return;
-  }
-  setStatusMessage('Scheduling posts...', 'info');
-  lastScheduleSucceeded = false;
-  try {
-    const items = Array.from(document.querySelectorAll('#gallery .item'));
-    const posts = items.map((item, idx) => {
-      const upload = uploadResults[idx];
-      const itemFromServer = itemsFromServer[idx] || {};
-      const url =
-        itemFromServer.imageUrl ||
-        itemFromServer.media_url ||
-        itemFromServer.url ||
-        (upload && upload.url) ||
-        null;
-      const captionEl = item.querySelector('.caption-input');
-      const scheduleFromApi =
-        scheduleData[idx]?.sendAt ||
-        scheduleData[idx]?.schedule_time ||
-        scheduleData[idx]?.scheduled_at_utc ||
-        null;
-      const scheduleInput = item.querySelector('.schedule-input');
-      const tzSelect = item.querySelector('.timezone-select');
-      const destinationGroup = item.querySelector('.destination-group');
-      let scheduleTime = scheduleFromApi;
-      if (scheduleInput && scheduleInput.value) {
-        const parsed = new Date(scheduleInput.value);
-        if (!Number.isNaN(parsed.getTime())) {
-          scheduleTime = parsed.toISOString();
-        }
-      }
-      const timezone =
-        (tzSelect && tzSelect.value) || defaultTimezoneSelect.value || getDefaultTimezone();
-      const destination = destinationGroup ? getDestinationValue(destinationGroup) : 'both';
-      const itemLabel = getItemLabel(idx);
-      const bothDisabled = destination !== 'both';
-      return {
-        imageUrl: url,
-        caption: captionEl ? captionEl.value : '',
-        scheduledAtUtc: scheduleTime || null,
-        timezone,
-        mode: destination,
-        source_filename: itemLabel,
-        both_disabled: bothDisabled,
-      };
-    });
-    const persistRes = await fetch('/api/schedule-bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items: posts,
-      })
-    });
-    if (!persistRes.ok) {
-      let errorMessage = `Failed to schedule posts: ${persistRes.status}`;
-      try {
-        const bodyText = await persistRes.text();
-        console.error('schedule posts failed', persistRes.status, bodyText);
-        const parsedBody = JSON.parse(bodyText);
-        if (parsedBody?.error) errorMessage = parsedBody.error;
-      } catch (e) {
-        // ignore parse errors
-      }
-      setStatusMessage(errorMessage, 'error');
-      throw new Error(errorMessage);
-    }
-    const responseBody = await persistRes.json();
-    const scheduleResults = Array.isArray(responseBody.items)
-      ? responseBody.items
-      : [];
-    scheduledItems = scheduleResults;
-    renderScheduleResults(scheduleResults);
-    const itemsEls = document.querySelectorAll('#gallery .item');
-    scheduleResults.forEach((result, idx) => {
-      if (result?.id && itemsEls[idx]) {
-        itemsEls[idx].dataset.itemId = result.id;
-      }
-    });
-    const savedCount = scheduleResults.length;
-    const scheduledCount = scheduleResults.filter((r) => r.status === 'scheduled').length;
-    const readyCount = scheduleResults.filter((r) => r.status === 'ready').length;
-    lastScheduleSucceeded = savedCount > 0;
-    updateSendButtonState();
-    if (!savedCount) {
-      setStatusMessage('No items were scheduled. Verify uploads before retrying.', 'error');
-    } else {
-      const statusParts = [];
-      if (scheduledCount) statusParts.push(`${scheduledCount} scheduled`);
-      if (readyCount) statusParts.push(`${readyCount} ready to send`);
-      setStatusMessage(
-        `Posts scheduled! Saved ${savedCount} item(s). ${statusParts.join(', ')}. Check bulk_results.html for full results and send queue.`,
-        'success',
-      );
-    }
-  } catch (err) {
-    console.error(err);
-    lastScheduleSucceeded = false;
-    updateSendButtonState();
-    const fallbackMessage = err?.message || 'Failed to schedule posts.';
-    setStatusMessage(fallbackMessage, 'error');
-  }
-});
-
-sendSelectedButton.addEventListener('click', async () => {
-  const items = Array.from(document.querySelectorAll('#gallery .item'));
-  const selected = items
-    .map((item, idx) => ({
-      id: item.dataset.itemId ? Number(item.dataset.itemId) : null,
-      checked: item.querySelector('.select-item')?.checked,
-      index: idx,
-    }))
-    .filter((entry) => entry.checked && Number.isFinite(entry.id));
-
+scheduleButton.addEventListener('click', () => {
+  const selected = [...gallery.querySelectorAll('.item')].filter((i) => i.querySelector('.checkbox-cell input').checked);
   if (!selected.length) {
-    alert('Select at least one scheduled item to send.');
+    setStatusMessage('Select at least one item to schedule.', 'warning');
     return;
   }
-  if (!lastScheduleSucceeded) {
-    alert('Please schedule items first.');
+  setStatusMessage(`Prepared ${selected.length} item(s) for scheduling.`, 'success');
+});
+
+sendSelectedButton.addEventListener('click', () => {
+  const selected = [...gallery.querySelectorAll('.item')].filter((i) => i.querySelector('.checkbox-cell input').checked);
+  if (!selected.length) {
+    setStatusMessage('Select at least one item to send.', 'warning');
     return;
   }
-
-  const itemIds = selected.map((entry) => entry.id);
-  const idToIndex = new Map(selected.map((entry) => [entry.id, entry.index]));
-
-  setStatusMessage('Sending selected items to OnlyFans queue...', 'info');
-  sendSelectedButton.disabled = true;
-  try {
-    const res = await fetch('/api/send-to-queue', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemIds }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Failed to send: ${res.status} - ${body}`);
-    }
-    const payload = await res.json();
-    const results = Array.isArray(payload.results) ? payload.results : [];
-    const sendResultsWithIndex = results.map((result) => ({
-      ...result,
-      index: idToIndex.has(result.id) ? idToIndex.get(result.id) : -1,
-    }));
-    sendResultsWithIndex.forEach((result) => {
-      if (Number.isInteger(result.index) && result.index >= 0 && result.item) {
-        scheduledItems[result.index] = result.item;
-      }
-    });
-    renderSendResults(sendResultsWithIndex.filter((r) => r.index >= 0));
-    const queued = results.filter((r) => (r.item?.status || r.status) === 'queued').length;
-    const failed = results.filter((r) => (r.item?.status || r.status) === 'error').length;
-    if (failed) {
-      setStatusMessage(
-        `Send completed with issues. Queued ${queued}, failed ${failed}.`,
-        'error',
-      );
-    } else {
-      setStatusMessage(
-        `Send successful. Queued ${queued} item(s) to OnlyFans. View logs in bulk_results.html.`,
-        'success',
-      );
-    }
-  } catch (err) {
-    console.error(err);
-    setStatusMessage(err?.message || 'Failed to send selected items.', 'error');
-  } finally {
-    updateSendButtonState();
-  }
+  setStatusMessage(`Ready to upload ${selected.length} item(s) to OnlyFans queue.`, 'success');
 });
 </script>
 </body>
