@@ -1,10 +1,14 @@
 {
   "name": "ofem",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "OnlyFans Express Messenger - Simplified mass DM tool",
   "main": "server.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node scripts/predeploy.js && node server.js",
+    "cli": "node src/cli.js",
+    "fetch": "node src/cli.js fetch",
+    "send": "node src/cli.js send",
     "test": "jest",
     "lint": "eslint .",
     "format": "prettier --write .",

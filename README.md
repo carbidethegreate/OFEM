@@ -25,6 +25,47 @@ nicknames.
 - **Vault Media & Lists** – Upload media, scrape external URLs, and organise items
   into reusable lists for composing messages.
 
+## Reply Assistant CLI (fetch and send)
+
+This repo also includes an optional standalone CLI that generates suggested replies
+for unread chat messages, writes them to a local JSON file, and can send them.
+
+### Commands
+
+Run directly:
+
+```bash
+node src/cli.js fetch
+node src/cli.js send --dry
+node src/cli.js send
+```
+
+Or via npm scripts:
+
+```bash
+npm run fetch
+npm run send -- --dry
+npm run send
+```
+
+### Output
+
+- `suggestions.json` is written to the project root.
+- You can edit the `suggestedReply` fields before sending.
+
+### Config
+
+Required environment variables:
+
+- `ONLYFANS_API_KEY` and `ONLYFANS_ACCOUNT_ID` (aliases `OF_API_KEY` and `OF_ACCOUNT_ID`)
+- `OPENAI_API_KEY` (required for `fetch`)
+
+Tune behavior in `src/cli.js`:
+
+- `CHATS_LIMIT`, `HISTORY_MSG_LIMIT_FETCH`
+- `OPENAI_TEMPERATURE`, `OPENAI_MAX_TOKENS`
+- `CONCURRENCY`, `RECHECK_SKIP_PAID`
+
 ## Prerequisites
 
 - Node.js 22 LTS (>=22.0.0)
